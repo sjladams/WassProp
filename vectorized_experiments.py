@@ -70,27 +70,28 @@ if __name__ == "__main__":
     plt.show()
 
     # Global Lipschitz constant of f
-    print(f.global_lipschitz())
+    print(f"Global Lipschitz constant of f: {f.global_lipschitz()}")
 
     ### 2) System assumptions
-    ##### 2.1) Noise structure
-    # We consider, for every $t$, the noise structure to be given by
-    # $\epsilon_t \sim \mathcal{N}(0, \sigma^{2}_\epsilon)$, with $\sigma^{2}_\epsilon = 0.3^2$.
 
-    mean_noise = 0
-    std_dev_noise = 0.3
-    noise_samples = torch.normal(mean=mean_noise, std=std_dev_noise, size=x.shape)
-
-    ##### 2.2) Initial distribution
+    ##### 2.1) Initial distribution
     # We consider $\mathbb{P}_{0} = \mathcal{N}(1, \sigma^{2}_0)$
 
     initial_distribution = torch.distributions.Normal(loc=1, scale=1)
     initial_distribution_samples = initial_distribution.sample(sample_shape=torch.Size((n_samples,)))
 
+    ##### 2.2) Noise structure
+    # We consider, for every $t$, the noise structure to be given by
+    # $\epsilon_t \sim \mathcal{N}(0, \sigma^{2}_\epsilon)$, with $\sigma^{2}_\epsilon = 0.3^2$.
+
+    mean_noise = 0
+    std_dev_noise = 0.3
+    noise_samples = torch.normal(mean=mean_noise, std=std_dev_noise, size=initial_distribution_samples.shape)
+
     ##### 2.3) Monte Carlo simulation of the system
     # We sample the system and build the histograms for $x_0$ and $x_1$. Those are approximations of the true
     # distributions $\mathbb{P}_0$ and $\mathbb{P}_1$.
-    propagated_states = y + noise_samples
+    propagated_states = f(initial_distribution_samples) + noise_samples
 
     fig_histograms = plt.figure()
     plt.hist(initial_distribution_samples, alpha=0.5, label='t = 0', bins=100, density=True)
@@ -245,21 +246,6 @@ if __name__ == "__main__":
 
         return torch.sqrt(outer_sum)
 
-
-    def compute_gradients(lambd, omega, signature_probas, beta, projection_matrix, budget):
-
-        #Forward pass
-        result = compute_bound(lambd, omega, signature_probas, beta, projection_matrix, budget)
-
-        #Backward pass to compute gradients
-        result.backward()
-
-        # Gradients
-        lambda_grad = lambd.grad
-        omega_grad = omega.grad
-
-        return lambda_grad, omega_grad
-
     ##### 5.7) Project $\Omega$ to $M_{+}$
 
     # To ensure that we only have positive values in $\Omega$, what we currently do is: in each step of the gradient descent, we check whether this is true. If not, we replace the negative value for a random value between $0$ and $0.1$.
@@ -272,7 +258,7 @@ if __name__ == "__main__":
 
     def gradient_descent(
         lambd,
-        omega,
+        alpha,
         signature_probas,
         beta,
         projection_matrix,
@@ -282,7 +268,7 @@ if __name__ == "__main__":
         epsilon=1e-8  # Tolerance for early stopping
     ):
         # Initialize the Adam optimizer
-        optimizer = torch.optim.Adam([lambd, omega], lr = lr)
+        optimizer = torch.optim.Adam([lambd, alpha], lr = lr)
 
         # Store losses for tracking the optimization progress
         loss_history = []
@@ -291,22 +277,23 @@ if __name__ == "__main__":
             optimizer.zero_grad()  # Reset gradients to zero before backpropagation
 
             # Perform the forward and backward passes to compute the gradients
+            omega = torch.exp(alpha)
             result = compute_bound(lambd, omega, signature_probas, beta, projection_matrix, budget)
             result.backward()
 
             # Modify gradients before the optimizer step (only for omega)
-            with torch.no_grad():
-                for param in [omega]:
-                    if param.grad is not None:
-                        # Project the gradient onto the tangent space defined by Omega v = 1
-                        grad_projection = param.grad - (param.grad @ signature_probas) * signature_probas / signature_probas.dot(signature_probas)
-                        param.grad = grad_projection
+            #with torch.no_grad():
+            #    for param in [omega]:
+            #        if param.grad is not None:
+            #            # Project the gradient onto the tangent space defined by Omega v = 1
+            #            grad_projection = param.grad - (param.grad @ signature_probas) * signature_probas / signature_probas.dot(signature_probas)
+            #            param.grad = grad_projection
 
             # Perform an optimization step (gradient descent step)
             optimizer.step()
 
-            with torch.no_grad():
-                omega = projection_on_subspace(omega, signature_probas)
+            #with torch.no_grad():
+            #    omega = projection_on_subspace(omega, signature_probas)
 
             # Optionally track the loss (objective function value)
             loss_history.append(result.item())
@@ -322,6 +309,7 @@ if __name__ == "__main__":
 
         #Final values
         with torch.no_grad():
+            omega = torch.exp(alpha)
             result = compute_bound(lambd, omega, signature_probas, beta, projection_matrix, budget)
             print(f"Final bound: {result.item()}")
 
@@ -332,23 +320,26 @@ if __name__ == "__main__":
 
     lambd = torch.tensor(0.1, requires_grad=True)
 
+    alpha = 0.1 * torch.randn(n_signatures, n_signatures)
+    alpha.requires_grad_()
+
     #omega = torch.ones(n_signatures, n_signatures, requires_grad=True)
-    omega = torch.rand(n_signatures, n_signatures)
+    #omega = torch.rand(n_signatures, n_signatures)
     #omega = torch.diag(1.0 / initial_signature_probs)
-    omega = projection_on_subspace(omega, initial_signature_probs)
-    omega.requires_grad_()
-    print(torch.matmul(omega, initial_signature_probs))
+    #omega = projection_on_subspace(omega, initial_signature_probs)
+    #omega.requires_grad_()
+    #print(torch.matmul(omega, initial_signature_probs))
 
     # Perform gradient descent using Adam
     optimized_lambda, optimized_omega, losses = gradient_descent(
         lambd=lambd,
-        omega=omega,
+        alpha=alpha,
         signature_probas=initial_signature_probs,
         beta=beta,
         projection_matrix=projection_matrix,
         budget=wasserstein_squared_zero,
         lr=0.001,
-        num_iterations=450
+        num_iterations=850
     )
 
 
@@ -356,5 +347,8 @@ if __name__ == "__main__":
     print(optimized_lambda)
     print(optimized_omega)
     print(torch.matmul(optimized_omega, initial_signature_probs))
+
+    result = compute_bound(optimized_lambda, optimized_omega, initial_signature_probs, beta, projection_matrix, wasserstein_squared_zero)
+    print(f"Final bound: {result.item()}")
 
 
