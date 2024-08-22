@@ -254,9 +254,6 @@ if __name__ == "__main__":
         # Take the max over the computed value_matrix
         max_values = value_matrix.max(0).values.max(0).values
 
-        #print("MAX VALUES")
-        #print(max_values)
-
         # Compute the outer_sum using vectorized operations
         outer_sum = torch.sum(signature_probs[:, None] * signature_probs[None, :] * max_values)
         outer_sum += lambd * 2 * budget
@@ -302,6 +299,7 @@ if __name__ == "__main__":
             # Perform the forward and backward passes to compute the gradients
             omega = torch.exp(alpha)
 
+            #Add constraint as penalty
             constraint = constraint_subspace(omega, signature_probas)
             penalty = torch.sum(constraint ** 2)
 
@@ -310,19 +308,8 @@ if __name__ == "__main__":
             result = bound + penalty
             result.backward()
 
-            # Modify gradients before the optimizer step (only for omega)
-            #with torch.no_grad():
-            #    for param in [omega]:
-            #        if param.grad is not None:
-            #            # Project the gradient onto the tangent space defined by Omega v = 1
-            #            grad_projection = param.grad - (param.grad @ signature_probas) * signature_probas / signature_probas.dot(signature_probas)
-            #            param.grad = grad_projection
-
             # Perform an optimization step (gradient descent step)
             optimizer.step()
-
-            #with torch.no_grad():
-            #    omega = projection_on_subspace(omega, signature_probas)
 
             # Optionally track the loss (objective function value)
             loss_history.append(result.item())
@@ -335,11 +322,6 @@ if __name__ == "__main__":
             if len(loss_history) > 1 and abs(loss_history[-1] - loss_history[-2]) < epsilon:
                 print("Converged after {} iterations.".format(iteration))
                 break
-
-        #Project omega on subspace (39)
-        #with torch.no_grad():
-        #    omega = torch.exp(alpha)
-        #    omega = projection_on_subspace(omega, signature_probas)
 
         return lambd, omega, loss_history
 
