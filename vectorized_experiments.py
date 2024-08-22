@@ -6,16 +6,24 @@ import torch
 
 class _Dynamics:
     def interval_approximation(self, region_1: torch.Tensor, region_2: torch.Tensor):
-        # TODO</span>: This function is currently wrong when the region contains the point $0$, but it is a very
-        #  good proxy. This will be addressed later. (SA: function is preserved, I just rewritten it
-        # Combine the boundary points of both regions into a single tensor
-        points = torch.cat((region_1, region_2))
+        # TODO</span>: Quick fix. We need to make sure only to compare f(region_1) to f(region_2)
+
+        zero_tensor = torch.tensor([0])
+
+        points_1 = region_1.clone()
+        points_2 = region_2.clone()
+
+        if (region_1[0] <= 0) & (region_1[1] >= 0):
+            points_1 = torch.cat((region_1, zero_tensor))
+        if (region_2[0] <= 0) & (region_2[1] >= 0):
+            points_2 = torch.cat((region_2, zero_tensor))
 
         # Evaluate the dynamics at all boundary points
-        values = self(points)
+        values_1 = self(points_1)
+        values_2 = self(points_2)
 
         # Compute the maximum absolute difference between all pairs
-        max_value = (torch.max(torch.abs(values.unsqueeze(0) - values.unsqueeze(1))))
+        max_value = (torch.max(torch.abs(values_1.unsqueeze(0) - values_2.unsqueeze(1))))
         return max_value.item()
 
     def __call__(self, *args, **kwargs):
@@ -40,7 +48,7 @@ class GaussianDynamics(_Dynamics):
 
 if __name__ == "__main__":
     # \TODO use snn2mgps package to create signatures, and initiate gmms objects.
-    torch.manual_seed(0) # for reproducibility
+    torch.manual_seed(10) # for reproducibility
 
     # Experiment 1: 1D Gaussian dynamics
 
@@ -61,7 +69,7 @@ if __name__ == "__main__":
 
     # Plot dynamics
     n_samples = 1000
-    x = torch.linspace(start=-5, end=5, steps=n_samples)
+    x = torch.linspace(start=-5, end=5, steps=500)
     y = f(x)
 
     fig_dynamics = plt.figure()
@@ -189,6 +197,9 @@ if __name__ == "__main__":
 
             projection_matrix[i][j] = project ** 2
 
+    #TODO: CHECK IF IT SHOULD BE THE TRANSPOSE
+    #projection_matrix = torch.transpose(projection_matrix, 0, 1)
+
     ##### 5.4) Compute constant term
     # This term is equivalent to $\sum_{m=1}^N\Tilde{\beta}_{km}(\omega_{km}, \omega_{lm}}))$ in Corollary 9
 
@@ -230,6 +241,9 @@ if __name__ == "__main__":
 
         return projection
 
+    def constraint_subspace(omega, signature_probs):
+        return torch.matmul(omega, signature_probs) - torch.ones(signature_probs.size(0))
+
     ##### 5.6) Compute bound using method
     def compute_bound(lambd, omega, signature_probs, beta, projection_matrix, budget):
         # \TODO optimize memory w.r.t. projection_matrix
@@ -240,9 +254,15 @@ if __name__ == "__main__":
         # Take the max over the computed value_matrix
         max_values = value_matrix.max(0).values.max(0).values
 
+        #print("MAX VALUES")
+        #print(max_values)
+
         # Compute the outer_sum using vectorized operations
         outer_sum = torch.sum(signature_probs[:, None] * signature_probs[None, :] * max_values)
         outer_sum += lambd * 2 * budget
+
+        #Avoid negative values (as our GD does not take (39) into account)
+        outer_sum = torch.clamp(outer_sum, min = 0)
 
         return torch.sqrt(outer_sum)
 
@@ -267,6 +287,9 @@ if __name__ == "__main__":
         num_iterations=100,  # Number of iterations
         epsilon=1e-8  # Tolerance for early stopping
     ):
+
+        torch.autograd.set_detect_anomaly(True)
+
         # Initialize the Adam optimizer
         optimizer = torch.optim.Adam([lambd, alpha], lr = lr)
 
@@ -278,7 +301,13 @@ if __name__ == "__main__":
 
             # Perform the forward and backward passes to compute the gradients
             omega = torch.exp(alpha)
-            result = compute_bound(lambd, omega, signature_probas, beta, projection_matrix, budget)
+
+            constraint = constraint_subspace(omega, signature_probas)
+            penalty = torch.sum(constraint ** 2)
+
+            bound = compute_bound(lambd, omega, signature_probas, beta, projection_matrix, budget)
+
+            result = bound + penalty
             result.backward()
 
             # Modify gradients before the optimizer step (only for omega)
@@ -299,7 +328,7 @@ if __name__ == "__main__":
             loss_history.append(result.item())
 
             # Optional: Print progress
-            if iteration % 10 == 0:
+            if iteration % 20 == 0:
                 print(f"Iteration {iteration}/{num_iterations}, Bound: {result.item()}")
 
             # Check for convergence (early stopping)
@@ -307,16 +336,13 @@ if __name__ == "__main__":
                 print("Converged after {} iterations.".format(iteration))
                 break
 
-        #Final values
-        with torch.no_grad():
-            omega = torch.exp(alpha)
-            result = compute_bound(lambd, omega, signature_probas, beta, projection_matrix, budget)
-            print(f"Final bound: {result.item()}")
+        #Project omega on subspace (39)
+        #with torch.no_grad():
+        #    omega = torch.exp(alpha)
+        #    omega = projection_on_subspace(omega, signature_probas)
 
         return lambd, omega, loss_history
 
-    #lambda_param = 0.1
-    #omega = np.ones((len(regions), len(regions)))
 
     lambd = torch.tensor(0.1, requires_grad=True)
 
@@ -338,17 +364,87 @@ if __name__ == "__main__":
         beta=beta,
         projection_matrix=projection_matrix,
         budget=wasserstein_squared_zero,
-        lr=0.001,
-        num_iterations=850
+        lr=0.01,
+        num_iterations=1000
     )
 
 
-    print('AFTER OPTIMIZATION')
-    print(optimized_lambda)
-    print(optimized_omega)
+    print('--------------RESULTS--------------')
+    print(f"Optimized lambda: {optimized_lambda}")
+
+    print(f"Optimized omega: {optimized_omega}")
     print(torch.matmul(optimized_omega, initial_signature_probs))
 
-    result = compute_bound(optimized_lambda, optimized_omega, initial_signature_probs, beta, projection_matrix, wasserstein_squared_zero)
-    print(f"Final bound: {result.item()}")
+    optimized_omega = projection_on_subspace(optimized_omega, initial_signature_probs)
+    print(torch.matmul(optimized_omega, initial_signature_probs))
+
+    bound = compute_bound(optimized_lambda, optimized_omega, initial_signature_probs, beta, projection_matrix, wasserstein_squared_zero)
+    print(f"Final bound: {bound.item()}")
+
+
+
+    # f_old = result.item()
+    # print(f_old)
+    #
+    # def objective(f_old, lambd, alpha_proj, signature_probs, beta, projection_matrix, budget):
+    #
+    #     f_old = f_old
+    #
+    #     omega_proj = torch.exp(alpha_proj)
+    #     f_new = compute_bound(lambd, omega_proj, signature_probs, beta, projection_matrix, budget)
+    #
+    #     return torch.norm(f_new - f_old) ** 2
+    #
+    #
+    # def constraint(alpha_proj, signature_probs):
+    #     omega_proj = torch.exp(alpha_proj)
+    #     return torch.matmul(omega_proj, signature_probs) - torch.ones(signature_probs.size(0))
+    #
+    #
+    # import torch.optim as optim
+    # # Initialize Omega_new as a tensor with requires_grad=True for optimization
+    # #omega_proj = optimized_omega.detach().clone() # Flatten for optimization
+    # #omega_proj.requires_grad_()
+    # alpha_proj = 0.1 * torch.randn(n_signatures, n_signatures)
+    # alpha_proj.requires_grad_()
+    #
+    # # Define optimizer
+    # optimizer = optim.Adam([alpha_proj], lr=0.01)  # You can use other optimizers if preferred
+    #
+    # # Training loop
+    # for epoch in range(10000):  # Number of epochs
+    #     optimizer.zero_grad()
+    #
+    #     # Calculate objective
+    #     loss = objective(f_old, lambd, alpha_proj, initial_signature_probs, beta, projection_matrix, wasserstein_squared_zero)
+    #
+    #     # Calculate constraints
+    #     con = constraint(alpha_proj, initial_signature_probs)
+    #
+    #     # Add constraint penalty (if any)
+    #     penalty = torch.sum(con ** 2)  # Penalty for violation of equality constraint
+    #
+    #     # Total loss with penalty
+    #     total_loss = loss + penalty
+    #
+    #     # Backward pass and optimization
+    #     total_loss.backward()
+    #     optimizer.step()
+    #
+    #     # Print loss every 100 iterations
+    #     if epoch % 100 == 0:
+    #         print(f'Epoch [{epoch + 1}/1000], Loss: {total_loss.item()}')
+    #
+    # # Reshape Omega_new to the original shape
+    # #omega_proj = omega_proj.detach().view(optimized_omega.shape)
+    # print("New omega:")
+    # print(torch.exp(alpha_proj))
+    #
+    # omega_final = torch.exp(alpha_proj)
+    # print(torch.matmul(omega_final, initial_signature_probs))
+    #
+    # result = compute_bound(optimized_lambda, omega_final, initial_signature_probs, beta, projection_matrix,
+    #                        wasserstein_squared_zero)
+    # print(f"Final bound: {result.item()}")
 
 
