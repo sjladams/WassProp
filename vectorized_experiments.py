@@ -114,7 +114,7 @@ if __name__ == "__main__":
     # partition of $\mathbb{R}$ in which each signature is in its center location (except for the unbounded regions,
     # where the signatures are in arbitrary pre-chosen locations).
 
-    n_signatures = 20
+    n_signatures = 10
     inner_edges = torch.linspace(start=initial_distribution.mean - 3 * initial_distribution.stddev,
                            end=initial_distribution.mean + 3 * initial_distribution.stddev,
                            steps=n_signatures-1)
@@ -342,7 +342,7 @@ if __name__ == "__main__":
 
 
 
-    def compute_discrete_to_discrete_upper_bound(signatures, signature_probas):
+    def compute_discrete_to_discrete_trivial(signatures, signature_probas):
 
         f_signatures = f(signatures)
         f_distance_signatures = f_signatures.unsqueeze(1) - f_signatures.unsqueeze(0)
@@ -351,6 +351,23 @@ if __name__ == "__main__":
         bound = torch.sum(signature_probas * max_values)
 
         return torch.sqrt(bound)
+
+    #TODO: CHECK IF THIS HOLDS THEORETICALLY
+    def compute_discrete_to_discrete_upper_bound(signatures, budget):
+
+        f_signatures = f(signatures)
+        f_distance_signatures = f_signatures.unsqueeze(1) - f_signatures.unsqueeze(0)
+        f_distance_signatures = f_distance_signatures ** 2
+
+        distances_between_signatures = signatures.unsqueeze(1) - signatures.unsqueeze(0)
+        distances_between_signatures = distances_between_signatures ** 2
+
+        impact = f_distance_signatures * budget / distances_between_signatures
+        finite_mask = torch.isfinite(impact)  # We ignore the values where quotient is zero (transfer inside same region)
+        impact = torch.where(finite_mask, impact, torch.tensor(float('-inf')))
+        max_impact = torch.max(impact)
+
+        return torch.sqrt(max_impact)
 
 
 
@@ -377,8 +394,11 @@ if __name__ == "__main__":
 
 
     print('--------------BOUND (II)--------------')
-    bound_discrete_discrete = compute_discrete_to_discrete_upper_bound(signatures, initial_signature_probs)
+    bound_discrete_discrete = compute_discrete_to_discrete_upper_bound(signatures, wasserstein_squared_zero)
     print(f"Bound (II): {bound_discrete_discrete:.4f}")
+
+    bound_discrete_discrete_trivial = compute_discrete_to_discrete_trivial(signatures, initial_signature_probs)
+    print(f"Bound (II) - Trivial: {bound_discrete_discrete_trivial:.4f}")
 
 
     print('--------------FINAL RESULTS--------------')
