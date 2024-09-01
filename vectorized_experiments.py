@@ -48,7 +48,7 @@ class GaussianDynamics(_Dynamics):
 
 if __name__ == "__main__":
     # \TODO use snn2mgps package to create signatures, and initiate gmms objects.
-    torch.manual_seed(10) # for reproducibility
+    torch.manual_seed(0) # for reproducibility
 
     # Experiment 1: 1D Gaussian dynamics
 
@@ -114,15 +114,19 @@ if __name__ == "__main__":
     # partition of $\mathbb{R}$ in which each signature is in its center location (except for the unbounded regions,
     # where the signatures are in arbitrary pre-chosen locations).
 
-    n_signatures = 10
+    n_signatures = 20
     inner_edges = torch.linspace(start=initial_distribution.mean - 3 * initial_distribution.stddev,
                            end=initial_distribution.mean + 3 * initial_distribution.stddev,
                            steps=n_signatures-1)
+    #inner_edges = torch.Tensor([])
     edges = torch.cat((-torch.tensor(torch.inf).view(1), inner_edges, torch.tensor(torch.inf).view(1)))
+    print(f"Edges: {edges}")
+
     initial_signature_probs = initial_distribution.cdf(inner_edges).diff(prepend=torch.zeros(1), append=torch.ones(1))
     signatures = torch.cat(((initial_distribution.mean - 3 * initial_distribution.stddev - 1).view(1),
                             inner_edges[:-1] + inner_edges.diff() * 0.5,
                            (initial_distribution.mean + 3 * initial_distribution.stddev + 1).view(1)))
+    print(f"Signatures: {signatures}")
 
     fig_initial_signature = plt.figure()
     plt.bar(signatures, initial_signature_probs, width=0.1)
@@ -197,22 +201,11 @@ if __name__ == "__main__":
 
             projection_matrix[i][j] = project ** 2
 
-    #TODO: CHECK IF IT SHOULD BE THE TRANSPOSE
-    #projection_matrix = torch.transpose(projection_matrix, 0, 1)
-
     ##### 5.4) Compute constant term
-    # This term is equivalent to $\sum_{m=1}^N\Tilde{\beta}_{km}(\omega_{km}, \omega_{lm}}))$ in Corollary 9
 
-    def compute_constant_term(omega, signature_probas, beta):
-        # Expand omega to create pairwise combinations
-        omega_k = omega[:, None]
-        omega_l = omega[None, :]
+    def compute_constant_term(beta):
 
-        # Compute the value for each (k, l) pair using broadcasting
-        # beta[:, None] expands beta to match the shape (num_regions, 1) for broadcasting
-        value = torch.sum(omega_k * signature_probas * beta[:, None] * (2 - omega_l), dim=-1)
-
-        return value
+        return beta.diagonal()
 
 
     ##### 5.5) Project matrix on subspace
@@ -222,46 +215,25 @@ if __name__ == "__main__":
 
     # $$ \Omega^{'} \leftarrow \Omega^{'} + \frac{\mathbb{1} - \Omega^{'} v}{v^T v} v^T $$
 
-    def projection_on_subspace(omega, proba_vector):
-
-        if omega.dim() == 1:
-            omega = omega.unsqueeze(0)
-
-        if omega.dtype != proba_vector.dtype:
-            # Convert both tensors to float32 if their types don't match
-            omega = omega.to(torch.float32)
-            proba_vector = proba_vector.to(torch.float32)
-
-        ones = torch.ones(omega.size(0), dtype=torch.float32)
-        factor = torch.dot(proba_vector, proba_vector)
-        omega_dot_proba = torch.matmul(omega, proba_vector)
-        c = (ones - omega_dot_proba) / factor
-
-        projection = omega + (c.unsqueeze(1) * proba_vector.unsqueeze(0))
-
-        return projection
 
     def constraint_subspace(omega, signature_probs):
         return torch.matmul(omega, signature_probs) - torch.ones(signature_probs.size(0))
 
     ##### 5.6) Compute bound using method
-    def compute_bound(lambd, omega, signature_probs, beta, projection_matrix, budget):
+    def compute_bound(lambd, signature_probs, beta, projection_matrix, budget):
         # \TODO optimize memory w.r.t. projection_matrix
-        constant_term = compute_constant_term(omega, signature_probs, beta)
-        value_matrix = constant_term[:, :, None, None] - lambd * (
-                projection_matrix[:, None, :, None] + projection_matrix[None, :, None, :])
+        constant_term = compute_constant_term(beta)
+        value_matrix = constant_term - lambd * projection_matrix[:, None]
 
         # Take the max over the computed value_matrix
-        max_values = value_matrix.max(0).values.max(0).values
+        max_values = value_matrix.max(0).values
 
         # Compute the outer_sum using vectorized operations
-        outer_sum = torch.sum(signature_probs[:, None] * signature_probs[None, :] * max_values)
-        outer_sum += lambd * 2 * budget
-
-        #Avoid negative values (as our GD does not take (39) into account)
-        outer_sum = torch.clamp(outer_sum, min = 0)
+        outer_sum = torch.sum(signature_probs * max_values)
+        outer_sum += lambd * budget
 
         return torch.sqrt(outer_sum)
+
 
     ##### 5.7) Project $\Omega$ to $M_{+}$
 
@@ -271,11 +243,63 @@ if __name__ == "__main__":
 
     # TODO: Steven gave the idea of optimizing for the squared values.
 
+    def compute_lower_probas(signature_probs, signatures, regions, wass_budget):
+
+        distances_right = regions[:, 1] - signatures
+        distances_left = signatures - regions[:, 0]
+        distances_signature_to_extremity = torch.minimum(distances_left, distances_right)
+
+        probs_to_be_moved = wass_budget / (distances_signature_to_extremity ** 2)
+
+        inf_bounds = torch.maximum(torch.zeros_like(signature_probs), signature_probs - probs_to_be_moved)
+
+        return inf_bounds
+
+
+    def compute_upper_probas(signature_probs, signatures, regions, wass_budget):
+
+        sup_bounds = []
+
+        new_states = signatures.clone()
+        new_probas = signature_probs.clone()
+
+        k = 0
+        for signature, region, original_proba in zip(new_states, regions, new_probas):
+
+            sup_distance = 0
+            sup_bound = 0
+
+            sorted_indices = torch.argsort(abs(new_states - signature))  # Sort by difference to the signature
+            sorted_states = new_states[sorted_indices]
+            sorted_probas = new_probas[sorted_indices]
+
+            for state, proba in zip(sorted_states, sorted_probas):
+
+                if state == signature:
+                    sup_bound += original_proba
+                else:
+                    qt = proba * min(abs(state - region[0]), abs(state - region[1])) ** 2
+                    if sup_distance + qt < wass_budget:
+                        sup_distance += qt
+                        sup_bound += proba
+                    else:
+                        delta = (wass_budget - sup_distance) / min(abs(state - region[0]), abs(state - region[1])) ** 2
+                        sup_bound += delta
+                        break
+
+            sup_bounds.append(sup_bound.item())
+
+        return torch.Tensor(sup_bounds)
+
     ##### 5.8) Gradient descent
+
+    #TODO: CODE TEST
+    lower = compute_lower_probas(initial_signature_probs, signatures, regions, wasserstein_squared_zero)
+    upper = compute_upper_probas(initial_signature_probs, signatures, regions, wasserstein_squared_zero)
+
 
     def gradient_descent(
         lambd,
-        alpha,
         signature_probas,
         beta,
         projection_matrix,
@@ -288,7 +312,7 @@ if __name__ == "__main__":
         torch.autograd.set_detect_anomaly(True)
 
         # Initialize the Adam optimizer
-        optimizer = torch.optim.Adam([lambd, alpha], lr = lr)
+        optimizer = torch.optim.Adam([lambd], lr = lr)
 
         # Store losses for tracking the optimization progress
         loss_history = []
@@ -296,16 +320,7 @@ if __name__ == "__main__":
         for iteration in range(num_iterations):
             optimizer.zero_grad()  # Reset gradients to zero before backpropagation
 
-            # Perform the forward and backward passes to compute the gradients
-            omega = torch.exp(alpha)
-
-            #Add constraint as penalty
-            constraint = constraint_subspace(omega, signature_probas)
-            penalty = torch.sum(constraint ** 2)
-
-            bound = compute_bound(lambd, omega, signature_probas, beta, projection_matrix, budget)
-
-            result = bound + penalty
+            result = compute_bound(lambd, signature_probas, beta, projection_matrix, budget)
             result.backward()
 
             # Perform an optimization step (gradient descent step)
@@ -315,7 +330,7 @@ if __name__ == "__main__":
             loss_history.append(result.item())
 
             # Optional: Print progress
-            if iteration % 20 == 0:
+            if iteration % 500 == 0:
                 print(f"Iteration {iteration}/{num_iterations}, Bound: {result.item()}")
 
             # Check for convergence (early stopping)
@@ -323,44 +338,50 @@ if __name__ == "__main__":
                 print("Converged after {} iterations.".format(iteration))
                 break
 
-        return lambd, omega, loss_history
+        return lambd, loss_history
 
 
+
+    def compute_discrete_to_discrete_upper_bound(signatures, signature_probas):
+
+        f_signatures = f(signatures)
+        f_distance_signatures = f_signatures.unsqueeze(1) - f_signatures.unsqueeze(0)
+
+        max_values, _ = torch.max(f_distance_signatures ** 2, dim=1)
+        bound = torch.sum(signature_probas * max_values)
+
+        return torch.sqrt(bound)
+
+
+
+    print(f"Signature probas: {initial_signature_probs}")
+    print(f"Lower probas: {lower}")
+    print(f"Upper probas: {upper}")
+
+
+    print('--------------BOUND (I)--------------')
     lambd = torch.tensor(0.1, requires_grad=True)
 
-    alpha = 0.1 * torch.randn(n_signatures, n_signatures)
-    alpha.requires_grad_()
-
-    #omega = torch.ones(n_signatures, n_signatures, requires_grad=True)
-    #omega = torch.rand(n_signatures, n_signatures)
-    #omega = torch.diag(1.0 / initial_signature_probs)
-    #omega = projection_on_subspace(omega, initial_signature_probs)
-    #omega.requires_grad_()
-    #print(torch.matmul(omega, initial_signature_probs))
-
-    # Perform gradient descent using Adam
-    optimized_lambda, optimized_omega, losses = gradient_descent(
+    optimized_lambda, losses = gradient_descent(
         lambd=lambd,
-        alpha=alpha,
         signature_probas=initial_signature_probs,
         beta=beta,
         projection_matrix=projection_matrix,
         budget=wasserstein_squared_zero,
-        lr=0.01,
-        num_iterations=1000
-    )
+        lr=0.001,
+        num_iterations=3000)
 
-
-    print('--------------RESULTS--------------')
     print(f"Optimized lambda: {optimized_lambda}")
+    bound_continuous_discrete = compute_bound(optimized_lambda, initial_signature_probs, beta, projection_matrix, wasserstein_squared_zero)
+    print(f"Bound (I): {bound_continuous_discrete.item():.4f}")
 
-    print(f"Optimized omega: {optimized_omega}")
-    print(torch.matmul(optimized_omega, initial_signature_probs))
 
-    optimized_omega = projection_on_subspace(optimized_omega, initial_signature_probs)
-    print(torch.matmul(optimized_omega, initial_signature_probs))
+    print('--------------BOUND (II)--------------')
+    bound_discrete_discrete = compute_discrete_to_discrete_upper_bound(signatures, initial_signature_probs)
+    print(f"Bound (II): {bound_discrete_discrete:.4f}")
 
-    bound = compute_bound(optimized_lambda, optimized_omega, initial_signature_probs, beta, projection_matrix, wasserstein_squared_zero)
-    print(f"Final bound: {bound.item()}")
 
+    print('--------------FINAL RESULTS--------------')
+    final_bound = bound_continuous_discrete.item() + bound_discrete_discrete.item()
+    print(f"Final bound: {final_bound:.4f}")
 
