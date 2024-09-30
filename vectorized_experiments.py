@@ -2,29 +2,23 @@ import math
 import matplotlib.pyplot as plt
 import ot
 import torch
+import numpy as np
+from scipy.optimize import linprog
 
 
 class _Dynamics:
-    def interval_approximation(self, region_1: torch.Tensor, region_2: torch.Tensor):
-        # TODO</span>: Quick fix. We need to make sure only to compare f(region_1) to f(region_2)
+    def interval_approximation(self, regions: torch.Tensor, centers: torch.Tensor):
+        """
 
-        zero_tensor = torch.tensor([0])
+        :param regions: shape =
+        :return:
+        """
+        # \todo use bound_propagation to compute the interval or affine approximates of dynamics
+        # Note that currently, we imply a monotone function within each region. This is not always the case.
+        return (self(regions) - self(centers).view(-1, 1)).abs().max(dim=-1).values
 
-        points_1 = region_1.clone()
-        points_2 = region_2.clone()
-
-        if (region_1[0] <= 0) & (region_1[1] >= 0):
-            points_1 = torch.cat((region_1, zero_tensor))
-        if (region_2[0] <= 0) & (region_2[1] >= 0):
-            points_2 = torch.cat((region_2, zero_tensor))
-
-        # Evaluate the dynamics at all boundary points
-        values_1 = self(points_1)
-        values_2 = self(points_2)
-
-        # Compute the maximum absolute difference between all pairs
-        max_value = (torch.max(torch.abs(values_1.unsqueeze(0) - values_2.unsqueeze(1))))
-        return max_value.item()
+    def F(self, centers: torch.Tensor):
+        return (self(centers).view(1, -1) - self(centers).view(-1, 1)).abs()
 
     def __call__(self, *args, **kwargs):
         pass
@@ -116,11 +110,9 @@ if __name__ == "__main__":
 
     n_signatures = 10
     inner_edges = torch.linspace(start=initial_distribution.mean - 3 * initial_distribution.stddev,
-                           end=initial_distribution.mean + 3 * initial_distribution.stddev,
-                           steps=n_signatures-1)
-    #inner_edges = torch.Tensor([])
+                                 end=initial_distribution.mean + 3 * initial_distribution.stddev,
+                                 steps=n_signatures-1)
     edges = torch.cat((-torch.tensor(torch.inf).view(1), inner_edges, torch.tensor(torch.inf).view(1)))
-    print(f"Edges: {edges}")
 
     initial_signature_probs = initial_distribution.cdf(inner_edges).diff(prepend=torch.zeros(1), append=torch.ones(1))
     signatures = torch.cat(((initial_distribution.mean - 3 * initial_distribution.stddev - 1).view(1),
@@ -176,13 +168,7 @@ if __name__ == "__main__":
     # for any $x_1 \in \mathcal{R}_1$, $x_2 \in \mathcal{R}_2$. Note that this works for $\mathcal{R}_\text{unbounded}$
     # as $f$ is a bounded function.
 
-    beta = torch.zeros(n_signatures, n_signatures)
-
-    # \TODO parrallelize this loop..
-    for i in range(n_signatures):
-        for j in range(n_signatures):
-            interval_approx = f.interval_approximation(regions[i], regions[j])
-            beta[i][j] = interval_approx ** 2
+    beta = f.interval_approximation(regions, signatures).pow(2)
 
     ##### 5.3) Compute projection matrix
     # This element $(i, j)$ of this matrix contains the quantity $|\text{proj}_{\mathcal{R}_i}(c_j) - c_j|^2$.
@@ -201,13 +187,6 @@ if __name__ == "__main__":
 
             projection_matrix[i][j] = project ** 2
 
-    ##### 5.4) Compute constant term
-
-    def compute_constant_term(beta):
-
-        return beta.diagonal()
-
-
     ##### 5.5) Project matrix on subspace
     # Our matrix $\Omega$ needs to satisfy $\sum_{j} \omega_{ij} \hat{p}_j = 1$. Given a matrix $\Omega^{'}$ that may
     # disrespect this restriction, we enforce it by making the following adjustment (denote by $\hat{p}$ the vector
@@ -215,15 +194,13 @@ if __name__ == "__main__":
 
     # $$ \Omega^{'} \leftarrow \Omega^{'} + \frac{\mathbb{1} - \Omega^{'} v}{v^T v} v^T $$
 
-
     def constraint_subspace(omega, signature_probs):
         return torch.matmul(omega, signature_probs) - torch.ones(signature_probs.size(0))
 
     ##### 5.6) Compute bound using method
     def compute_bound(lambd, signature_probs, beta, projection_matrix, budget):
         # \TODO optimize memory w.r.t. projection_matrix
-        constant_term = compute_constant_term(beta)
-        value_matrix = constant_term - lambd * projection_matrix[:, None]
+        value_matrix = beta - lambd * projection_matrix[:, None]
 
         # Take the max over the computed value_matrix
         max_values = value_matrix.max(0).values
@@ -234,70 +211,14 @@ if __name__ == "__main__":
 
         return torch.sqrt(outer_sum)
 
-
     ##### 5.7) Project $\Omega$ to $M_{+}$
 
-    # To ensure that we only have positive values in $\Omega$, what we currently do is: in each step of the gradient descent, we check whether this is true. If not, we replace the negative value for a random value between $0$ and $0.1$.
+    # To ensure that we only have positive values in $\Omega$, what we currently do is: in each step of the gradient
+    # descent, we check whether this is true. If not, we replace the negative value for a random value
+    # between $0$ and $0.1$.
 
-    # TODO: WE ARE NOT USING THIS IN THE GRADIENT DESCENT. OUR METHOD IS CURRENTLY ALLOWING FOR NEGATIVE TERMS. WE NEED TO FIX THIS.
-
-    # TODO: Steven gave the idea of optimizing for the squared values.
-
-    def compute_lower_probas(signature_probs, signatures, regions, wass_budget):
-
-        distances_right = regions[:, 1] - signatures
-        distances_left = signatures - regions[:, 0]
-        distances_signature_to_extremity = torch.minimum(distances_left, distances_right)
-
-        probs_to_be_moved = wass_budget / (distances_signature_to_extremity ** 2)
-
-        inf_bounds = torch.maximum(torch.zeros_like(signature_probs), signature_probs - probs_to_be_moved)
-
-        return inf_bounds
-
-
-    def compute_upper_probas(signature_probs, signatures, regions, wass_budget):
-
-        sup_bounds = []
-
-        new_states = signatures.clone()
-        new_probas = signature_probs.clone()
-
-        k = 0
-        for signature, region, original_proba in zip(new_states, regions, new_probas):
-
-            sup_distance = 0
-            sup_bound = 0
-
-            sorted_indices = torch.argsort(abs(new_states - signature))  # Sort by difference to the signature
-            sorted_states = new_states[sorted_indices]
-            sorted_probas = new_probas[sorted_indices]
-
-            for state, proba in zip(sorted_states, sorted_probas):
-
-                if state == signature:
-                    sup_bound += original_proba
-                else:
-                    qt = proba * min(abs(state - region[0]), abs(state - region[1])) ** 2
-                    if sup_distance + qt < wass_budget:
-                        sup_distance += qt
-                        sup_bound += proba
-                    else:
-                        delta = (wass_budget - sup_distance) / min(abs(state - region[0]), abs(state - region[1])) ** 2
-                        sup_bound += delta
-                        break
-
-            sup_bounds.append(sup_bound.item())
-
-        return torch.Tensor(sup_bounds)
 
     ##### 5.8) Gradient descent
-
-    #TODO: CODE TEST
-    lower = compute_lower_probas(initial_signature_probs, signatures, regions, wasserstein_squared_zero)
-    upper = compute_upper_probas(initial_signature_probs, signatures, regions, wasserstein_squared_zero)
-
-
     def gradient_descent(
         lambd,
         signature_probas,
@@ -340,42 +261,6 @@ if __name__ == "__main__":
 
         return lambd, loss_history
 
-
-
-    def compute_discrete_to_discrete_trivial(signatures, signature_probas):
-
-        f_signatures = f(signatures)
-        f_distance_signatures = f_signatures.unsqueeze(1) - f_signatures.unsqueeze(0)
-
-        max_values, _ = torch.max(f_distance_signatures ** 2, dim=1)
-        bound = torch.sum(signature_probas * max_values)
-
-        return torch.sqrt(bound)
-
-    #TODO: CHECK IF THIS HOLDS THEORETICALLY
-    def compute_discrete_to_discrete_upper_bound(signatures, budget):
-
-        f_signatures = f(signatures)
-        f_distance_signatures = f_signatures.unsqueeze(1) - f_signatures.unsqueeze(0)
-        f_distance_signatures = f_distance_signatures ** 2
-
-        distances_between_signatures = signatures.unsqueeze(1) - signatures.unsqueeze(0)
-        distances_between_signatures = distances_between_signatures ** 2
-
-        impact = f_distance_signatures * budget / distances_between_signatures
-        finite_mask = torch.isfinite(impact)  # We ignore the values where quotient is zero (transfer inside same region)
-        impact = torch.where(finite_mask, impact, torch.tensor(float('-inf')))
-        max_impact = torch.max(impact)
-
-        return torch.sqrt(max_impact)
-
-
-
-    print(f"Signature probas: {initial_signature_probs}")
-    print(f"Lower probas: {lower}")
-    print(f"Upper probas: {upper}")
-
-
     print('--------------BOUND (I)--------------')
     lambd = torch.tensor(0.1, requires_grad=True)
 
@@ -386,20 +271,62 @@ if __name__ == "__main__":
         projection_matrix=projection_matrix,
         budget=wasserstein_squared_zero,
         lr=0.001,
-        num_iterations=3000)
+        num_iterations=300) # 3000
 
     print(f"Optimized lambda: {optimized_lambda}")
     bound_continuous_discrete = compute_bound(optimized_lambda, initial_signature_probs, beta, projection_matrix, wasserstein_squared_zero)
     print(f"Bound (I): {bound_continuous_discrete.item():.4f}")
 
-
     print('--------------BOUND (II)--------------')
-    bound_discrete_discrete = compute_discrete_to_discrete_upper_bound(signatures, wasserstein_squared_zero)
-    print(f"Bound (II): {bound_discrete_discrete:.4f}")
 
-    bound_discrete_discrete_trivial = compute_discrete_to_discrete_trivial(signatures, initial_signature_probs)
-    print(f"Bound (II) - Trivial: {bound_discrete_discrete_trivial:.4f}")
+    # Assume other variables are given and fixed
+    n = signatures.shape[-1]
+    F = f.F(signatures).pow(2)
+    pi_q = initial_signature_probs
+    C = (signatures.view(1, -1) - signatures.view(-1, 1)).abs()
+    w = 2*wasserstein_squared_zero
 
+    # Reshape F, C, and Pi for linprog (they need to be 1D vectors)
+    F_flat = F.flatten().numpy()
+    C_flat = C.flatten().numpy()
+
+    # Objective function is to maximize F * Pi, which is the same as minimizing -(F * Pi)
+    c = -F_flat  # Minimizing -F is the same as maximizing F
+
+    # Constraints:
+    # Simplex constraint (Pi.sum() == 1): equality constraint
+    A_eq = np.ones((1, n * n))  # Sum of all elements in Pi should be 1
+    b_eq = [1]
+
+    # Marginal equality constraint: Pi.sum(dim=0) == pi_q
+    A_marg = np.zeros((n, n * n))
+    for i in range(n):
+        A_marg[i, i::n] = 1  # Select rows corresponding to each column sum
+    b_marg = pi_q.numpy()
+
+    # Wasserstein constraint: (C * Pi).sum() <= w
+    A_ineq = np.array([C_flat])  # One inequality constraint for the Wasserstein bound
+    b_ineq = [w]
+
+    # Combine constraints
+    A_eq_combined = np.vstack([A_eq, A_marg])  # Combine the equality constraints
+    b_eq_combined = np.hstack([b_eq, b_marg])
+
+    # Bounds for each element of Pi: 0 <= Pi <= infinity (non-negative)
+    bounds = [(0, None)] * (n * n)
+
+    # Solve the linear program
+    result = linprog(c, A_ub=A_ineq, b_ub=b_ineq, A_eq=A_eq_combined, b_eq=b_eq_combined, bounds=bounds, method='highs')
+
+    # Check if the solution was successful
+    if result.success:
+        Pi_optimized = result.x.reshape(n, n)
+        # print("Optimized Pi:")
+        # print(Pi_optimized)
+        bound_discrete_discrete = (F * Pi_optimized).sum()
+        print(f"Bound (I): {bound_discrete_discrete.item():.4f}")
+    else:
+        print("Optimization failed:", result.message)
 
     print('--------------FINAL RESULTS--------------')
     final_bound = bound_continuous_discrete.item() + bound_discrete_discrete.item()
