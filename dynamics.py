@@ -1,59 +1,61 @@
 import math
 import torch
 from abc import ABC, abstractmethod
+from bound_propagation import HyperRectangle
 
-class _Dynamics(ABC):
+
+class Dynamics(ABC):
 
     @abstractmethod
-    def interval_approximation(self, region: torch.Tensor):
+    def interval_approximation(self, regions: HyperRectangle):
         pass
 
-    def __call__(self, *args, **kwargs):
-        pass
+    def __call__(self, x: torch.Tensor):
+        """
+        Function Evaluation
+        :param x:
+        :return:
+        """
+        return x
+
+class _MonotoneDynamics(Dynamics):
+    def __init__(self):
+        super(_MonotoneDynamics, self).__init__()
+
+    def interval_approximation(self, regions: HyperRectangle):
+        y_lower = (self(regions.lower) - self(regions.center)).abs()
+        y_upper = (self(regions.upper) - self(regions.center)).abs()
+        return torch.max(y_lower, y_upper)
 
 
-class GaussianDynamics(_Dynamics):
-    def __init__(self, mu: float, sigma: float):
-        self.mu = mu
-        self.sigma = sigma
+class GaussianDynamics1d(_MonotoneDynamics):
+    def __init__(self, loc: torch.Tensor, scale: torch.Tensor):
+        self.loc = loc
+        self.scale = scale
+        self.gaussian_distribution = torch.distributions.Normal(loc=loc, scale=scale)
+        super(GaussianDynamics1d, self).__init__()
 
     def __call__(self, x: torch.Tensor):
-        coefficient = 1 / (self.sigma * math.sqrt(2 * math.pi))
-        exponent = (-0.5 * ((x - self.mu) / self.sigma).pow(2)).exp()
-        return coefficient * exponent
-
-    def interval_approximation(self, region: torch.Tensor):
-
-        zero_tensor = torch.tensor([0])
-
-        points_1 = region.clone()
-        points_2 = region.clone()
-
-        if (region[0] <= 0) & (region[1] >= 0):
-            points_1 = torch.cat((region, zero_tensor))
-        if (region[0] <= 0) & (region[1] >= 0):
-            points_2 = torch.cat((region, zero_tensor))
-
-        # Evaluate the dynamics at all boundary points
-        values_1 = self(points_1)
-        values_2 = self(points_2)
-
-        # Compute the maximum absolute difference between all pairs
-        max_value = (torch.max(torch.abs(values_1.unsqueeze(0) - values_2.unsqueeze(1))))
-        return max_value.item()
-
-    @staticmethod
-    def global_lipschitz():
-        return math.exp(-1 / 2) / 2 * math.pi
-
-
-class LinearAdversarial2DDynamics(_Dynamics):
-    def __init__(self, A: torch.Tensor):
-        self.A = A
-
-    def __call__(self, x: torch.Tensor):
-        return torch.matmul(x, self.A.T)
+        log_pdf = self.gaussian_distribution.log_prob(x)
+        return torch.exp(log_pdf)
 
     def global_lipschitz(self):
-        diagonal = torch.diag(self.A)  #Assuming diagonal A for now
-        return torch.max(torch.abs(diagonal))
+        # \TODO
+        if not (self.scale <= 1).all():
+            raise NotImplementedError
+        else:
+            return math.exp(-1 / 2) / math.sqrt(2 * math.pi)
+
+
+class LinearDynamics(_MonotoneDynamics):
+    def __init__(self, mat: torch.Tensor):
+        self.mat = mat
+        self.mat_is_diagonal = not (mat - mat.diagonal() > 0).any()
+        super(LinearDynamics, self).__init__()
+
+    def __call__(self, x: torch.Tensor):
+        return torch.matmul(x, self.mat.T)
+
+    def global_lipschitz(self):
+        if self.mat_is_diagonal:
+            return self.mat.diagonal().abs().max().values()
