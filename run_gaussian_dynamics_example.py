@@ -50,8 +50,8 @@ if __name__ == '__main__':
     p1_samples = f(p0_samples) + noise_distribution.sample(torch.Size((nun_samples,)))
 
     fig_histograms = plt.figure()
-    plt.hist(p0_samples, alpha=0.5, label='t = 0', bins=100, density=True)
-    plt.hist(p1_samples, alpha=0.5, label='t = 1', bins=100, density=True)
+    plt.hist(p0_samples.squeeze(), alpha=0.5, label='t = 0', bins=100, density=True)
+    plt.hist(p1_samples.squeeze(), alpha=0.5, label='t = 1', bins=100, density=True)
     plt.legend()
     plt.title("Histograms of the initial and propagated states")
     plt.show()
