@@ -47,11 +47,11 @@ class BoundW2_f_push_P_vs_f_push_SignatureP:
             value_matrix = self.beta - lambd * self.lp2_norm_proj_matrix.unsqueeze(-1)
 
             # Take the max over the computed value_matrix
-            max_values = value_matrix.max(0).values
+            max_values = value_matrix.max(0).values.squeeze() #TODO: CHECK SQUEEZE
 
             # Compute the outer_sum using vectorized operations
             outer_sum = torch.sum(self.signature.probs * max_values)
-            outer_sum += lambd * self.budget
+            outer_sum += lambd * self.budget ** 2
 
             return torch.sqrt(outer_sum)
 
@@ -96,14 +96,14 @@ class BoundW2_f_push_SignatureP_vs_f_push_SignatureQ:
 
         # Wasserstein constraint: (C * Pi).sum() <= w
         A_ineq = np.array([C_flat])  # One inequality constraint for the Wasserstein bound
-        b_ineq = [self.budget]
+        b_ineq = [self.budget **  2]
 
         # Combine constraints
         A_eq_combined = np.vstack([A_eq, A_marg])  # Combine the equality constraints
         b_eq_combined = np.hstack([b_eq, b_marg])
 
         # Bounds for each element of Pi: 0 <= Pi <= infinity (non-negative)
-        bounds = [(0, None)] * (n * n)
+        bounds = [(0, 1)] * (n * n)
 
         # Solve the linear program
         result = linprog(c, A_ub=A_ineq, b_ub=b_ineq, A_eq=A_eq_combined, b_eq=b_eq_combined, bounds=bounds,
