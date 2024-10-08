@@ -46,6 +46,17 @@ class GaussianDynamics1d(_MonotoneDynamics):
         else:
             return math.exp(-1 / 2) / math.sqrt(2 * math.pi)
 
+class ChaoticDynamics(_MonotoneDynamics):
+    def __init__(self, r: float):
+        self.r = r
+        super(ChaoticDynamics, self).__init__()
+
+    def __call__(self, x: torch.Tensor):
+        return torch.where((x > 0) & (x < 1), self.r * x * (1 - x), torch.zeros_like(x))
+
+    def global_lipschitz(self):
+        return self.r
+
 
 class LinearDynamics(_MonotoneDynamics):
     def __init__(self, mat: torch.Tensor):
