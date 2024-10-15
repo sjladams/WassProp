@@ -1,64 +1,55 @@
 import torch
 import numpy as np
-from bound_propagation import HyperRectangle
 from scipy.optimize import linprog
+from typing import Callable
 
 import dynamics
 import DistSignatures as ds
+from regions import HyperRectangularVoronoiPartition
 
 
-class BoundW2_f_push_P_vs_f_push_SignatureP:
-    def __init__(self, signature: ds.DiscretizedMultivariateNormal, f: dynamics.Dynamics, regions: HyperRectangle,
-                 budget: float):
-        self.signature = signature
-        self.beta = self.get_beta(f, regions)
-        self.lp2_norm_proj_matrix = self.get_lp2_norm_of_projection_matrix(signature, regions)
-        self.budget = budget
+def get_lp2_norm_of_projection_matrix(signature: ds.DiscretizedMultivariateNormal,
+                                      voronoi_partition: HyperRectangularVoronoiPartition):
+    """
+    Compute proj_{R_k}(c_i) for all c_i the signature locations and all regions R_k in the voronoi partition, and store
+    in matrix with i-th row corresponding to c_i and k-th column corresponding to R_k.
+    :param signature:
+    :param voronoi_partition:
+    :return:
+    """
+    locs_expanded = signature.locs.unsqueeze(-3)
+    lower_expanded = voronoi_partition.lower.unsqueeze(-2)
+    upper_expanded = voronoi_partition.upper.unsqueeze(-2)
 
-    @staticmethod
-    def get_beta(f: dynamics.Dynamics, regions: HyperRectangle):
-        return f.interval_approximation(regions).pow(2)
+    # Compute the projections for all combinations
+    below_lower = torch.where(locs_expanded < lower_expanded, lower_expanded - locs_expanded,
+                              torch.zeros_like(locs_expanded))
+    above_upper = torch.where(locs_expanded > upper_expanded, locs_expanded - upper_expanded,
+                              torch.zeros_like(locs_expanded))
 
-    @staticmethod
-    def get_lp2_norm_of_projection_matrix(signature: ds.DiscretizedMultivariateNormal, regions: HyperRectangle):
-        #\todo please double check the procedure below
-        print("get_projection_matrix only works for axis-aligned regions!")
+    # Calculate the projection, summing both below and above cases
+    proj_matrix = below_lower + above_upper
 
-        locs_expanded = signature.locs.unsqueeze(-2)
-        lower_expanded = regions.lower.unsqueeze(-3)
-        upper_expanded = regions.upper.unsqueeze(-3)
+    return torch.norm(proj_matrix, dim=-1, p=2)
 
-        # Compute the projections for all combinations
-        below_lower = torch.where(locs_expanded < lower_expanded, lower_expanded - locs_expanded,
-                                  torch.zeros_like(locs_expanded))
-        above_upper = torch.where(locs_expanded > upper_expanded, locs_expanded - upper_expanded,
-                                  torch.zeros_like(locs_expanded))
+def get_fn_bound_on_w2_fP_fdiscP(
+                 signature: ds.DiscretizedMultivariateNormal,
+                 f: dynamics.Dynamics,
+                 budget: float) -> Callable:
 
-        # Calculate the projection, summing both below and above cases
-        proj_matrix = below_lower + above_upper
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
-        # Compute the squared projections and sum over the dimensions
-        lp2_norm_proj_matrix = torch.sum(proj_matrix ** 2, dim=-1)
+    beta = f.bound_lp2_norm_difference(voronoi_partition).pow(2)
+    l2_norm_proj_matrix = get_lp2_norm_of_projection_matrix(signature, voronoi_partition)
 
-        return lp2_norm_proj_matrix
+    def fn_bound_on_w2_fP_fdiscP(lambd: torch.Tensor):
+        inner_sup = torch.max(beta - lambd * l2_norm_proj_matrix, dim=0).values
+        return (lambd * budget ** 2 + torch.dot(signature.probs, inner_sup)).sqrt()
 
-    def get_objective(self):
-        def objective(lambd: torch.Tensor):
-            value_matrix = self.beta - lambd * self.lp2_norm_proj_matrix.unsqueeze(-1)
-
-            # Take the max over the computed value_matrix
-            max_values = value_matrix.max(0).values.squeeze() #TODO: CHECK SQUEEZE
-
-            # Compute the outer_sum using vectorized operations
-            outer_sum = torch.sum(self.signature.probs * max_values)
-            outer_sum += lambd * self.budget ** 2
-
-            return torch.sqrt(outer_sum)
-
-        return objective
+    return fn_bound_on_w2_fP_fdiscP
 
 
-class BoundW2_f_push_SignatureP_vs_f_push_SignatureQ:
+class BoundW2_fdiscP_vs_fdiscQ:
     def __init__(self, signature: ds.DiscretizedMultivariateNormal, f: dynamics.Dynamics, budget: float):
         self.signature_locs = signature.locs
         self.signature_probs = signature.probs

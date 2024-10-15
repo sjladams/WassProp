@@ -1,7 +1,8 @@
 import torch
 from typing import Callable
 
-def optimize_with_adam(objective: Callable,param: torch.Tensor, lr=0.001, num_iterations=100, tolerance=1e-8, **kwargs):
+def optimize_with_adam(objective: Callable,param: torch.Tensor, lr=0.001, num_iterations=100, tolerance=1e-8,
+                       print_progress: bool = True, **kwargs):
     """
 
     :param objective:
@@ -32,11 +33,11 @@ def optimize_with_adam(objective: Callable,param: torch.Tensor, lr=0.001, num_it
         loss_history.append(result.item())
 
         # Optional: Print progress
-        if iteration % 500 == 0:
+        if iteration % 500 == 0 and print_progress:
             print(f"Iteration {iteration}/{num_iterations}, Bound: {result.item()}")
 
         # Check for convergence (early stopping)
-        if len(loss_history) > 1 and abs(loss_history[-1] - loss_history[-2]) < tolerance:
+        if len(loss_history) > 1 and abs(loss_history[-1] - loss_history[-2]) < tolerance and print_progress:
             print("Converged after {} iterations.".format(iteration))
             break
 

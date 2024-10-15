@@ -1,13 +1,20 @@
 import math
 import torch
 from abc import ABC, abstractmethod
-from bound_propagation import HyperRectangle
+
+from regions import HyperRectangularVoronoiPartition
 
 
 class Dynamics(ABC):
+    num_dims = None
 
     @abstractmethod
-    def interval_approximation(self, regions: HyperRectangle):
+    def bound_lp2_norm_difference(self, voronoi_partition: HyperRectangularVoronoiPartition):
+        """
+        find b such that ||f(x) - f(c)|| leq b for all x in regions
+        :param voronoi_partition:
+        :return:
+        """
         pass
 
     def __call__(self, x: torch.Tensor):
@@ -18,18 +25,25 @@ class Dynamics(ABC):
         """
         return x
 
-class _MonotoneDynamics(Dynamics):
+class _ConvexDynamics(Dynamics):
     def __init__(self):
-        super(_MonotoneDynamics, self).__init__()
+        super(_ConvexDynamics, self).__init__()
 
-    def interval_approximation(self, regions: HyperRectangle):
-        y_lower = (self(regions.lower) - self(regions.center)).abs()
-        y_upper = (self(regions.upper) - self(regions.center)).abs()
-        return torch.max(y_lower, y_upper)
+    def bound_lp2_norm_difference(self, voronoi_partition: HyperRectangularVoronoiPartition):
+        bound = torch.max(
+            torch.norm(self(voronoi_partition.lower) - self(voronoi_partition.points), p=2, dim=-1),
+            torch.norm(self(voronoi_partition.upper) - self(voronoi_partition.points), p=2, dim=-1)
+        )
+        fmax_in_region = torch.logical_and(voronoi_partition.lower <= self.loc,
+                                           self.loc <= voronoi_partition.upper
+                                           ).all(dim=-1)
+        bound[fmax_in_region] = torch.norm(self(self.loc) - self(voronoi_partition.points[fmax_in_region]), p=2, dim=-1)
+        return bound
 
 
-class GaussianDynamics1d(_MonotoneDynamics):
+class GaussianDynamics1d(_ConvexDynamics):
     def __init__(self, loc: torch.Tensor, scale: torch.Tensor):
+        self.num_dims = loc.size(0)
         self.loc = loc
         self.scale = scale
         self.gaussian_distribution = torch.distributions.Normal(loc=loc, scale=scale)
@@ -46,7 +60,8 @@ class GaussianDynamics1d(_MonotoneDynamics):
         else:
             return math.exp(-1 / 2) / math.sqrt(2 * math.pi)
 
-class ChaoticDynamics(_MonotoneDynamics):
+class ChaoticDynamics(_ConvexDynamics):
+    num_dims = 1
     def __init__(self, r: float):
         self.r = r
         super(ChaoticDynamics, self).__init__()
@@ -58,8 +73,9 @@ class ChaoticDynamics(_MonotoneDynamics):
         return self.r
 
 
-class LinearDynamics(_MonotoneDynamics):
+class LinearDynamics(_ConvexDynamics):
     def __init__(self, mat: torch.Tensor):
+        self.num_dims = mat.size(0)
         self.mat = mat
         self.mat_is_diagonal = not (mat - mat.diagonal() > 0).any()
         super(LinearDynamics, self).__init__()
