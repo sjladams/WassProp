@@ -74,7 +74,7 @@ def multi_step_uq(dynamics, params_dynamics, params_noise_dist, params_initial_d
         optimized_lambda, losses = optimize_with_adam(param=lambd, lr=0.001, num_iterations=300,
                                                       objective=fn_bound_on_w2_fP_fdiscP)
 
-        w2_finite_method_term1 = fn_bound_on_w2_fP_fdiscP(optimized_lambda)
+        w2_finite_method_term1 = fn_bound_on_w2_fP_fdiscP(optimized_lambda).detach()
 
         ## Term 2: bound W_2(f#\Delta#p_k, f#\Delta#q_k)
         if k == 0:
@@ -83,10 +83,12 @@ def multi_step_uq(dynamics, params_dynamics, params_noise_dist, params_initial_d
             term2 = uq_via_dro.BoundW2_fdiscP_vs_fdiscQ(sign_q0, f, budget=2*(sign_q0.w2 + w2_finite_method[k]))
             w2_finite_method_term2 = term2.solve_lin_problem()
 
+        w2_finite_method[k+1] = w2_finite_method_term1 + w2_finite_method_term2
+
         print(f"Bounds on W_2(W_2(p_{k+1}, q_{k+1})) via:\n"
               f"\t Global Lipschits: {w2_global_lipschitz[k+1]:.4f}\n"
               f"\t Empirical: {w2_empirical[k+1]:.4f}\n"
-              f"\t Finite Linear Method: {w2_finite_method_term1 + w2_finite_method_term2:.4f}\n"
+              f"\t Finite Linear Method: {w2_finite_method[k+1]:.4f}\n"
               f"\t\t Term 1: {w2_finite_method_term1:.4f}\n"
               f"\t\t Term 2: {w2_finite_method_term2:.4f}")
 
@@ -112,8 +114,8 @@ def multi_step_uq(dynamics, params_dynamics, params_noise_dist, params_initial_d
             plt.show()
 
 
-    # Overwrite for next iteration
-    q0 = q1
-    q0_samples = q1_samples
-    p0_samples = p1_samples
+        # Overwrite for next iteration
+        q0 = q1
+        q0_samples = q1_samples
+        p0_samples = p1_samples
 
