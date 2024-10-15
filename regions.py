@@ -32,7 +32,7 @@ class HyperRectangularVoronoiPartition:
     @staticmethod
     def _are_points_in_grid(points: torch.Tensor):
         unique_elements_per_n = torch.tensor([torch.unique(points[:, i]).numel() for i in range(points.size(1))])
-        return unique_elements_per_n.prod() == points.size(0)
+        return unique_elements_per_n.prod() == torch.unique(points,dim=0).size(0)
 
     def _get_upper(self):
         pos_diff = (self.points.unsqueeze(-3) - self.points.unsqueeze(-2)).clip(0, torch.inf)
