@@ -77,8 +77,11 @@ def multi_step_uq(dynamics, params_dynamics, params_noise_dist, params_initial_d
         w2_finite_method_term1 = fn_bound_on_w2_fP_fdiscP(optimized_lambda)
 
         ## Term 2: bound W_2(f#\Delta#p_k, f#\Delta#q_k)
-        term2 = uq_via_dro.BoundW2_fdiscP_vs_fdiscQ(sign_q0, f, budget=2*(sign_q0.w2 + w2_finite_method[k]))
-        w2_finite_method_term2 = term2.solve_lin_problem()
+        if k == 0:
+            w2_finite_method_term2 = 0.
+        else:
+            term2 = uq_via_dro.BoundW2_fdiscP_vs_fdiscQ(sign_q0, f, budget=2*(sign_q0.w2 + w2_finite_method[k]))
+            w2_finite_method_term2 = term2.solve_lin_problem()
 
         print(f"Bounds on W_2(W_2(p_{k+1}, q_{k+1})) via:\n"
               f"\t Global Lipschits: {w2_global_lipschitz[k+1]:.4f}\n"
