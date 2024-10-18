@@ -161,7 +161,7 @@ def get_fn_bound_on_w2_f_p__f_disc_q_independent_coupling(
 
     return fn_bound_on_w2_f_p__f_disc_q_independent_coupling
 
-def compute_bound_w2_f_p__f_disc_q(signature: ds.DiscretizedMultivariateNormal,
+def compute_bound_w2_f_p__f_disc_q_independent_coupling(signature: ds.DiscretizedMultivariateNormal,
                                    f: dynamics.Dynamics,
                                    budget: float):
     fn_bound_on_w2_fP_fdiscQ = get_fn_bound_on_w2_f_p__f_disc_q_independent_coupling(signature, f, budget)
