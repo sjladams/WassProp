@@ -1,78 +1,111 @@
 import torch
-import matplotlib.pyplot as plt
+import argparse
 
-from setup_experiments import multi_step_uq
-from dynamics import GaussianDynamics1d, ChaoticDynamics, LinearDynamics
+from setup_experiments import single_step, multi_step
+from dynamics import get_dynamics
+import plotting
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Setup experiments for dynamics.')
+    parser.add_argument('--dynamics_type',
+                        type=str,
+                        choices=['GaussianDynamics1d', 'ChaoticDynamics', 'LinearDynamics'],
+                        default='LinearDynamics',
+                        help='Type of dynamics to use.')
+    parser.add_argument('--dynamics_setting',
+                        type=int,
+                        default=0,
+                        help='Parameters for the dynamics as a dictionary string.')
+    parser.add_argument('--loc_noise_dist',
+                        type=float,
+                        nargs='+',
+                        default=[0.],
+                        help='Mean of the noise distribution.')
+    parser.add_argument('--variance_noise_dist',
+                        type=float,
+                        nargs='+',
+                        default=[0.1],
+                        help='Variance of the noise distribution.')
+    parser.add_argument('--loc_initial_dist',
+                        type=float,
+                        nargs='+',
+                        default=[0.],
+                        help='Mean of the initial distribution.')
+    parser.add_argument('--variance_initial_dist',
+                        type=float,
+                        nargs='+',
+                        default=[0.1],
+                        help='Variance of the initial distribution.')
+    parser.add_argument('--nr_signature_points',
+                        type=int,
+                        default=10,
+                        help='Number of signature points.')
+    parser.add_argument('--num_samples',
+                        type=int,
+                        default=1000,
+                        help='Number of samples.')
+    parser.add_argument('--plot',
+                        type=bool,
+                        default=True,
+                        help='Plot the dynamics and distributions.')
+    return parser.parse_args()
+
+# \Todo include as json file:
+PARAMS_DYNAMICS = {
+    'GaussianDynamics1d':
+        {'loc': torch.zeros(1), 'scale': torch.ones(1)},
+    'ChaoticDynamics':
+        {'r': 4},
+    'LinearDynamics':
+        {
+            0: {'mat': torch.tensor([[0.5]])},
+            1: {'mat': torch.tensor([[0.5, 0.], [0., 0.5]])}
+        }
+}
 
 if __name__ == '__main__':
-    torch.manual_seed(0) # for reproducibility
+    torch.manual_seed(0)
 
-    # Parameter Settings # \todo import as Namespace
+    args = parse_arguments()
+    dynamics = get_dynamics(
+        args.dynamics_type,
+        **(PARAMS_DYNAMICS[args.dynamics_type][args.dynamics_setting] if args.dynamics_setting in PARAMS_DYNAMICS[args.dynamics_type] else
+           PARAMS_DYNAMICS[args.dynamics_type]))
 
-    # dynamics = GaussianDynamics1d
-    # num_dims = 1
-    # params_dynamics = {'loc': torch.zeros(num_dims), 'scale': torch.ones(num_dims)}
+    # Run single step experiment:
+    initial_budget_options = [0., 0.1, 0.5, 1.]
+    w2_bounds, tag = single_step(
+        dynamics=dynamics,
+        loc_noise_dist=torch.tensor(args.loc_noise_dist),
+        covariance_noise_dist=torch.diag(torch.tensor(args.variance_noise_dist)),
+        loc_initial_dist=torch.tensor(args.loc_initial_dist),
+        covariance_initial_dist=torch.diag(torch.tensor(args.variance_initial_dist)),
+        num_samples=args.num_samples,
+        num_signature_points=args.nr_signature_points,
+        run_type1=False,
+        initial_budget_options=initial_budget_options,
+        plot=args.plot
+    )
 
-    dynamics = ChaoticDynamics
-    num_dims = 1
-    params_dynamics = {'r': 4}
+    plotting.plot_single_step(dynamics, w2_bounds, tag, initial_budget_options)
 
-    # dynamics = LinearDynamics
-    # num_dims = 1
-    # params_dynamics = {'mat': torch.tensor([[0.5]])}
-
-    # dynamics = LinearDynamics
-    # num_dims = 2
-    # params_dynamics = {'mat': torch.diag(torch.Tensor([0.1, 0.9]))}
-
-    params_noise_dist = {'loc': torch.zeros(num_dims), 'covariance_matrix': torch.diag(torch.ones(num_dims) * 0.3 ** 2)}
-    # params_noise_dist = {'loc': torch.zeros(num_dims), 'covariance_matrix': torch.diag(torch.Tensor([0.01, 0.01]))}
-    params_initial_dist = {'loc': torch.zeros(num_dims), 'covariance_matrix': torch.eye(num_dims)}
-    # params_initial_dist = {'loc': torch.zeros(num_dims), 'covariance_matrix': torch.diag(torch.Tensor([0.01, 0.01]))}
-
-    lipschitz = dynamics.global_lipschitz
-    params_simulation = {'num_samples': 1000, 'K': 5, 'plot': False}
-    params_signature = {'nr_signature_points': 12}
+    # # Run multi step experiment:
+    # w2_bounds, tag = multi_step(
+    #     dynamics= dynamics,
+    #     loc_noise_dist= torch.tensor(args.loc_noise_dist),
+    #     covariance_noise_dist= torch.diag(torch.tensor(args.variance_noise_dist)),
+    #     loc_initial_dist= torch.tensor(args.loc_initial_dist),
+    #     covariance_initial_dist= torch.diag(torch.tensor(args.variance_initial_dist)),
+    #     num_samples=args.num_samples,
+    #     num_time_steps=10,
+    #     num_signature_points=args.nr_signature_points,
+    #     run_type1=False,
+    #     plot=args.plot
+    # )
+    #
+    # plotting.plot_multi_step(dynamics, w2_bounds, tag)
 
 
-    # Run the experiment
-    w2_bounds, tag = multi_step_uq(dynamics, params_dynamics, params_noise_dist, params_initial_dist, params_signature,
-                                   params_simulation)
 
-    # Plot the results
-    fig_w2_bounds = plt.figure()
-    plt.plot(range(params_simulation['K']+1), w2_bounds['emp'], label='Empirical')
-    plt.plot(range(params_simulation['K']+1), w2_bounds['gl'], label='Global Lipschitz')
-    plt.plot(range(params_simulation['K']+1), w2_bounds['type1'],
-             label=r'Own (Budget Term 2 = $W_2(\Delta p,\Delta q)$)')
-    plt.plot(range(params_simulation['K'] + 1), w2_bounds['type2'],
-             label=r'Own (Budget Term 2 = $W_2(p,\Delta q)$)')
-    plt.legend()
-    plt.title(tag)
-    plt.xticks(range(params_simulation['K'] + 1))
-    plt.xlabel('k')
-    plt.ylabel(r'$W_2(p_k, q_k)$')
 
-    if dynamics.__name__ == 'ChaoticDynamics':
-        plt.yscale('log')
-        plt.xlim(1, params_simulation['K'])
-    else:
-        plt.xlim(0, params_simulation['K'])
 
-    plt.show()
-
-    if dynamics.__name__ in ['ChaoticDynamics', 'LinearDynamics']:
-        fig_our_w2_bounds = plt.figure()
-        plt.plot(range(params_simulation['K'] + 1), w2_bounds['type1'],
-                 label=r'Own (Budget Term 2 = $W_2(\Delta p,\Delta q)$)')
-        plt.plot(range(params_simulation['K'] + 1), w2_bounds['type2'],
-                 label=r'Own (Budget Term 2 = $W_2(p,\Delta q)$)')
-        plt.legend()
-        plt.title(tag)
-        plt.xticks(range(params_simulation['K'] + 1))
-        plt.xlabel('k')
-        plt.ylabel(r'$W_2(p_k, q_k)$')
-
-        plt.xlim(0, params_simulation['K'])
-
-        plt.show()
