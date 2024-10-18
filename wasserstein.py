@@ -141,4 +141,33 @@ def compute_bound_w2_f_disc_p__f_disc_q(signature: ds.DiscretizedMultivariateNor
             raise ValueError(f"Optimization failed: {result.message}")
     else:
         raise ValueError("Invalid budget type. Choose either 'w2_p__disc_q' or 'w2_disc_p__disc_q'.")
-    
+
+
+
+# ----- W_2(f#p, f#disc#q) for independent coupling -----
+def get_fn_bound_on_w2_f_p__f_disc_q_independent_coupling(
+                 signature: ds.DiscretizedMultivariateNormal,
+                 f: dynamics.Dynamics,
+                 budget: float) -> Callable:
+
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
+
+    beta = f.bound_lp2_norm_difference_across_regions(voronoi_partition).pow(2)
+    l2_norm_proj_matrix = get_lp2_norm_of_projection_matrix(signature, voronoi_partition).pow(2)
+
+    def fn_bound_on_w2_f_p__f_disc_q_independent_coupling(lambd: torch.Tensor):
+        inner_sup = torch.max(torch.matmul(beta, signature.probs).unsqueeze(1) - lambd * l2_norm_proj_matrix, dim=1).values
+        return (lambd * budget ** 2 + torch.dot(signature.probs, inner_sup)).clip(0, torch.inf).sqrt()
+
+    return fn_bound_on_w2_f_p__f_disc_q_independent_coupling
+
+def compute_bound_w2_f_p__f_disc_q(signature: ds.DiscretizedMultivariateNormal,
+                                   f: dynamics.Dynamics,
+                                   budget: float):
+    fn_bound_on_w2_fP_fdiscQ = get_fn_bound_on_w2_f_p__f_disc_q_independent_coupling(signature, f, budget)
+
+    lambd = torch.tensor(0.0001, requires_grad=True)
+    optimized_lambda, losses = minimize_with_adam(
+        param=lambd, lr=0.001, num_iterations=300, objective=fn_bound_on_w2_fP_fdiscQ, non_negative_constraint=True)
+
+    return fn_bound_on_w2_fP_fdiscQ(optimized_lambda).detach()
