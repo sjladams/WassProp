@@ -67,6 +67,12 @@ class _MonotoneDynamics(Dynamics):
             torch.norm(self(voronoi_partition.upper) - self(voronoi_partition.points), p=2, dim=-1)
         )
 
+    def bound_lp2_norm_difference_across_regions(self, voronoi_partition: HyperRectangularVoronoiPartition):
+        return torch.max(
+            torch.norm(self(voronoi_partition.lower).unsqueeze(1) - self(voronoi_partition.points).unsqueeze(0), p=2, dim=-1),
+            torch.norm(self(voronoi_partition.upper).unsqueeze(1) - self(voronoi_partition.points).unsqueeze(0), p=2, dim=-1)
+        )
+
 
 class GaussianDynamics1d(_ConvexDynamics):
     def __init__(self, loc: torch.Tensor, scale: torch.Tensor):
