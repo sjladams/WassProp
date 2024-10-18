@@ -117,9 +117,7 @@ class LinearDynamics(_MonotoneDynamics):
         super(LinearDynamics, self).__init__()
 
     def __call__(self, x: torch.Tensor):
-        x[x.isinf()] = 1e7
-        x[x.isneginf()] = -1e7
-        y = torch.matmul(x, self.mat.T).clip(-2., 2.)
+        y = torch.matmul(x.clip(-2., 2.), self.mat.T)
         return y
 
     @property
@@ -128,3 +126,13 @@ class LinearDynamics(_MonotoneDynamics):
             return self.mat.diagonal().abs().max()
         else:
             raise NotImplementedError
+
+def get_dynamics(dynamics_type: str, **kwargs):
+    if dynamics_type == 'GaussianDynamics1d':
+        return GaussianDynamics1d(**kwargs)
+    elif dynamics_type == 'ChaoticDynamics':
+        return ChaoticDynamics(**kwargs)
+    elif dynamics_type == 'LinearDynamics':
+        return LinearDynamics(**kwargs)
+    else:
+        raise ValueError(f"Unknown dynamics: {dynamics_type}")
