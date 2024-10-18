@@ -25,6 +25,14 @@ class Dynamics(ABC):
         """
         return x
 
+    @property
+    def global_lipschitz(self):
+        """
+        Global Lipschitz constant
+        :return:
+        """
+        return None
+
 class _ConvexDynamics(Dynamics):
     def __init__(self):
         super(_ConvexDynamics, self).__init__()
@@ -49,6 +57,17 @@ class _ConvexDynamics(Dynamics):
         return self(self.location_max_value)
 
 
+class _MonotoneDynamics(Dynamics):
+    def __init__(self):
+        super(_MonotoneDynamics, self).__init__()
+
+    def bound_lp2_norm_difference(self, voronoi_partition: HyperRectangularVoronoiPartition):
+        return torch.max(
+            torch.norm(self(voronoi_partition.lower) - self(voronoi_partition.points), p=2, dim=-1),
+            torch.norm(self(voronoi_partition.upper) - self(voronoi_partition.points), p=2, dim=-1)
+        )
+
+
 class GaussianDynamics1d(_ConvexDynamics):
     def __init__(self, loc: torch.Tensor, scale: torch.Tensor):
         self.num_dims = loc.size(0)
@@ -65,6 +84,7 @@ class GaussianDynamics1d(_ConvexDynamics):
     def location_max_value(self):
         return self.loc
 
+    @property
     def global_lipschitz(self):
         # \TODO
         if not (self.scale <= 1).all():
@@ -81,6 +101,7 @@ class ChaoticDynamics(_ConvexDynamics):
     def __call__(self, x: torch.Tensor):
         return torch.where((x > 0) & (x < 1), self.r * x * (1 - x), torch.zeros_like(x)) # @Eduardo, why not simply take self.r * x * (1 - x) ??
 
+    @property
     def global_lipschitz(self):
         return self.r
 
@@ -88,16 +109,22 @@ class ChaoticDynamics(_ConvexDynamics):
     def location_max_value(self):
         return torch.tensor(1 / (2 * self.r))
 
-class LinearDynamics(_ConvexDynamics):
+class LinearDynamics(_MonotoneDynamics):
     def __init__(self, mat: torch.Tensor):
         self.num_dims = mat.size(0)
         self.mat = mat
-        self.mat_is_diagonal = not (mat - mat.diagonal() > 0).any()
+        self.mat_is_diagonal = not (mat - mat.diagonal() > 0).any()  # \todo use this for mat_diagonal check in DistSignatures package
         super(LinearDynamics, self).__init__()
 
     def __call__(self, x: torch.Tensor):
-        return torch.matmul(x, self.mat.T)
+        x[x.isinf()] = 1e7
+        x[x.isneginf()] = -1e7
+        y = torch.matmul(x, self.mat.T).clip(-2., 2.)
+        return y
 
+    @property
     def global_lipschitz(self):
         if self.mat_is_diagonal:
-            return self.mat.diagonal().abs().max().values()
+            return self.mat.diagonal().abs().max()
+        else:
+            raise NotImplementedError

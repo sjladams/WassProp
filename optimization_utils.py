@@ -1,8 +1,8 @@
 import torch
 from typing import Callable
 
-def optimize_with_adam(objective: Callable,param: torch.Tensor, lr=0.001, num_iterations=100, tolerance=1e-8,
-                       print_progress: bool = True, **kwargs):
+def minimize_with_adam(objective: Callable, param: torch.Tensor, lr=0.001, num_iterations=100, tolerance=1e-8,
+                       print_progress: bool = True, non_negative_constraint: bool = False,  **kwargs):
     """
 
     :param objective:
@@ -23,18 +23,23 @@ def optimize_with_adam(objective: Callable,param: torch.Tensor, lr=0.001, num_it
     for iteration in range(num_iterations):
         optimizer.zero_grad()  # Reset gradients to zero before backpropagation
 
-        result = objective(param, **kwargs)
-        result.backward()
+        loss = objective(param, **kwargs)
+        loss.backward()
 
         # Perform an optimization step (gradient descent step)
         optimizer.step()
 
+        if non_negative_constraint:
+            # Projection step to ensure param >= 0
+            with torch.no_grad():
+                param.clamp_(min=0)
+
         # Optionally track the loss (objective function value)
-        loss_history.append(result.item())
+        loss_history.append(loss.item())
 
         # Optional: Print progress
         if iteration % 500 == 0 and print_progress:
-            print(f"Iteration {iteration}/{num_iterations}, Bound: {result.item()}")
+            print(f"Iteration {iteration}/{num_iterations}, Bound: {loss.item()}")
 
         # Check for convergence (early stopping)
         if len(loss_history) > 1 and abs(loss_history[-1] - loss_history[-2]) < tolerance and print_progress:
