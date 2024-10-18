@@ -3,7 +3,7 @@ import torch
 import matplotlib.pyplot as plt
 from copy import copy
 
-import DistSignatures as ds
+import discretize_distributions as ds
 import GMMWas
 import wasserstein
 

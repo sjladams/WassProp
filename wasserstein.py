@@ -4,7 +4,7 @@ from scipy.optimize import linprog
 from typing import Callable
 
 import dynamics
-import DistSignatures as ds
+import discretize_distributions as ds
 from regions import HyperRectangularVoronoiPartition
 
 from optimization_utils import minimize_with_adam
