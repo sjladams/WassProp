@@ -44,7 +44,7 @@ def get_fn_bound_on_w2_f_p__f_disc_p(
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
     beta = f.bound_lp2_norm_difference(voronoi_partition).pow(2)
-    l2_norm_proj_matrix = get_lp2_norm_of_projection_matrix(signature, voronoi_partition)
+    l2_norm_proj_matrix = get_lp2_norm_of_projection_matrix(signature, voronoi_partition).pow(2)
 
     def fn_bound_on_w2_f_p__f_disc_p(lambd: torch.Tensor):
         inner_sup = torch.max(beta - lambd * l2_norm_proj_matrix, dim=0).values
@@ -73,7 +73,7 @@ def get_fn_bound_on_w2_f_disc_p__f_disc_q(
 
     f_signature_locs = f(signature.locs)
     F = torch.norm(f_signature_locs.unsqueeze(-3) - f_signature_locs.unsqueeze(-2), p=2, dim=-1).pow(2)
-    l2_norm_proj_matrix = get_lp2_norm_of_projection_matrix(signature, voronoi_partition)
+    l2_norm_proj_matrix = get_lp2_norm_of_projection_matrix(signature, voronoi_partition).pow(2)
 
     def fn_bound_on_w2_f_disc_p__f_disc_q(lambd: torch.Tensor):
         inner_sup = torch.max(F - lambd * l2_norm_proj_matrix, dim=0).values
@@ -141,3 +141,4 @@ def compute_bound_w2_f_disc_p__f_disc_q(signature: ds.DiscretizedMultivariateNor
             raise ValueError(f"Optimization failed: {result.message}")
     else:
         raise ValueError("Invalid budget type. Choose either 'w2_p__disc_q' or 'w2_disc_p__disc_q'.")
+    
