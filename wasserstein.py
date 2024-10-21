@@ -57,9 +57,9 @@ def compute_bound_w2_f_p__f_disc_p(signature: ds.DiscretizedMultivariateNormal,
                                    budget: float):
     fn_bound_on_w2_fP_fdiscP = get_fn_bound_on_w2_f_p__f_disc_p(signature, f, budget)
 
-    lambd = torch.tensor(0.0001, requires_grad=True)
+    lambd = torch.tensor(0.1, requires_grad=True)
     optimized_lambda, losses = minimize_with_adam(
-        param=lambd, lr=0.001, num_iterations=300, objective=fn_bound_on_w2_fP_fdiscP, non_negative_constraint=True)
+        param=lambd, lr=0.01, num_iterations=1000, objective=fn_bound_on_w2_fP_fdiscP, non_negative_constraint=True)
 
     return fn_bound_on_w2_fP_fdiscP(optimized_lambda).detach()
 
@@ -88,9 +88,9 @@ def compute_bound_w2_f_disc_p__f_disc_q(signature: ds.DiscretizedMultivariateNor
     if budget_type == 'w2_p__disc_q':
         fn_bound_on_w2_f_disc_p__f_disc_q = get_fn_bound_on_w2_f_disc_p__f_disc_q(signature, f, budget)
 
-        lambd = torch.tensor(0.0001, requires_grad=True)
+        lambd = torch.tensor(0.1, requires_grad=True)
         optimized_lambda, losses = minimize_with_adam(
-            param=lambd, lr=0.001, num_iterations=300, objective=fn_bound_on_w2_f_disc_p__f_disc_q, non_negative_constraint=True)
+            param=lambd, lr=0.01, num_iterations=1000, objective=fn_bound_on_w2_f_disc_p__f_disc_q, non_negative_constraint=True)
 
         return fn_bound_on_w2_f_disc_p__f_disc_q(optimized_lambda).detach()
     elif budget_type == 'w2_disc_p__disc_q':
@@ -166,8 +166,8 @@ def compute_bound_w2_f_p__f_disc_q_independent_coupling(signature: ds.Discretize
                                    budget: float):
     fn_bound_on_w2_fP_fdiscQ = get_fn_bound_on_w2_f_p__f_disc_q_independent_coupling(signature, f, budget)
 
-    lambd = torch.tensor(0.0001, requires_grad=True)
+    lambd = torch.tensor(0.1, requires_grad=True)
     optimized_lambda, losses = minimize_with_adam(
-        param=lambd, lr=0.001, num_iterations=300, objective=fn_bound_on_w2_fP_fdiscQ, non_negative_constraint=True)
+        param=lambd, lr=0.01, num_iterations=1000, objective=fn_bound_on_w2_fP_fdiscQ, non_negative_constraint=True)
 
     return fn_bound_on_w2_fP_fdiscQ(optimized_lambda).detach()
