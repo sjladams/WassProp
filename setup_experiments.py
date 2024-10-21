@@ -188,6 +188,7 @@ def single_step(dynamics: Dynamics,
     # store wasserstein error bounds
     w2_global_lipschitz = torch.zeros(len(initial_budget_options))
     w2_independent_coupling = torch.zeros(len(initial_budget_options))
+    w2_two_step = torch.zeros(len(initial_budget_options))
     w2_type1 = torch.zeros(len(initial_budget_options))
     w2_type2 = torch.zeros(len(initial_budget_options))
 
@@ -222,12 +223,18 @@ def single_step(dynamics: Dynamics,
         plt.title(f"Signature of q and Histogram of q")
         plt.show()
 
+    known_distribution = True
+
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
     for idx, initial_budget in enumerate(initial_budget_options):
         ### Global Lipschitz
         w2_global_lipschitz[idx] = dynamics.global_lipschitz * (sign_q0.w2 + initial_budget)
 
         w2_independent_coupling[idx] = wasserstein.compute_bound_w2_f_p__f_disc_q_independent_coupling(sign_q0, dynamics, budget=sign_q0.w2 + initial_budget)
+
+        w2_two_step[idx] = wasserstein.compute_bound_w2_f_p__f_disc_q_together(sign_q0, dynamics, budget=sign_q0.w2 + initial_budget, known_distribution=known_distribution)
+
+        known_distribution = False #Set to False for propagation within a Wasserstein ball
 
         ### Our Method
         ## Type 1: Budget Term 2 = W_2(disc # p, disc # q)
@@ -262,7 +269,8 @@ def single_step(dynamics: Dynamics,
 
         print(f"Bounds on W_2(W_2(f#p, f#disc#q)) for W_2(p,q) = {initial_budget} via:\n"
               f"\t Global Lipschits: {w2_global_lipschitz[idx]:.4f}\n"
-              f"\t Independent Coupling: {w2_independent_coupling[idx]:.4f}\n")
+              f"\t Independent Coupling: {w2_independent_coupling[idx]:.4f}\n"
+              f"\t Two-Step: {w2_two_step[idx]:.4f}\n")
 
         if run_type1:
             print(f"\t Own Type 1: {w2_type1[idx]:.4f}\n"
