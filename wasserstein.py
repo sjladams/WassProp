@@ -157,7 +157,7 @@ def get_fn_bound_on_w2_f_p__f_disc_q_independent_coupling(
     l2_norm_proj_matrix = get_lp2_norm_of_projection_matrix(signature, voronoi_partition).pow(2)
 
     def fn_bound_on_w2_f_p__f_disc_q_independent_coupling(lambd: torch.Tensor):
-        inner_sup = torch.max(torch.matmul(beta, signature.probs).unsqueeze(1) - lambd * l2_norm_proj_matrix, dim=1).values
+        inner_sup = torch.max(torch.matmul(beta, signature.probs).unsqueeze(1) - lambd * l2_norm_proj_matrix, dim=-1).values
         return (lambd * budget ** 2 + torch.dot(signature.probs, inner_sup)).clip(0, torch.inf).sqrt()
 
     return fn_bound_on_w2_f_p__f_disc_q_independent_coupling
