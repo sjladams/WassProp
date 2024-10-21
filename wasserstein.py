@@ -47,7 +47,7 @@ def get_fn_bound_on_w2_f_p__f_disc_p(
     l2_norm_proj_matrix = get_lp2_norm_of_projection_matrix(signature, voronoi_partition).pow(2)
 
     def fn_bound_on_w2_f_p__f_disc_p(lambd: torch.Tensor):
-        inner_sup = torch.max(beta - lambd * l2_norm_proj_matrix, dim=0).values
+        inner_sup = torch.max(beta - lambd * l2_norm_proj_matrix, dim=-1).values
         return (lambd * budget ** 2 + torch.dot(signature.probs, inner_sup)).clip(0, torch.inf).sqrt()
 
     return fn_bound_on_w2_f_p__f_disc_p
@@ -76,7 +76,7 @@ def get_fn_bound_on_w2_f_disc_p__f_disc_q(
     l2_norm_proj_matrix = get_lp2_norm_of_projection_matrix(signature, voronoi_partition).pow(2)
 
     def fn_bound_on_w2_f_disc_p__f_disc_q(lambd: torch.Tensor):
-        inner_sup = torch.max(F - lambd * l2_norm_proj_matrix, dim=0).values
+        inner_sup = torch.max(F - lambd * l2_norm_proj_matrix, dim=-1).values
         return (lambd * budget ** 2 + torch.dot(signature.probs, inner_sup)).clip(0, torch.inf).sqrt()
 
     return fn_bound_on_w2_f_disc_p__f_disc_q
