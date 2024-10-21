@@ -1,4 +1,5 @@
 import torch
+import math
 import numpy as np
 from scipy.optimize import linprog
 from typing import Callable
@@ -165,6 +166,38 @@ def compute_bound_w2_f_p__f_disc_q_independent_coupling(signature: ds.Discretize
                                    f: dynamics.Dynamics,
                                    budget: float):
     fn_bound_on_w2_fP_fdiscQ = get_fn_bound_on_w2_f_p__f_disc_q_independent_coupling(signature, f, budget)
+
+    lambd = torch.tensor(0.1, requires_grad=True)
+    optimized_lambda, losses = minimize_with_adam(
+        param=lambd, lr=0.01, num_iterations=1000, objective=fn_bound_on_w2_fP_fdiscQ, non_negative_constraint=True)
+
+    return fn_bound_on_w2_fP_fdiscQ(optimized_lambda).detach()
+
+
+# ----- W_2(f#p, f#disc#q) - New method -----
+def get_fn_bound_on_w2_f_p__f_disc_q_together(
+                 signature: ds.DiscretizedMultivariateNormal,
+                 f: dynamics.Dynamics,
+                 budget: float) -> Callable:
+
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
+
+    beta = f.bound_lp2_norm_difference(voronoi_partition).pow(2)
+    f_signature_locs = f(signature.locs)
+    F = torch.norm(f_signature_locs.unsqueeze(-3) - f_signature_locs.unsqueeze(-2), p=2, dim=-1).pow(2)
+
+    l2_norm_proj_matrix = get_lp2_norm_of_projection_matrix(signature, voronoi_partition).pow(2)
+
+    def fn_bound_on_w2_f_p__f_disc_q_together(lambd: torch.Tensor):
+        inner_sup = torch.max(beta + F - lambd * l2_norm_proj_matrix, dim=-1).values
+        return math.sqrt(2) * (lambd * budget ** 2 + torch.dot(signature.probs, inner_sup)).clip(0, torch.inf).sqrt()
+
+    return fn_bound_on_w2_f_p__f_disc_q_together
+
+def compute_bound_w2_f_p__f_disc_q_together(signature: ds.DiscretizedMultivariateNormal,
+                                   f: dynamics.Dynamics,
+                                   budget: float):
+    fn_bound_on_w2_fP_fdiscQ = get_fn_bound_on_w2_f_p__f_disc_q_together(signature, f, budget)
 
     lambd = torch.tensor(0.1, requires_grad=True)
     optimized_lambda, losses = minimize_with_adam(
