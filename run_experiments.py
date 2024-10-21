@@ -10,7 +10,7 @@ def parse_arguments():
     parser.add_argument('--dynamics_type',
                         type=str,
                         choices=['GaussianDynamics1d', 'ChaoticDynamics', 'LinearDynamics'],
-                        default='LinearDynamics',
+                        default='ChaoticDynamics',
                         help='Type of dynamics to use.')
     parser.add_argument('--dynamics_setting',
                         type=int,
@@ -24,17 +24,17 @@ def parse_arguments():
     parser.add_argument('--variance_noise_dist',
                         type=float,
                         nargs='+',
-                        default=[0.1],
+                        default=[0.3],
                         help='Variance of the noise distribution.')
     parser.add_argument('--loc_initial_dist',
                         type=float,
                         nargs='+',
-                        default=[0.],
+                        default=[4.0],
                         help='Mean of the initial distribution.')
     parser.add_argument('--variance_initial_dist',
                         type=float,
                         nargs='+',
-                        default=[0.1],
+                        default=[2.],
                         help='Variance of the initial distribution.')
     parser.add_argument('--nr_signature_points',
                         type=int,
