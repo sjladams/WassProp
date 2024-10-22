@@ -1,0 +1,58 @@
+{
+    "GaussianDynamics1d": {
+        "options": {
+            "0": {
+                "loc": 0.0,
+                "scale": 1.0,
+                "loc_noise_dist": [0.0],
+                "variance_noise_dist": [0.3],
+                "loc_initial_dist": [4.0],
+                "variance_initial_dist": [2.0]
+            }
+        }
+    },
+    "ChaoticDynamics": {
+        "options": {
+            "0": {
+                "r": 4,
+                "loc_noise_dist": [0.0],
+                "variance_noise_dist": [0.3],
+                "loc_initial_dist": [4.0],
+                "variance_initial_dist": [2.0]
+            },
+            "1": {
+                "r": 4,
+                "loc_noise_dist": [0.0],
+                "variance_noise_dist": [0.3],
+                "loc_initial_dist": [0.5],
+                "variance_initial_dist": [2.0]
+            }
+        }
+    },
+    "LinearDynamics": {
+        "dimensions": {
+            "1": {
+                "options": {
+                    "0": {
+                        "diagonal": [0.5],
+                        "loc_noise_dist": [0.0],
+                        "variance_noise_dist": [0.3],
+                        "loc_initial_dist": [0.0],
+                        "variance_initial_dist": [1.0]
+                    }
+                }
+            },
+            "2": {
+                "options": {
+                    "0": {
+                        "diagonal": [0.9, 0.001],
+                        "loc_noise_dist": [0.0, 0.0],
+                        "variance_noise_dist": [0.3, 0.3],
+                        "loc_initial_dist": [0.0, 0.0],
+                        "variance_initial_dist": [0.9, 0.001]
+                    }
+                }
+            }
+        }
+    }
+}

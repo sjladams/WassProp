@@ -11,9 +11,13 @@ class Dynamics(ABC):
     @abstractmethod
     def bound_lp2_norm_difference(self, voronoi_partition: HyperRectangularVoronoiPartition):
         """
-        find b such that ||f(x) - f(c)|| leq b for all x in regions
+        find matrix B such that ||f(x) - f(c_i)|| leq b_{ik} for all x in region R_k and c_i the representative
+         point of R_i, with R_k and R_i the k-th and i-th element of voronoi_partition, respectively.
+
+        CONVENTION: indexing regions over columns and points over rows
+
         :param voronoi_partition:
-        :return:
+        :return: shape: (voronoi_partition.num_points, voronoi_partition.num_points)
         """
         pass
 
@@ -33,49 +37,46 @@ class Dynamics(ABC):
         """
         return None
 
-class _ConvexDynamics(Dynamics):
+class _LogConcaveDynamics(Dynamics):
     def __init__(self):
-        super(_ConvexDynamics, self).__init__()
+        super().__init__()
 
     def bound_lp2_norm_difference(self, voronoi_partition: HyperRectangularVoronoiPartition):
-        bound = torch.max(
-            torch.norm(self(voronoi_partition.lower) - self(voronoi_partition.points), p=2, dim=-1),
-            torch.norm(self(voronoi_partition.upper) - self(voronoi_partition.points), p=2, dim=-1)
+        if self.num_dims > 1:
+            raise NotImplementedError # Requires checking all vertices, not only lower and upper
+
+        extremum = voronoi_partition.points.clone()
+        mask_extremum = torch.logical_and(voronoi_partition.lower <= self.location_extremum,
+                                          self.location_extremum >= voronoi_partition.upper)
+        extremum[mask_extremum] = self.extremum
+
+        return torch.max(torch.max(
+            torch.norm(self(voronoi_partition.lower).unsqueeze(0) - self(voronoi_partition.points).unsqueeze(1), p=2, dim=-1),
+            torch.norm(self(voronoi_partition.upper).unsqueeze(0) - self(voronoi_partition.points).unsqueeze(1), p=2, dim=-1)),
+            torch.norm(self(extremum).unsqueeze(0) - self(voronoi_partition.points).unsqueeze(1), p=2, dim=-1)
         )
-        fmax_in_region = torch.logical_and(voronoi_partition.lower <= self.location_max_value,
-                                           self.location_max_value <= voronoi_partition.upper
-                                           ).all(dim=-1)
-        bound[fmax_in_region] = torch.norm(self.max_value - self(voronoi_partition.points[fmax_in_region]), p=2, dim=-1)
-        return bound
 
     @property
-    def location_max_value(self):
+    def location_extremum(self):
         return torch.ones(self.num_dims).fill_(torch.nan)
 
     @property
-    def max_value(self):
-        return self(self.location_max_value)
+    def extremum(self):
+        return self(self.location_extremum)
 
 
 class _MonotoneDynamics(Dynamics):
     def __init__(self):
-        super(_MonotoneDynamics, self).__init__()
+        super().__init__()
 
     def bound_lp2_norm_difference(self, voronoi_partition: HyperRectangularVoronoiPartition):
         return torch.max(
-            torch.norm(self(voronoi_partition.lower) - self(voronoi_partition.points), p=2, dim=-1),
-            torch.norm(self(voronoi_partition.upper) - self(voronoi_partition.points), p=2, dim=-1)
+            torch.norm(self(voronoi_partition.lower).unsqueeze(0) - self(voronoi_partition.points).unsqueeze(1), p=2, dim=-1),
+            torch.norm(self(voronoi_partition.upper).unsqueeze(0) - self(voronoi_partition.points).unsqueeze(1), p=2, dim=-1)
         )
 
-    def bound_lp2_norm_difference_across_regions(self, voronoi_partition: HyperRectangularVoronoiPartition):
-        return torch.max(
-            torch.norm(self(voronoi_partition.lower).unsqueeze(1) - self(voronoi_partition.points).unsqueeze(0), p=2, dim=-1),
-            torch.norm(self(voronoi_partition.upper).unsqueeze(1) - self(voronoi_partition.points).unsqueeze(0), p=2, dim=-1)
-        )
-
-
-class GaussianDynamics1d(_ConvexDynamics):
-    def __init__(self, loc: torch.Tensor, scale: torch.Tensor):
+class GaussianDynamics1d(_LogConcaveDynamics):
+    def __init__(self, loc: torch.Tensor, scale: torch.Tensor, **kwargs):
         self.num_dims = loc.size(0)
         self.loc = loc
         self.scale = scale
@@ -92,20 +93,19 @@ class GaussianDynamics1d(_ConvexDynamics):
 
     @property
     def global_lipschitz(self):
-        # \TODO
         if not (self.scale <= 1).all():
             raise NotImplementedError
         else:
             return math.exp(-1 / 2) / math.sqrt(2 * math.pi)
 
-class ChaoticDynamics(_ConvexDynamics):
+class ChaoticDynamics(_LogConcaveDynamics):
     num_dims = 1
-    def __init__(self, r: float):
+    def __init__(self, r: float, **kwargs):
         self.r = r
         super(ChaoticDynamics, self).__init__()
 
     def __call__(self, x: torch.Tensor):
-        return torch.where((x > 0) & (x < 1), self.r * x * (1 - x), torch.zeros_like(x)) # @Eduardo, why not simply take self.r * x * (1 - x) ??
+        return torch.where((x > 0) & (x < 1), self.r * x * (1 - x), torch.zeros_like(x))
 
     @property
     def global_lipschitz(self):
@@ -116,10 +116,10 @@ class ChaoticDynamics(_ConvexDynamics):
         return torch.tensor(1 / (2 * self.r))
 
 class LinearDynamics(_MonotoneDynamics):
-    def __init__(self, mat: torch.Tensor):
-        self.num_dims = mat.size(0)
-        self.mat = mat
-        self.mat_is_diagonal = not (mat - mat.diagonal() > 0).any()  # \todo use this for mat_diagonal check in DistSignatures package
+    def __init__(self, diagonal: torch.Tensor, **kwargs):
+        self.num_dims = diagonal.size(0)
+        self.mat = torch.diag(diagonal)
+        self.mat_is_diagonal = True
         super(LinearDynamics, self).__init__()
 
     def __call__(self, x: torch.Tensor):

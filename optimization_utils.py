@@ -1,7 +1,7 @@
 import torch
 from typing import Callable
 
-def minimize_with_adam(objective: Callable, param: torch.Tensor, lr=0.001, num_iterations=100, tolerance=1e-8,
+def minimize_with_adam(objective: Callable, param: torch.Tensor, lr=0.01, num_iterations=100, tolerance=1e-8,
                        print_progress: bool = True, non_negative_constraint: bool = False,  **kwargs):
     """
 
@@ -45,5 +45,7 @@ def minimize_with_adam(objective: Callable, param: torch.Tensor, lr=0.001, num_i
         if len(loss_history) > 1 and abs(loss_history[-1] - loss_history[-2]) < tolerance and print_progress:
             print("Converged after {} iterations.".format(iteration))
             break
+
+    print(f"optimal parram: {param:.4f}")
 
     return param, loss_history

@@ -10,6 +10,10 @@ class HyperRectangularVoronoiPartition:
         self._upper = self._get_upper()
 
     @property
+    def num_points(self):
+        return self.points.size(0)
+
+    @property
     def points(self):
         return self._points
 
