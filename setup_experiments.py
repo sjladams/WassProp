@@ -82,14 +82,11 @@ def multi_step(dynamics: Dynamics,
         if run_type1:
             # Term 1: bound W_2(f#p_k, f#\Delta_C#p_k)
             w2_term1_type1 = wasserstein.compute_bound_w2_f_p__f_disc_p(
-                sign_q0, dynamics, budget=sign_q0.w2 + w2_compr + w2_type1[k])
+                sign_q0, dynamics, w2_q__disc_q=sign_q0.w2 + w2_compr, w2_p__q=w2_type1[k])
 
             # Term 2: bound W_2(f#\Delta#p_k, f#\Delta#q_k)
-            if k == 0:
-                w2_term2_type1 = 0.
-            else:
-                w2_term2_type1 = wasserstein.compute_bound_w2_f_disc_p__f_disc_q(
-                    sign_q0, dynamics, budget=2 * (sign_q0.w2 + w2_compr + w2_type1[k]), budget_type='w2_disc_p__disc_q')
+            w2_term2_type1 = wasserstein.compute_bound_w2_f_disc_p__f_disc_q(
+                sign_q0, dynamics, w2_q__disc_q=sign_q0.w2 + w2_compr, w2_p__q=w2_type1[k], budget_type='w2_disc_p__disc_q')
 
             w2_type1[k + 1] = w2_term1_type1 + w2_term2_type1
 
@@ -97,14 +94,11 @@ def multi_step(dynamics: Dynamics,
         ### Type 2: Budget Term 2 = W_2(p, disc # q)
         ## Term 1: bound W_2(f#p_k, f#\Delta_C#p_k)
         w2_term1_type2 = wasserstein.compute_bound_w2_f_p__f_disc_p(
-            sign_q0, dynamics, budget=sign_q0.w2 + w2_compr + w2_type2[k])
+            sign_q0, dynamics, w2_q__disc_q=sign_q0.w2 + w2_compr, w2_p__q=w2_type2[k])
 
         ## Term 2: bound W_2(f#\Delta#p_k, f#\Delta#q_k)
-        if k == 0:
-            w2_term2_type2 = 0.
-        else:
-            w2_term2_type2 = wasserstein.compute_bound_w2_f_disc_p__f_disc_q(
-                sign_q0, dynamics, budget= (sign_q0.w2 + w2_compr + w2_type2[k]), budget_type='w2_p__disc_q')
+        w2_term2_type2 = wasserstein.compute_bound_w2_f_disc_p__f_disc_q(
+            sign_q0, dynamics, w2_q__disc_q=sign_q0.w2 + w2_compr, w2_p__q=w2_type2[k], budget_type='w2_p__disc_q')
 
         w2_type2[k + 1] = w2_term1_type2 + w2_term2_type2
 
@@ -160,12 +154,12 @@ def single_step(dynamics: Dynamics,
                 covariance_initial_dist: torch.Tensor,
                 num_samples: int,
                 num_signature_points: int,
-                initial_budget_options: Union[List, float],
+                w2_p__q_options: Union[List, float],
                 run_type1: bool = False,
                 plot: bool = False):
 
-    if isinstance(initial_budget_options, float):
-        initial_budget_options = [initial_budget_options]
+    if isinstance(w2_p__q_options, float):
+        w2_p__q_options = [w2_p__q_options]
 
     # Initialize System Dynamics
     print(f"Global Lipschitz constant of f: {dynamics.global_lipschitz}")
@@ -186,11 +180,11 @@ def single_step(dynamics: Dynamics,
     q0_samples = q0.sample(torch.Size((num_samples,)))
 
     # store wasserstein error bounds
-    w2_global_lipschitz = torch.zeros(len(initial_budget_options))
-    w2_independent_coupling = torch.zeros(len(initial_budget_options))
-    w2_two_step = torch.zeros(len(initial_budget_options))
-    w2_type1 = torch.zeros(len(initial_budget_options))
-    w2_type2 = torch.zeros(len(initial_budget_options))
+    w2_global_lipschitz = torch.zeros(len(w2_p__q_options))
+    w2_independent_coupling = torch.zeros(len(w2_p__q_options))
+    w2_two_step = torch.zeros(len(w2_p__q_options))
+    w2_type1 = torch.zeros(len(w2_p__q_options))
+    w2_type2 = torch.zeros(len(w2_p__q_options))
 
     # Propagate the system
     sign_q0 = ds.discretization_generator(dist=q0, compute_w2=True, nr_signature_points=num_signature_points)
@@ -223,32 +217,27 @@ def single_step(dynamics: Dynamics,
         plt.title(f"Signature of q and Histogram of q")
         plt.show()
 
-    known_distribution = True
-
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
-    for idx, initial_budget in enumerate(initial_budget_options):
+    for idx, w2_p__q in enumerate(w2_p__q_options):
         ### Global Lipschitz
-        w2_global_lipschitz[idx] = dynamics.global_lipschitz * (sign_q0.w2 + initial_budget)
+        w2_global_lipschitz[idx] = dynamics.global_lipschitz * (sign_q0.w2 + w2_p__q)
 
-        w2_independent_coupling[idx] = wasserstein.compute_bound_w2_f_p__f_disc_q_independent_coupling(sign_q0, dynamics, budget=sign_q0.w2 + initial_budget)
+        w2_independent_coupling[idx] = wasserstein.compute_bound_w2_f_p__f_disc_q_independent_coupling(
+            sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q)
 
-        w2_two_step[idx] = wasserstein.compute_bound_w2_f_p__f_disc_q_together(sign_q0, dynamics, budget=sign_q0.w2 + initial_budget, known_distribution=known_distribution)
-
-        known_distribution = False #Set to False for propagation within a Wasserstein ball
+        w2_two_step[idx] = wasserstein.compute_bound_w2_f_p__f_disc_q_together(
+            sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q)
 
         ### Our Method
         ## Type 1: Budget Term 2 = W_2(disc # p, disc # q)
         if run_type1:
             # Term 1: bound W_2(f#p_k, f#\Delta_C#p_k)
             w2_term1_type1 = wasserstein.compute_bound_w2_f_p__f_disc_p(
-                sign_q0, dynamics, budget=sign_q0.w2 + initial_budget)
+                sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q)
 
             # Term 2: bound W_2(f#\Delta#p_k, f#\Delta#q_k)
-            if initial_budget == 0.:
-                w2_term2_type1 = 0.
-            else:
-                w2_term2_type1 = wasserstein.compute_bound_w2_f_disc_p__f_disc_q(
-                    sign_q0, dynamics, budget=2 * (sign_q0.w2 + initial_budget), budget_type='w2_disc_p__disc_q')
+            w2_term2_type1 = wasserstein.compute_bound_w2_f_disc_p__f_disc_q(
+                sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, budget_type='w2_disc_p__disc_q')
 
             w2_type1[idx] = w2_term1_type1 + w2_term2_type1
 
@@ -256,18 +245,15 @@ def single_step(dynamics: Dynamics,
         ### Type 2: Budget Term 2 = W_2(p, disc # q)
         ## Term 1: bound W_2(f#p_k, f#\Delta_C#p_k)
         w2_term1_type2 = wasserstein.compute_bound_w2_f_p__f_disc_p(
-            sign_q0, dynamics, budget=sign_q0.w2 + initial_budget)
+            sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q)
 
         ## Term 2: bound W_2(f#\Delta#p_k, f#\Delta#q_k)
-        if initial_budget == 0.:
-            w2_term2_type2 = 0.
-        else:
-            w2_term2_type2 = wasserstein.compute_bound_w2_f_disc_p__f_disc_q(
-                sign_q0, dynamics, budget= (sign_q0.w2 + initial_budget), budget_type='w2_p__disc_q')
+        w2_term2_type2 = wasserstein.compute_bound_w2_f_disc_p__f_disc_q(
+            sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, budget_type='w2_p__disc_q')
 
         w2_type2[idx] = w2_term1_type2 + w2_term2_type2
 
-        print(f"Bounds on W_2(W_2(f#p, f#disc#q)) for W_2(p,q) = {initial_budget} via:\n"
+        print(f"Bounds on W_2(W_2(f#p, f#disc#q)) for W_2(p,q) = {w2_p__q} via:\n"
               f"\t Global Lipschits: {w2_global_lipschitz[idx]:.4f}\n"
               f"\t Independent Coupling: {w2_independent_coupling[idx]:.4f}\n"
               f"\t Two-Step: {w2_two_step[idx]:.4f}\n")

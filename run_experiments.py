@@ -73,7 +73,7 @@ if __name__ == '__main__':
            PARAMS_DYNAMICS[args.dynamics_type]))
 
     # Run single step experiment:
-    initial_budget_options = [0., 0.1, 0.5, 1.]
+    w2_p__q_options = [0., 0.1, 0.5, 1.]
     w2_bounds, tag = single_step(
         dynamics=dynamics,
         loc_noise_dist=torch.tensor(args.loc_noise_dist),
@@ -83,27 +83,27 @@ if __name__ == '__main__':
         num_samples=args.num_samples,
         num_signature_points=args.nr_signature_points,
         run_type1=False,
-        initial_budget_options=initial_budget_options,
+        w2_p__q_options=w2_p__q_options,
         plot=args.plot
     )
 
-    plotting.plot_single_step(dynamics, w2_bounds, tag, initial_budget_options)
+    plotting.plot_single_step(dynamics, w2_bounds, tag, w2_p__q_options)
 
-    # # Run multi step experiment:
-    # w2_bounds, tag = multi_step(
-    #     dynamics= dynamics,
-    #     loc_noise_dist= torch.tensor(args.loc_noise_dist),
-    #     covariance_noise_dist= torch.diag(torch.tensor(args.variance_noise_dist)),
-    #     loc_initial_dist= torch.tensor(args.loc_initial_dist),
-    #     covariance_initial_dist= torch.diag(torch.tensor(args.variance_initial_dist)),
-    #     num_samples=args.num_samples,
-    #     num_time_steps=10,
-    #     num_signature_points=args.nr_signature_points,
-    #     run_type1=False,
-    #     plot=args.plot
-    # )
-    #
-    # plotting.plot_multi_step(dynamics, w2_bounds, tag)
+    # Run multi step experiment:
+    w2_bounds, tag = multi_step(
+        dynamics= dynamics,
+        loc_noise_dist= torch.tensor(args.loc_noise_dist),
+        covariance_noise_dist= torch.diag(torch.tensor(args.variance_noise_dist)),
+        loc_initial_dist= torch.tensor(args.loc_initial_dist),
+        covariance_initial_dist= torch.diag(torch.tensor(args.variance_initial_dist)),
+        num_samples=args.num_samples,
+        num_time_steps=10,
+        num_signature_points=args.nr_signature_points,
+        run_type1=False,
+        plot=args.plot
+    )
+
+    plotting.plot_multi_step(dynamics, w2_bounds, tag)
 
 
 

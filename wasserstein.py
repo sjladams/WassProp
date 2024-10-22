@@ -37,26 +37,29 @@ def get_lp2_norm_of_projection_matrix(signature: ds.DiscretizedMultivariateNorma
 
 
 # ----- W_2(f#p, f#disc#p) -----
-def get_fn_bound_on_w2_f_p__f_disc_p(
-                 signature: ds.DiscretizedMultivariateNormal,
-                 f: dynamics.Dynamics,
-                 budget: float) -> Callable:
+def get_fn_bound_on_w2_f_p__f_disc_p(signature: ds.DiscretizedMultivariateNormal,
+                                     f: dynamics.Dynamics,
+                                     w2_q__disc_q: float,
+                                     w2_p__q: float) -> Callable:
 
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
     beta = f.bound_lp2_norm_difference(voronoi_partition).pow(2)
     l2_norm_proj_matrix = get_lp2_norm_of_projection_matrix(signature, voronoi_partition).pow(2)
 
+    w2_p__disc_q = w2_q__disc_q + w2_p__q
+
     def fn_bound_on_w2_f_p__f_disc_p(lambd: torch.Tensor):
         inner_sup = torch.max(beta - lambd * l2_norm_proj_matrix, dim=-1).values
-        return (lambd * budget ** 2 + torch.dot(signature.probs, inner_sup)).clip(0, torch.inf).sqrt()
+        return (lambd * w2_p__disc_q ** 2 + torch.dot(signature.probs, inner_sup)).clip(0, torch.inf).sqrt()
 
     return fn_bound_on_w2_f_p__f_disc_p
 
 def compute_bound_w2_f_p__f_disc_p(signature: ds.DiscretizedMultivariateNormal,
                                    f: dynamics.Dynamics,
-                                   budget: float):
-    fn_bound_on_w2_fP_fdiscP = get_fn_bound_on_w2_f_p__f_disc_p(signature, f, budget)
+                                   w2_q__disc_q: float,
+                                   w2_p__q: float):
+    fn_bound_on_w2_fP_fdiscP = get_fn_bound_on_w2_f_p__f_disc_p(signature, f, w2_q__disc_q, w2_p__q)
 
     lambd = torch.tensor(0.1, requires_grad=True)
     optimized_lambda, losses = minimize_with_adam(
@@ -69,25 +72,33 @@ def compute_bound_w2_f_p__f_disc_p(signature: ds.DiscretizedMultivariateNormal,
 def get_fn_bound_on_w2_f_disc_p__f_disc_q(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
-        budget: float) -> Callable:
+        w2_q__disc_q: float,
+        w2_p__q: float) -> Callable:
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
     f_signature_locs = f(signature.locs)
     F = torch.norm(f_signature_locs.unsqueeze(-3) - f_signature_locs.unsqueeze(-2), p=2, dim=-1).pow(2)
     l2_norm_proj_matrix = get_lp2_norm_of_projection_matrix(signature, voronoi_partition).pow(2)
 
+    w2_p__disc_q = w2_q__disc_q + w2_p__q
+
     def fn_bound_on_w2_f_disc_p__f_disc_q(lambd: torch.Tensor):
         inner_sup = torch.max(F - lambd * l2_norm_proj_matrix, dim=-1).values
-        return (lambd * budget ** 2 + torch.dot(signature.probs, inner_sup)).clip(0, torch.inf).sqrt()
+        return (lambd * w2_p__disc_q ** 2 + torch.dot(signature.probs, inner_sup)).clip(0, torch.inf).sqrt()
 
     return fn_bound_on_w2_f_disc_p__f_disc_q
 
 
 def compute_bound_w2_f_disc_p__f_disc_q(signature: ds.DiscretizedMultivariateNormal,
                                         f: dynamics.Dynamics,
-                                        budget: float, budget_type: str):
-    if budget_type == 'w2_p__disc_q':
-        fn_bound_on_w2_f_disc_p__f_disc_q = get_fn_bound_on_w2_f_disc_p__f_disc_q(signature, f, budget)
+                                        w2_q__disc_q: float,
+                                        w2_p__q: float,
+                                        budget_type: str = 'w2_p__disc_q'):
+
+    if w2_p__q == 0.:
+        return torch.tensor(0.)
+    elif budget_type == 'w2_p__disc_q':
+        fn_bound_on_w2_f_disc_p__f_disc_q = get_fn_bound_on_w2_f_disc_p__f_disc_q(signature, f, w2_q__disc_q, w2_p__q)
 
         lambd = torch.tensor(0.1, requires_grad=True)
         optimized_lambda, losses = minimize_with_adam(
@@ -95,6 +106,8 @@ def compute_bound_w2_f_disc_p__f_disc_q(signature: ds.DiscretizedMultivariateNor
 
         return fn_bound_on_w2_f_disc_p__f_disc_q(optimized_lambda).detach()
     elif budget_type == 'w2_disc_p__disc_q':
+        w2_disc_p__disc_q = 2 * (w2_q__disc_q + w2_p__q)
+
         f_signature_locs = f(signature.locs)
         F = torch.norm(f_signature_locs.unsqueeze(-3) - f_signature_locs.unsqueeze(-2), p=2, dim=-1).pow(2)
         C = torch.norm(signature.locs.unsqueeze(-3) - signature.locs.unsqueeze(-2), p=2, dim=-1).pow(2)
@@ -122,7 +135,7 @@ def compute_bound_w2_f_disc_p__f_disc_q(signature: ds.DiscretizedMultivariateNor
 
         # Wasserstein constraint: (C * Pi).sum() <= w
         A_ineq = np.array([C_flat])  # One inequality constraint for the Wasserstein bound
-        b_ineq = [budget ** 2]
+        b_ineq = [w2_disc_p__disc_q ** 2]
 
         # Combine constraints
         A_eq_combined = np.vstack([A_eq, A_marg])  # Combine the equality constraints
@@ -147,25 +160,31 @@ def compute_bound_w2_f_disc_p__f_disc_q(signature: ds.DiscretizedMultivariateNor
 
 # ----- W_2(f#p, f#disc#q) for independent coupling -----
 def get_fn_bound_on_w2_f_p__f_disc_q_independent_coupling(
-                 signature: ds.DiscretizedMultivariateNormal,
-                 f: dynamics.Dynamics,
-                 budget: float) -> Callable:
+        signature: ds.DiscretizedMultivariateNormal,
+        f: dynamics.Dynamics,
+        w2_q__disc_q: float,
+        w2_p__q: float) -> Callable:
 
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
     beta = f.bound_lp2_norm_difference_across_regions(voronoi_partition).pow(2)
     l2_norm_proj_matrix = get_lp2_norm_of_projection_matrix(signature, voronoi_partition).pow(2)
 
+    w2_p__disc_q = w2_q__disc_q + w2_p__q
+
     def fn_bound_on_w2_f_p__f_disc_q_independent_coupling(lambd: torch.Tensor):
         inner_sup = torch.max(torch.matmul(beta, signature.probs).unsqueeze(1) - lambd * l2_norm_proj_matrix, dim=-1).values
-        return (lambd * budget ** 2 + torch.dot(signature.probs, inner_sup)).clip(0, torch.inf).sqrt()
+        return (lambd * w2_p__disc_q ** 2 + torch.dot(signature.probs, inner_sup)).clip(0, torch.inf).sqrt()
 
     return fn_bound_on_w2_f_p__f_disc_q_independent_coupling
 
-def compute_bound_w2_f_p__f_disc_q_independent_coupling(signature: ds.DiscretizedMultivariateNormal,
-                                   f: dynamics.Dynamics,
-                                   budget: float):
-    fn_bound_on_w2_fP_fdiscQ = get_fn_bound_on_w2_f_p__f_disc_q_independent_coupling(signature, f, budget)
+def compute_bound_w2_f_p__f_disc_q_independent_coupling(
+        signature: ds.DiscretizedMultivariateNormal,
+        f: dynamics.Dynamics,
+        w2_q__disc_q: float,
+        w2_p__q: float):
+    fn_bound_on_w2_fP_fdiscQ = get_fn_bound_on_w2_f_p__f_disc_q_independent_coupling(signature, f,
+                                                                                     w2_q__disc_q, w2_p__q)
 
     lambd = torch.tensor(0.1, requires_grad=True)
     optimized_lambda, losses = minimize_with_adam(
@@ -175,37 +194,38 @@ def compute_bound_w2_f_p__f_disc_q_independent_coupling(signature: ds.Discretize
 
 
 # ----- W_2(f#p, f#disc#q) - New method -----
-def get_fn_bound_on_w2_f_p__f_disc_q_together(
-                 signature: ds.DiscretizedMultivariateNormal,
-                 f: dynamics.Dynamics,
-                 budget: float,
-                 known_distribution: bool) -> Callable:
+def get_fn_bound_on_w2_f_p__f_disc_q_together(signature: ds.DiscretizedMultivariateNormal,
+                                              f: dynamics.Dynamics,
+                                              w2_q__disc_q: float,
+                                              w2_p__q: float) -> Callable:
 
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
-
     beta = f.bound_lp2_norm_difference(voronoi_partition).pow(2)
-    f_signature_locs = f(signature.locs)
 
-    factor = math.sqrt(2)
-    if known_distribution:
+    if w2_p__q == 0.:
         f_signature_locs = torch.zeros_like(signature.locs)
         factor = 1
+    else:
+        f_signature_locs = f(signature.locs)
+        factor = math.sqrt(2)
 
     F = torch.norm(f_signature_locs.unsqueeze(-3) - f_signature_locs.unsqueeze(-2), p=2, dim=-1).pow(2)
-
     l2_norm_proj_matrix = get_lp2_norm_of_projection_matrix(signature, voronoi_partition).pow(2)
+
+    w2_p__disc_q = w2_q__disc_q + w2_p__q
 
     def fn_bound_on_w2_f_p__f_disc_q_together(lambd: torch.Tensor):
         inner_sup = torch.max(beta + F - lambd * l2_norm_proj_matrix, dim=-1).values
-        return factor * (lambd * budget ** 2 + torch.dot(signature.probs, inner_sup)).clip(0, torch.inf).sqrt()
+        return factor * (lambd * w2_p__disc_q ** 2 +
+                         torch.dot(signature.probs, inner_sup)).clip(0, torch.inf).sqrt()
 
     return fn_bound_on_w2_f_p__f_disc_q_together
 
 def compute_bound_w2_f_p__f_disc_q_together(signature: ds.DiscretizedMultivariateNormal,
-                                   f: dynamics.Dynamics,
-                                   budget: float,
-                                   known_distribution: bool):
-    fn_bound_on_w2_fP_fdiscQ = get_fn_bound_on_w2_f_p__f_disc_q_together(signature, f, budget, known_distribution)
+                                            f: dynamics.Dynamics,
+                                            w2_q__disc_q: float,
+                                            w2_p__q: float):
+    fn_bound_on_w2_fP_fdiscQ = get_fn_bound_on_w2_f_p__f_disc_q_together(signature, f, w2_q__disc_q, w2_p__q)
 
     lambd = torch.tensor(0.1, requires_grad=True)
     optimized_lambda, losses = minimize_with_adam(
