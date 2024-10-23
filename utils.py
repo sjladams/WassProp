@@ -20,6 +20,7 @@ def parse_arguments(
         num_dims: int = 1,
         dynamics_setting: int = 0,
         num_locs: int = 10,
+        prob_shell: float = 0.001,
         num_samples: int = 1000,
         lr: float = 0.01,
         num_iterations: int = 1000,
@@ -43,6 +44,10 @@ def parse_arguments(
                         type=int,
                         default=num_locs,
                         help='Size of discretization grid.')
+    parser.add_argument('--prob_shell',
+                        type=float,
+                        default=prob_shell,
+                        help='Probability mass covered by outer shell.')
     parser.add_argument('--num_samples',
                         type=int,
                         default=num_samples,
@@ -73,7 +78,8 @@ def load_params(args):
 
     return {"dynamics_type": args.dynamics_type,
             "num_samples": args.num_samples,
-            "num_signature_points": args.num_locs,
+            "num_locs": args.num_locs,
+            "prob_shell": args.prob_shell,
             "lr": args.lr,
             "num_iterations": args.num_iterations,
             **dynamics_params}
