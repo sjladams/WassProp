@@ -60,4 +60,5 @@ def plot_single_step(dynamics, w2_bounds, tag, w2_p__q_options):
     plt.xlabel('$W_2(p,q)$')
     plt.xticks(w2_p__q_options)
     plt.ylabel(r'$W_2(f p, f \Delta q)$')
+    plt.xlim(min(w2_p__q_options), max(w2_p__q_options))
     plt.show()
