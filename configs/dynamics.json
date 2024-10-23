@@ -45,11 +45,11 @@
             "2": {
                 "options": {
                     "0": {
-                        "diagonal": [0.9, 0.001],
+                        "diagonal": [3.0, 0.001],
                         "loc_noise_dist": [0.0, 0.0],
                         "variance_noise_dist": [0.3, 0.3],
                         "loc_initial_dist": [0.0, 0.0],
-                        "variance_initial_dist": [0.001, 0.9]
+                        "variance_initial_dist": [0.0001, 0.5]
                     }
                 }
             }
