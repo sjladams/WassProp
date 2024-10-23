@@ -12,14 +12,15 @@ if __name__ == '__main__':
     torch.manual_seed(0)
 
     args = parse_arguments(
-        dynamics_type = 'ChaoticDynamics',
-        num_dims = 1,
-        dynamics_setting = 1,
-        num_locs = 1000,
+        dynamics_type = 'LinearDynamics',
+        num_dims = 2,
+        dynamics_setting = 0,
+        num_locs = 10,
         num_samples = 1000,
         lr = 0.01,
         num_iterations = 1000,
-        plot = False
+        plot = False,
+        prob_shell = 0.0,
     )
 
     params = load_params(args)
@@ -27,7 +28,7 @@ if __name__ == '__main__':
     dynamics = get_dynamics(**params)
 
     # Run single step experiment:
-    w2_p__q_options = [0., 0.001, 0.005, 0.01]
+    w2_p__q_options = [0., 0.1, 0.5, 1.0]
     w2_bounds, tag = single_step(
         dynamics=dynamics,
         run_triangle_type1=False,

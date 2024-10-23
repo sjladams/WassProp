@@ -17,7 +17,7 @@ def multi_step(dynamics: Dynamics,
                covariance_initial_dist: torch.Tensor,
                num_samples: int,
                num_time_steps: int,
-               num_signature_points: int,
+               num_locs: int,
                run_type1: bool = False,
                plot: bool = False,
                **kwargs):
@@ -50,7 +50,7 @@ def multi_step(dynamics: Dynamics,
     # Propagate the system
     for k in range(num_time_steps):
         ### Generate the signature of the approximate state distribution at time k:
-        sign_q0 = ds.discretization_generator(dist=q0, compute_w2=True, nr_signature_points=num_signature_points)
+        sign_q0 = ds.discretization_generator(dist=q0, num_locs=num_locs)
 
         print(f"W_2(q_{k}, Delta_C#q_{k}) = {sign_q0.w2:.4f}")
 
@@ -63,7 +63,7 @@ def multi_step(dynamics: Dynamics,
                 covariance_matrix=noise_distribution.covariance_matrix
             ))
         q1_compr = copy(q1)
-        q1_compr.compress(n_max=num_signature_points)
+        q1_compr.compress(n_max=num_locs)
         w2_compr = GMMWas.w2(q1_compr, q1)
 
         q1_compr_samples = q1_compr.sample(torch.Size((num_samples,)))
@@ -141,7 +141,7 @@ def multi_step(dynamics: Dynamics,
         q0_samples = q1_compr_samples
         p0_samples = p1_samples
 
-    tag = f"{dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f}, |C|={num_signature_points})"
+    tag = f"{dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f}, |C|={num_locs})"
     w2_bounds = {'emp': w2_empirical, 'gl': w2_global_lipschitz, 'type2': w2_type2}
     if run_type1:
         w2_bounds['type1'] = w2_type1
@@ -154,7 +154,8 @@ def single_step(dynamics: Dynamics,
                 loc_initial_dist: list,
                 variance_initial_dist: list,
                 num_samples: int,
-                num_signature_points: int,
+                num_locs: int,
+                prob_shell: float,
                 w2_p__q_options: Union[List, float],
                 run_triangle_type1: bool = False,
                 plot: bool = False,
@@ -189,9 +190,7 @@ def single_step(dynamics: Dynamics,
     q0_samples = q0.sample(torch.Size((num_samples,)))
 
     # Propagate the system
-    sign_q0 = ds.discretization_generator(dist=q0, compute_w2=True, nr_signature_points=num_signature_points)
-
-    print(f"W_2(q_0, Delta_C#q_0) = {sign_q0.w2:.4f}")
+    sign_q0 = ds.discretization_generator(dist=q0, num_locs=num_locs, prob_shell=prob_shell)
 
     ### Propagate the (approximate) state distribution over the dynamics
     q1 = ds.MixtureMultivariateNormal(
@@ -228,12 +227,16 @@ def single_step(dynamics: Dynamics,
     w2_triangle_type2 = torch.zeros(len(w2_p__q_options))
 
     for idx, w2_p__q in enumerate(w2_p__q_options):
+        print(f"\n ------ W_2(p,q) = {w2_p__q} ------ \n")
+
         ### Global Lipschitz
         w2_global_lipschitz[idx] = dynamics.global_lipschitz * (sign_q0.w2 + w2_p__q)
 
+        print(f"-- Independent Coupling --")
         w2_independent_coupling[idx] = wasserstein.compute_w2_f_p__f_disc_q_independent_coupling(
             sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, lr=lr, num_iterations=num_iterations)
 
+        print(f"-- Together --")
         w2_together[idx] = wasserstein.compute_w2_f_p__f_disc_q_together(
             sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, lr=lr, num_iterations=num_iterations)
 
@@ -241,9 +244,11 @@ def single_step(dynamics: Dynamics,
         ## Type 1: Budget Term 2 = W_2(disc # p, disc # q)
         if run_triangle_type1:
             # Term 1: bound W_2(f#p_k, f#\Delta_C#p_k)
+            print(f"-- Triangle Type 1 / Term 1 --")
             w2_triangle_type1_term1 = wasserstein.compute_w2_f_p__f_disc_p(
                 sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, lr=lr, num_iterations=num_iterations)
 
+            print(f"-- Triangle Type 1 / Term 2 --")
             # Term 2: bound W_2(f#\Delta#p_k, f#\Delta#q_k)
             w2_triangle_type1_term2 = wasserstein.compute_w2_f_disc_p__f_disc_q(
                 sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, budget_type='w2_disc_p__disc_q', lr=lr, num_iterations=num_iterations)
@@ -253,16 +258,18 @@ def single_step(dynamics: Dynamics,
 
         ### Type 2: Budget Term 2 = W_2(p, disc # q)
         ## Term 1: bound W_2(f#p_k, f#\Delta_C#p_k)
+        print(f"-- Triangle Type 2 / Term 1 --")
         w2_triangle_type2_term1 = wasserstein.compute_w2_f_p__f_disc_p(
             sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, lr=lr, num_iterations=num_iterations)
 
         ## Term 2: bound W_2(f#\Delta#p_k, f#\Delta#q_k)
+        print(f"-- Triangle Type 2 / Term 2 --")
         w2_triangle_type2_term2 = wasserstein.compute_w2_f_disc_p__f_disc_q(
             sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, budget_type='w2_p__disc_q', lr=lr, num_iterations=num_iterations)
 
         w2_triangle_type2[idx] = w2_triangle_type2_term1 + w2_triangle_type2_term2
 
-        print(f"Bounds on W_2(W_2(f#p, f#disc#q)) for W_2(p,q) = {w2_p__q} via:\n"
+        print(f"Bounds on W_2(W_2(f#p, f#disc#q)) for W_2(p,q) = {w2_p__q} and W_2(q_0, Delta_C#q_0) = {sign_q0.w2:.4f} via:\n"
               f"\t Global Lipschits: {w2_global_lipschitz[idx]:.4f}\n"
               f"\t Independent Coupling: {w2_independent_coupling[idx]:.4f}\n"
               f"\t Together: {w2_together[idx]:.4f}\n")
@@ -275,7 +282,7 @@ def single_step(dynamics: Dynamics,
               f"\t\t\t Term 1: {w2_triangle_type2_term1:.4f}\n"
               f"\t\t\t Term 2: {w2_triangle_type2_term2:.4f}")
 
-    tag = f"{dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f}, |C|={num_signature_points})"
+    tag = f"{dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f}, |C|={num_locs})"
     w2_bounds = {
         'gl': w2_global_lipschitz,
         'triangle_type2': w2_triangle_type2,

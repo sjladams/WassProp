@@ -18,7 +18,7 @@ class Dynamics(ABC):
         CONVENTION: indexing regions over columns and points over rows
 
         :param voronoi_partition:
-        :return: shape: (voronoi_partition.num_points, voronoi_partition.num_points)
+        :return: shape: (voronoi_partition.num_locs, voronoi_partition.num_locs)
         """
         pass
 
@@ -46,15 +46,15 @@ class _LogConcaveDynamics(Dynamics):
         if self.num_dims > 1:
             raise NotImplementedError # Requires checking all vertices, not only lower and upper
 
-        extremum = voronoi_partition.points.clone()
+        extremum = voronoi_partition.locs.clone()
         mask_extremum = torch.logical_and(voronoi_partition.lower <= self.location_extremum,
                                           self.location_extremum >= voronoi_partition.upper)
         extremum[mask_extremum] = self.extremum
 
         return torch.max(torch.max(
-            torch.norm(self(voronoi_partition.lower).unsqueeze(0) - self(voronoi_partition.points).unsqueeze(1), p=2, dim=-1),
-            torch.norm(self(voronoi_partition.upper).unsqueeze(0) - self(voronoi_partition.points).unsqueeze(1), p=2, dim=-1)),
-            torch.norm(self(extremum).unsqueeze(0) - self(voronoi_partition.points).unsqueeze(1), p=2, dim=-1)
+            torch.norm(self(voronoi_partition.lower).unsqueeze(0) - self(voronoi_partition.locs).unsqueeze(1), p=2, dim=-1),
+            torch.norm(self(voronoi_partition.upper).unsqueeze(0) - self(voronoi_partition.locs).unsqueeze(1), p=2, dim=-1)),
+            torch.norm(self(extremum).unsqueeze(0) - self(voronoi_partition.locs).unsqueeze(1), p=2, dim=-1)
         )
 
     @property
@@ -72,8 +72,8 @@ class _MonotoneDynamics(Dynamics):
 
     def bound_lp2_norm_difference(self, voronoi_partition: HyperRectangularVoronoiPartition):
         return torch.max(
-            torch.norm(self(voronoi_partition.lower).unsqueeze(0) - self(voronoi_partition.points).unsqueeze(1), p=2, dim=-1),
-            torch.norm(self(voronoi_partition.upper).unsqueeze(0) - self(voronoi_partition.points).unsqueeze(1), p=2, dim=-1)
+            torch.norm(self(voronoi_partition.lower).unsqueeze(0) - self(voronoi_partition.locs).unsqueeze(1), p=2, dim=-1),
+            torch.norm(self(voronoi_partition.upper).unsqueeze(0) - self(voronoi_partition.locs).unsqueeze(1), p=2, dim=-1)
         )
 
 class GaussianDynamics1d(_LogConcaveDynamics):

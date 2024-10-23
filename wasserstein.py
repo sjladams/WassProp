@@ -46,7 +46,7 @@ def get_fn_sq_w2_f_p__f_disc_p(
         w2_q__disc_q: float,
         w2_p__q: float) -> Callable:
 
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
 
     lp2_norm_diff_sq = f.bound_lp2_norm_difference(voronoi_partition).diag().pow(2)
     lp2_norm_proj_matrix_sq = get_lp2_norm_of_proj_matrix(signature, voronoi_partition).pow(2)
@@ -83,7 +83,7 @@ def get_fn_sq_w2_f_disc_p__f_disc_q(
         w2_q__disc_q: float,
         w2_p__q: float) -> Callable:
 
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
 
     f_signature_locs = f(signature.locs)
     F_sq = torch.norm(f_signature_locs.unsqueeze(-3) - f_signature_locs.unsqueeze(-2), p=2, dim=-1).pow(2)
@@ -177,7 +177,7 @@ def get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
         w2_q__disc_q: float,
         w2_p__q: float) -> Callable:
 
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
 
     lp2_norm_diff_matrix_sq = f.bound_lp2_norm_difference(voronoi_partition).pow(2)
     average_lp2_norm_diff_sq = torch.einsum('jl,j->l', lp2_norm_diff_matrix_sq, signature.probs)
@@ -218,10 +218,10 @@ def get_fn_sq_w2_f_p__f_disc_q_together(signature: ds.DiscretizedMultivariateNor
                                                  w2_q__disc_q: float,
                                                  w2_p__q: float) -> Callable:
 
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
 
     if w2_p__q == 0.:
-        F_sq = torch.zeros(voronoi_partition.num_points, voronoi_partition.num_points)
+        F_sq = torch.zeros(voronoi_partition.num_locs, voronoi_partition.num_locs)
 
         factor = 1
     else:
