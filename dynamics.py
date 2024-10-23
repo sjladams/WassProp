@@ -1,6 +1,7 @@
 import math
 import torch
 from abc import ABC, abstractmethod
+from typing import Union
 
 from regions import HyperRectangularVoronoiPartition
 
@@ -76,10 +77,10 @@ class _MonotoneDynamics(Dynamics):
         )
 
 class GaussianDynamics1d(_LogConcaveDynamics):
-    def __init__(self, loc: torch.Tensor, scale: torch.Tensor, **kwargs):
-        self.num_dims = loc.size(0)
-        self.loc = loc
-        self.scale = scale
+    def __init__(self, loc: float, scale: float, **kwargs):
+        self.num_dims = 1
+        self.loc = torch.tensor(loc)
+        self.scale = torch.tensor(scale)
         self.gaussian_distribution = torch.distributions.Normal(loc=loc, scale=scale)
         super(GaussianDynamics1d, self).__init__()
 
@@ -116,7 +117,10 @@ class ChaoticDynamics(_LogConcaveDynamics):
         return torch.tensor(1 / (2 * self.r))
 
 class LinearDynamics(_MonotoneDynamics):
-    def __init__(self, diagonal: torch.Tensor, **kwargs):
+    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
+        if isinstance(diagonal, list):
+            diagonal = torch.tensor(diagonal)
+
         self.num_dims = diagonal.size(0)
         self.mat = torch.diag(diagonal)
         self.mat_is_diagonal = True
