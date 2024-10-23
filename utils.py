@@ -10,7 +10,7 @@ def load_json(filename: str):
 def param_handler(param_name: str, dataset_name: str, num_dims: int, setting_tag: int = None):
     params = load_json(param_name)[dataset_name]
     if "dimensions" in params:
-        return params[str(setting_tag)]
+        return params["dimensions"][str(num_dims)]["options"][str(setting_tag)]
     else:
         return params["options"][str(setting_tag)]
 
