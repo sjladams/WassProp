@@ -8,6 +8,7 @@ class HyperRectangularVoronoiPartition:
         self._loc_shell = loc_shell
         self._shell = shell
         self._locs = locs
+        self._num_dims = locs.size(-1)
         self._lower = self._get_lower()
         self._upper = self._get_upper()
 
@@ -45,13 +46,17 @@ class HyperRectangularVoronoiPartition:
         pos_diff = (self._locs.unsqueeze(-3) - self._locs.unsqueeze(-2)).clip(0, torch.inf)
         mask = pos_diff == 0.
         pos_diff[mask] = self._shell[..., 1].unsqueeze(0).expand(pos_diff.shape)[mask]
-        return torch.cat((self._locs + 0.5 * pos_diff.min(dim=-2).values, self._shell[..., 1].unsqueeze(-2)), dim=-2)
+        return torch.cat((self._locs + 0.5 * pos_diff.min(dim=-2).values,
+                          torch.zeros(1, self._num_dims).fill_(torch.inf)),
+                         dim=-2)
 
     def _get_lower(self):
         neg_diff = (self._locs.unsqueeze(-3) - self._locs.unsqueeze(-2)).clip(-torch.inf, 0)
         mask = neg_diff == 0.
         neg_diff[mask] = self._shell[..., 0].unsqueeze(0).expand(neg_diff.shape)[mask]
-        return torch.cat((self._locs + 0.5 * neg_diff.max(dim=-2).values, self._shell[..., 0].unsqueeze(-2)), dim=-2)
+        return torch.cat((self._locs + 0.5 * neg_diff.max(dim=-2).values,
+                          torch.zeros(1, self._num_dims).fill_(-torch.inf)),
+                         dim=-2)
 
     @property
     def center(self):
