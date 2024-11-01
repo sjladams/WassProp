@@ -15,12 +15,12 @@ if __name__ == '__main__':
         dynamics_type = 'LinearDynamics',
         num_dims = 2,
         dynamics_setting = 0,
-        num_locs = 10,
+        num_locs = 100,
         num_samples = 1000,
         lr = 0.01,
         num_iterations = 1000,
         plot = False,
-        prob_shell = 0.0,
+        prob_shell = 0.0001,
     )
 
     params = load_params(args)
