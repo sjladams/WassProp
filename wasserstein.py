@@ -11,32 +11,66 @@ from regions import HyperRectangularVoronoiPartition
 from optimization_utils import minimize_with_adam
 
 
-def get_lp2_norm_of_proj_matrix(signature: ds.DiscretizedMultivariateNormal,
-                                voronoi_partition: HyperRectangularVoronoiPartition):
+def get_proj_matrix(voronoi_partition: HyperRectangularVoronoiPartition):
     """
-    Compute proj_{R_k}(c_i) for all c_i the signature locations and all regions R_k in the voronoi partition, and store
+    Compute proj_{R_k}(c_i) for all signature locations c_i and regions R_k in the voronoi partition, and store
     in matrix with i-th row corresponding to c_i and k-th column corresponding to R_k.
 
     CONVENTION: indexing regions over columns and centers over rows
 
-    :param signature:
     :param voronoi_partition:
     :return:
     """
-    locs_expanded = signature.locs.unsqueeze(-3)
-    lower_expanded = voronoi_partition.lower.unsqueeze(-2)
-    upper_expanded = voronoi_partition.upper.unsqueeze(-2)
+    locs_expanded = voronoi_partition.locs.unsqueeze(-2)
+    lower_expanded = voronoi_partition.lower.unsqueeze(-3)
+    upper_expanded = voronoi_partition.upper.unsqueeze(-3)
 
-    # Compute the projections for all combinations
-    below_lower = torch.where(locs_expanded < lower_expanded, lower_expanded - locs_expanded,
+    # Compute the projections for all locs and regions that do not overlap, set overlapping to nan
+    mask_loc_smaller_lower = locs_expanded <= lower_expanded
+    mask_loc_larger_upper = locs_expanded >= upper_expanded
+    mask_loc_in_region = torch.logical_and(~mask_loc_larger_upper, ~mask_loc_smaller_lower).all(-1)
+
+    below_lower = torch.where(mask_loc_smaller_lower,
+                              lower_expanded,
                               torch.zeros_like(locs_expanded))
-    above_upper = torch.where(locs_expanded > upper_expanded, locs_expanded - upper_expanded,
+    above_upper = torch.where(mask_loc_larger_upper,
+                              upper_expanded,
+                              torch.zeros_like(locs_expanded))
+    overlapping = torch.where(mask_loc_in_region.unsqueeze(-1).repeat(1,1,2),
+                              torch.zeros_like(locs_expanded).fill_(torch.nan),
                               torch.zeros_like(locs_expanded))
 
     # Calculate the projection, summing both below and above cases
-    proj_matrix = below_lower + above_upper
+    proj_matrix = below_lower + above_upper + overlapping
 
-    return torch.norm(proj_matrix, dim=-1, p=2)
+    # Account for proj_{R_i}(c_i) = c_i
+    proj_matrix.diagonal(dim1=-3, dim2=-2).copy_(voronoi_partition.locs.swapaxes(-1, -2))
+
+    # Handle non-overlapping regions:
+    if voronoi_partition.shell[:,0].isneginf().all() and voronoi_partition.shell[:,1].isinf().all():
+        proj_matrix[:, -1] = voronoi_partition.locs  # To guarantee numerical stability, we set the projection on an empty set to zero
+    else:
+        closest_edge_shell = torch.where(
+            (voronoi_partition.locs - voronoi_partition.shell[..., 0]).abs() < (
+                        voronoi_partition.locs - voronoi_partition.shell[..., 1]).abs(),
+            voronoi_partition.shell[..., 0],
+            voronoi_partition.shell[..., 1]
+        )
+        proj_matrix[:-1, -1] = closest_edge_shell[:-1]
+
+    return proj_matrix
+
+def get_lp2_norm_of_proj_matrix(voronoi_partition: HyperRectangularVoronoiPartition):
+    """
+    Compute ||proj_{R_k}(c_i) - c_i||_2 for all signature locations c_i and regions R_k in the voronoi partition, and
+    store in matrix with i-th row corresponding to c_i and k-th column corresponding to R_k.
+
+    :param voronoi_partition:
+    :return:
+    """
+    proj_matrix = get_proj_matrix(voronoi_partition)
+    lp2_norm_proj_matrix = torch.norm(proj_matrix - voronoi_partition.locs.unsqueeze(-2), dim=-1, p=2)
+    return lp2_norm_proj_matrix
 
 
 # ----- W_2(f#p, f#disc#p) -----
@@ -49,7 +83,7 @@ def get_fn_sq_w2_f_p__f_disc_p(
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
 
     lp2_norm_diff_sq = f.bound_lp2_norm_difference(voronoi_partition).diag().pow(2)
-    lp2_norm_proj_matrix_sq = get_lp2_norm_of_proj_matrix(signature, voronoi_partition).pow(2)
+    lp2_norm_proj_matrix_sq = get_lp2_norm_of_proj_matrix(voronoi_partition).pow(2)
 
     w2_p__disc_q = w2_q__disc_q + w2_p__q
 
@@ -87,7 +121,7 @@ def get_fn_sq_w2_f_disc_p__f_disc_q(
 
     f_signature_locs = f(signature.locs)
     F_sq = torch.norm(f_signature_locs.unsqueeze(-3) - f_signature_locs.unsqueeze(-2), p=2, dim=-1).pow(2)
-    lp2_norm_proj_matrix_sq = get_lp2_norm_of_proj_matrix(signature, voronoi_partition).pow(2)
+    lp2_norm_proj_matrix_sq = get_lp2_norm_of_proj_matrix(voronoi_partition).pow(2)
 
     w2_p__disc_q = w2_q__disc_q + w2_p__q
 
@@ -182,7 +216,7 @@ def get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
     lp2_norm_diff_matrix_sq = f.bound_lp2_norm_difference(voronoi_partition).pow(2)
     average_lp2_norm_diff_sq = torch.einsum('jl,j->l', lp2_norm_diff_matrix_sq, signature.probs)
 
-    lp2_norm_proj_matrix_sq = get_lp2_norm_of_proj_matrix(signature, voronoi_partition).pow(2)
+    lp2_norm_proj_matrix_sq = get_lp2_norm_of_proj_matrix(voronoi_partition).pow(2)
 
     w2_p__disc_q = w2_q__disc_q + w2_p__q
 
@@ -231,7 +265,7 @@ def get_fn_sq_w2_f_p__f_disc_q_together(signature: ds.DiscretizedMultivariateNor
         factor = math.sqrt(2)
 
     lp2_norm_diff_vec_sq = f.bound_lp2_norm_difference(voronoi_partition).diag().pow(2)
-    lp2_norm_proj_matrix_sq = get_lp2_norm_of_proj_matrix(signature, voronoi_partition).pow(2)
+    lp2_norm_proj_matrix_sq = get_lp2_norm_of_proj_matrix(voronoi_partition).pow(2)
 
     w2_p__disc_q = w2_q__disc_q + w2_p__q
 
