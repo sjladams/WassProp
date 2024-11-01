@@ -46,16 +46,28 @@ class _LogConcaveDynamics(Dynamics):
         if self.num_dims > 1:
             raise NotImplementedError # Requires checking all vertices, not only lower and upper
 
-        extremum = voronoi_partition.locs.clone()
-        mask_extremum = torch.logical_and(voronoi_partition.lower <= self.location_extremum,
-                                          self.location_extremum >= voronoi_partition.upper)
-        extremum[mask_extremum] = self.extremum
+        lp2_norm_difference_upper = torch.norm(
+            self(voronoi_partition.upper).unsqueeze(0) -
+            self(voronoi_partition.locs).unsqueeze(1),
+            p=2, dim=-1)
+        lp2_norm_difference_lower = torch.norm(
+            self(voronoi_partition.lower).unsqueeze(0) -
+            self(voronoi_partition.locs).unsqueeze(1),
+            p=2, dim=-1)
+        lp2_norm_difference = torch.max(lp2_norm_difference_upper, lp2_norm_difference_lower)
 
-        return torch.max(torch.max(
-            torch.norm(self(voronoi_partition.lower).unsqueeze(0) - self(voronoi_partition.locs).unsqueeze(1), p=2, dim=-1),
-            torch.norm(self(voronoi_partition.upper).unsqueeze(0) - self(voronoi_partition.locs).unsqueeze(1), p=2, dim=-1)),
-            torch.norm(self(extremum).unsqueeze(0) - self(voronoi_partition.locs).unsqueeze(1), p=2, dim=-1)
+        extremum = voronoi_partition.locs.clone()
+        mask_extremum = torch.logical_and(
+            voronoi_partition.lower <= self.location_extremum,
+            self.location_extremum >= voronoi_partition.upper
         )
+        extremum[mask_extremum] = self.extremum
+        lp2_norm_difference_extremum = torch.norm(
+            self(extremum).unsqueeze(0) -
+            self(voronoi_partition.locs).unsqueeze(1),
+            p=2, dim=-1)
+
+        return torch.max(lp2_norm_difference, lp2_norm_difference_extremum)
 
     @property
     def location_extremum(self):
@@ -71,10 +83,15 @@ class _MonotoneDynamics(Dynamics):
         super().__init__()
 
     def bound_lp2_norm_difference(self, voronoi_partition: HyperRectangularVoronoiPartition):
-        return torch.max(
-            torch.norm(self(voronoi_partition.lower).unsqueeze(0) - self(voronoi_partition.locs).unsqueeze(1), p=2, dim=-1),
-            torch.norm(self(voronoi_partition.upper).unsqueeze(0) - self(voronoi_partition.locs).unsqueeze(1), p=2, dim=-1)
-        )
+        lp2_norm_difference_upper = torch.norm(
+            self(voronoi_partition.upper).unsqueeze(0) -
+            self(voronoi_partition.locs).unsqueeze(1),
+            p=2, dim=-1)
+        lp2_norm_difference_lower = torch.norm(
+            self(voronoi_partition.lower).unsqueeze(0) -
+            self(voronoi_partition.locs).unsqueeze(1),
+            p=2, dim=-1)
+        return torch.max(lp2_norm_difference_upper, lp2_norm_difference_lower)
 
 class GaussianDynamics1d(_LogConcaveDynamics):
     def __init__(self, loc: float, scale: float, **kwargs):
