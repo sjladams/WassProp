@@ -222,6 +222,7 @@ def single_step(dynamics: Dynamics,
     # store wasserstein error bounds
     w2_global_lipschitz = torch.zeros(len(w2_p__q_options))
     w2_independent_coupling = torch.zeros(len(w2_p__q_options))
+    w2_local_linearization = torch.zeros(len(w2_p__q_options))
     w2_together = torch.zeros(len(w2_p__q_options))
     w2_triangle_type1 = torch.zeros(len(w2_p__q_options))
     w2_triangle_type2 = torch.zeros(len(w2_p__q_options))
@@ -234,6 +235,10 @@ def single_step(dynamics: Dynamics,
 
         print(f"-- Independent Coupling --")
         w2_independent_coupling[idx] = wasserstein.compute_w2_f_p__f_disc_q_independent_coupling(
+            sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, lr=lr, num_iterations=num_iterations)
+
+        print(f"-- Local Linearization --")
+        w2_local_linearization[idx] = wasserstein.compute_w2_f_p__f_disc_q_method_4(
             sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, lr=lr, num_iterations=num_iterations)
 
         print(f"-- Together --")
@@ -272,6 +277,7 @@ def single_step(dynamics: Dynamics,
         print(f"Bounds on W_2(W_2(f#p, f#disc#q)) for W_2(p,q) = {w2_p__q} and W_2(q_0, Delta_C#q_0) = {sign_q0.w2:.4f} via:\n"
               f"\t Global Lipschits: {w2_global_lipschitz[idx]:.4f}\n"
               f"\t Independent Coupling: {w2_independent_coupling[idx]:.4f}\n"
+              f"\t Local Linearization: {w2_local_linearization[idx]:.4f}\n"
               f"\t Together: {w2_together[idx]:.4f}\n")
 
         if run_triangle_type1:
@@ -287,6 +293,7 @@ def single_step(dynamics: Dynamics,
         'gl': w2_global_lipschitz,
         'triangle_type2': w2_triangle_type2,
         'independent_coupling': w2_independent_coupling,
+        'local_linearizationn': w2_local_linearization,
         'together': w2_together
     }
     if run_triangle_type1:
