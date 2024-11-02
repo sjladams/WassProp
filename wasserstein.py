@@ -289,3 +289,31 @@ def compute_w2_f_p__f_disc_q_together(signature: ds.DiscretizedMultivariateNorma
         **kwargs)
 
     return fn_sq_w2_f_p__f_disc_q(optimized_lambda).sqrt().detach()
+
+
+# ----- W_2(f#p, f#disc#q): Method 4 -----
+def get_fn_sq_w2_f_p__f_disc_q_method_4(
+        signature: ds.DiscretizedMultivariateNormal,
+        f: dynamics.Dynamics,
+        w2_q__disc_q: float,
+        w2_p__q: float) -> Callable:
+
+    alpha, beta = f.get_linear_approximation_coeffs(signature.locs)
+
+    w2_p__disc_q = w2_q__disc_q + w2_p__q
+
+    def fn_sq_w2_f_p__f_disc_q_method_4():
+        alpha_max = torch.max(alpha, dim=-1).values
+        result = alpha_max * (w2_p__disc_q) + torch.dot(signature.probs, beta)
+        return result
+
+    return fn_sq_w2_f_p__f_disc_q_method_4
+
+def compute_w2_f_p__f_disc_q_method_4(signature: ds.DiscretizedMultivariateNormal,
+                             f: dynamics.Dynamics,
+                             w2_q__disc_q: float,
+                             w2_p__q: float,
+                             **kwargs):
+    fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_method_4(signature, f, w2_q__disc_q, w2_p__q)
+
+    return fn_sq_w2_f_p__f_disc_q().sqrt().detach()
