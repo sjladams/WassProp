@@ -22,6 +22,10 @@ class Dynamics(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_linear_approximation_coeffs(self, locs):
+        pass
+
     def __call__(self, x: torch.Tensor):
         """
         Function Evaluation
@@ -133,6 +137,30 @@ class ChaoticDynamics(_LogConcaveDynamics):
     def location_max_value(self):
         return torch.tensor(1 / (2 * self.r))
 
+
+class LogisticDynamics1d(_MonotoneDynamics):
+    num_dims = 1
+    def __init__(self, **kwargs):
+        super(LogisticDynamics1d, self).__init__()
+
+    def __call__(self, x: torch.Tensor):
+        return torch.sigmoid(x)
+
+    @property
+    def global_lipschitz(self):
+        return 0.25
+
+    def get_linear_approximation_coeffs(self, locs):
+        alpha = torch.where((locs > -0.5) & (locs < 0.5),
+                            torch.zeros_like(locs),
+                            torch.abs(self(torch.zeros_like(locs))-self(locs)) ** 2 / torch.abs(locs)) ** 2
+        beta = torch.where((locs > -0.5) & (locs < 0.5),
+                            0.63 ** 2 * torch.ones_like(locs),
+                            torch.zeros_like(locs))
+
+        return alpha.squeeze(dim=-1), beta.squeeze(dim=-1)
+
+
 class LinearDynamics(_MonotoneDynamics):
     def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
         if isinstance(diagonal, list):
@@ -159,6 +187,8 @@ def get_dynamics(dynamics_type: str, **kwargs):
         return GaussianDynamics1d(**kwargs)
     elif dynamics_type == 'ChaoticDynamics':
         return ChaoticDynamics(**kwargs)
+    elif dynamics_type == 'LogisticDynamics1d':
+        return LogisticDynamics1d(**kwargs)
     elif dynamics_type == 'LinearDynamics':
         return LinearDynamics(**kwargs)
     else:
