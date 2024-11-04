@@ -11,6 +11,8 @@ class HyperRectangularVoronoiPartition:
         self._lower = self._get_lower()
         self._upper = self._get_upper()
 
+        assert (self._lower <= self._upper).all()
+
 
     @property
     def num_locs(self):
@@ -48,19 +50,23 @@ class HyperRectangularVoronoiPartition:
     def _get_upper(self):
         pos_diff = (self._locs_inner.unsqueeze(-3) - self._locs_inner.unsqueeze(-2)).clip(0, torch.inf)
         mask = pos_diff == 0.
-        pos_diff[mask] = self._shell[..., 1].unsqueeze(0).expand(pos_diff.shape)[mask]
+        pos_diff[mask] = torch.inf
 
         upper_inner = self._locs_inner + 0.5 * pos_diff.min(dim=-2).values
+        upper_inner = upper_inner.clamp(min=self.shell[..., 0], max=self.shell[..., 1])
         upper_shell = torch.zeros(self._num_dims).fill_(torch.inf)
+
         return torch.cat((upper_inner, upper_shell.unsqueeze(-2)), dim=-2)
 
     def _get_lower(self):
         neg_diff = (self._locs_inner.unsqueeze(-3) - self._locs_inner.unsqueeze(-2)).clip(-torch.inf, 0)
         mask = neg_diff == 0.
-        neg_diff[mask] = self._shell[..., 0].unsqueeze(0).expand(neg_diff.shape)[mask]
+        neg_diff[mask] = -torch.inf
 
         lower_inner = self._locs_inner + 0.5 * neg_diff.max(dim=-2).values
+        lower_inner = lower_inner.clamp(min=self.shell[..., 0], max=self.shell[..., 1])
         lower_shell = torch.zeros(self._num_dims).fill_(-torch.inf)
+
         return torch.cat((lower_inner, lower_shell.unsqueeze(-2)), dim=-2)
 
     @property
