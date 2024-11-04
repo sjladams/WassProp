@@ -20,6 +20,7 @@ class Dynamics(torch.nn.Sequential):
         """
         return None
 
+
 class LogisticMap(Dynamics):
     num_dims = 1
     def __init__(self, r: float, **kwargs):
@@ -35,6 +36,7 @@ class LogisticMap(Dynamics):
     @property
     def global_lipschitz(self):
         return self.r
+
 
 class BoundedLinearDiagonalDynamics(Dynamics):
     def __init__(self, diagonal: Union[torch.Tensor, list], min=-2., max=2., **kwargs):
@@ -53,10 +55,23 @@ class BoundedLinearDiagonalDynamics(Dynamics):
     def global_lipschitz(self):
         return self._diagonal.abs().max()
 
+
+class SigmoidDynamics(Dynamics):
+    def __init__(self, num_dims: int = 1, **kwargs):
+        super(SigmoidDynamics, self).__init__(torch.nn.Sigmoid())
+        self.num_dims = num_dims
+
+    @property
+    def global_lipschitz(self):
+        return 0.25
+
+
 def get_dynamics(dynamics_type: str, **kwargs):
     if dynamics_type == 'LogisticMap':
         return LogisticMap(**kwargs)
     elif dynamics_type == 'BoundedLinearDiagonalDynamics':
         return BoundedLinearDiagonalDynamics(**kwargs)
+    elif dynamics_type == 'SigmoidDynamics':
+        return SigmoidDynamics(**kwargs)
     else:
         raise ValueError(f"Unknown dynamics: {dynamics_type}")

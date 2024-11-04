@@ -17,6 +17,16 @@
             }
         }
     },
+    "SigmoidDynamics": {
+        "options": {
+            "0": {
+                "loc_noise_dist": [0.0],
+                "variance_noise_dist": [0.3],
+                "loc_initial_dist": [4.0],
+                "variance_initial_dist": [1.0]
+            }
+        }
+    },
     "BoundedLinearDiagonalDynamics": {
         "dimensions": {
             "1": {
