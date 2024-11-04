@@ -27,7 +27,7 @@ def minimize_with_adam(objective: Callable, param: torch.Tensor, lr=0.01, num_it
         optimizer.zero_grad()  # Reset gradients to zero before backpropagation
 
         loss = objective(param, **kwargs)
-        loss.backward()
+        loss.backward(retain_graph=True)
 
         # Perform an optimization step (gradient descent step)
         optimizer.step()

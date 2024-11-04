@@ -1,34 +1,16 @@
-import math
 import torch
 from abc import ABC, abstractmethod
 from typing import Union
+from bound_propagation import Sub, Mul, Clamp
 
-from regions import HyperRectangularVoronoiPartition
+from torch_modules import ScalarMult, ScalarAdd
 
 
-class Dynamics(ABC):
+class Dynamics(torch.nn.Sequential):
     num_dims = None
 
-    @abstractmethod
-    def bound_lp2_norm_difference(self, voronoi_partition: HyperRectangularVoronoiPartition):
-        """
-        find matrix B such that ||f(x) - f(c_i)|| leq b_{ik} for all x in region R_k and c_i the representative
-         point of R_i, with R_k and R_i the k-th and i-th element of voronoi_partition, respectively.
-
-        CONVENTION: indexing regions over columns and points over rows
-
-        :param voronoi_partition:
-        :return: shape: (voronoi_partition.num_locs, voronoi_partition.num_locs)
-        """
-        pass
-
-    def __call__(self, x: torch.Tensor):
-        """
-        Function Evaluation
-        :param x:
-        :return:
-        """
-        return x
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     @property
     def global_lipschitz(self):
@@ -38,128 +20,43 @@ class Dynamics(ABC):
         """
         return None
 
-class _LogConcaveDynamics(Dynamics):
-    def __init__(self):
-        super().__init__()
-
-    def bound_lp2_norm_difference(self, voronoi_partition: HyperRectangularVoronoiPartition):
-        if self.num_dims > 1:
-            raise NotImplementedError # Requires checking all vertices, not only lower and upper
-
-        lp2_norm_difference_upper = torch.norm(
-            self(voronoi_partition.upper).unsqueeze(0) -
-            self(voronoi_partition.locs).unsqueeze(1),
-            p=2, dim=-1)
-        lp2_norm_difference_lower = torch.norm(
-            self(voronoi_partition.lower).unsqueeze(0) -
-            self(voronoi_partition.locs).unsqueeze(1),
-            p=2, dim=-1)
-        lp2_norm_difference = torch.max(lp2_norm_difference_upper, lp2_norm_difference_lower)
-
-        extremum = voronoi_partition.locs.clone()
-        mask_extremum = torch.logical_and(
-            voronoi_partition.lower <= self.location_extremum,
-            self.location_extremum >= voronoi_partition.upper
-        )
-        extremum[mask_extremum] = self.extremum
-        lp2_norm_difference_extremum = torch.norm(
-            self(extremum).unsqueeze(0) -
-            self(voronoi_partition.locs).unsqueeze(1),
-            p=2, dim=-1)
-
-        return torch.max(lp2_norm_difference, lp2_norm_difference_extremum)
-
-    @property
-    def location_extremum(self):
-        return torch.ones(self.num_dims).fill_(torch.nan)
-
-    @property
-    def extremum(self):
-        return self(self.location_extremum)
-
-
-class _MonotoneDynamics(Dynamics):
-    def __init__(self):
-        super().__init__()
-
-    def bound_lp2_norm_difference(self, voronoi_partition: HyperRectangularVoronoiPartition):
-        lp2_norm_difference_upper = torch.norm(
-            self(voronoi_partition.upper).unsqueeze(0) -
-            self(voronoi_partition.locs).unsqueeze(1),
-            p=2, dim=-1)
-        lp2_norm_difference_lower = torch.norm(
-            self(voronoi_partition.lower).unsqueeze(0) -
-            self(voronoi_partition.locs).unsqueeze(1),
-            p=2, dim=-1)
-        return torch.max(lp2_norm_difference_upper, lp2_norm_difference_lower)
-
-class GaussianDynamics1d(_LogConcaveDynamics):
-    def __init__(self, loc: float, scale: float, **kwargs):
-        self.num_dims = 1
-        self.loc = torch.tensor(loc)
-        self.scale = torch.tensor(scale)
-        self.gaussian_distribution = torch.distributions.Normal(loc=loc, scale=scale)
-        super(GaussianDynamics1d, self).__init__()
-
-    def __call__(self, x: torch.Tensor):
-        log_pdf = self.gaussian_distribution.log_prob(x)
-        return torch.exp(log_pdf)
-
-    @property
-    def location_max_value(self):
-        return self.loc
-
-    @property
-    def global_lipschitz(self):
-        if not (self.scale <= 1).all():
-            raise NotImplementedError
-        else:
-            return math.exp(-1 / 2) / math.sqrt(2 * math.pi)
-
-class ChaoticDynamics(_LogConcaveDynamics):
+class LogisticMap(Dynamics):
     num_dims = 1
     def __init__(self, r: float, **kwargs):
         self.r = r
-        super(ChaoticDynamics, self).__init__()
 
-    def __call__(self, x: torch.Tensor):
-        return torch.where((x > 0) & (x < 1), self.r * x * (1 - x), torch.zeros_like(x))
+        clamp_0_1 = Sub(torch.nn.ReLU(), torch.nn.Sequential(ScalarAdd(self.num_dims, -1), torch.nn.ReLU()))
+
+        super(LogisticMap, self).__init__(
+            Mul(clamp_0_1, torch.nn.Sequential(clamp_0_1, ScalarAdd(self.num_dims, -1))),
+            ScalarMult(self.num_dims, -r)
+        )
 
     @property
     def global_lipschitz(self):
         return self.r
 
-    @property
-    def location_max_value(self):
-        return torch.tensor(1 / (2 * self.r))
-
-class LinearDynamics(_MonotoneDynamics):
-    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
+class BoundedLinearDiagonalDynamics(Dynamics):
+    def __init__(self, diagonal: Union[torch.Tensor, list], min=-2., max=2., **kwargs):
         if isinstance(diagonal, list):
             diagonal = torch.tensor(diagonal)
-
         self.num_dims = diagonal.size(0)
-        self.mat = torch.diag(diagonal)
-        self.mat_is_diagonal = True
-        super(LinearDynamics, self).__init__()
+        self._diagonal = diagonal
 
-    def __call__(self, x: torch.Tensor):
-        y = torch.matmul(x.clip(-2., 2.), self.mat.T)
-        return y
+        linear = torch.nn.Linear(self.num_dims, self.num_dims, bias=False)
+        with torch.no_grad():
+            linear.weight.copy_(torch.diag(diagonal))
+
+        super(BoundedLinearDiagonalDynamics, self).__init__(linear, Clamp(min, max))
 
     @property
     def global_lipschitz(self):
-        if self.mat_is_diagonal:
-            return self.mat.diagonal().abs().max()
-        else:
-            raise NotImplementedError
+        return self._diagonal.abs().max()
 
 def get_dynamics(dynamics_type: str, **kwargs):
-    if dynamics_type == 'GaussianDynamics1d':
-        return GaussianDynamics1d(**kwargs)
-    elif dynamics_type == 'ChaoticDynamics':
-        return ChaoticDynamics(**kwargs)
-    elif dynamics_type == 'LinearDynamics':
-        return LinearDynamics(**kwargs)
+    if dynamics_type == 'LogisticMap':
+        return LogisticMap(**kwargs)
+    elif dynamics_type == 'BoundedLinearDiagonalDynamics':
+        return BoundedLinearDiagonalDynamics(**kwargs)
     else:
         raise ValueError(f"Unknown dynamics: {dynamics_type}")

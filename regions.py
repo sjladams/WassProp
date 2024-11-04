@@ -1,6 +1,5 @@
 import torch
 
-
 class HyperRectangularVoronoiPartition:
     def __init__(self, locs_inner: torch.Tensor, loc_shell: torch.Tensor, shell: torch.Tensor):
         if not self._are_locs_in_grid(locs_inner):
