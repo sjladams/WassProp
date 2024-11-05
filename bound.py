@@ -79,14 +79,12 @@ def local_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiP
     :param vp: VoronoiPartition
     :param use_lbp: whether to use LBP (crown) or IBP
     """
-    num_locs = vp.locs.size(-2)
-
     sq_norm_fx_z = factory.build(SqNormFxSubZ(f))
 
     flocs = f(vp.locs)
 
-    l_flocs = torch.cat((vp.lower.unsqueeze(-3).repeat(num_locs, 1, 1), flocs.unsqueeze(-2).repeat(1, num_locs, 1)), dim=-1)
-    u_flocs = torch.cat((vp.upper.unsqueeze(-3).repeat(num_locs, 1, 1), flocs.unsqueeze(-2).repeat(1, num_locs, 1)), dim=-1)
+    l_flocs = torch.cat((vp.lower.unsqueeze(-3).repeat(vp.num_locs, 1, 1), flocs.unsqueeze(-2).repeat(1, vp.num_locs, 1)), dim=-1)
+    u_flocs = torch.cat((vp.upper.unsqueeze(-3).repeat(vp.num_locs, 1, 1), flocs.unsqueeze(-2).repeat(1, vp.num_locs, 1)), dim=-1)
 
     l_flocs = replace_inf_with(replace_neginf_with(l_flocs))   # \TODO check why this is needed:
     u_flocs = replace_inf_with(replace_neginf_with(u_flocs))
@@ -111,14 +109,12 @@ def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoi
     :param f: dynamics
     :param vp: VoronoiPartition
     """
-    num_locs = vp.locs.size(-2)
-
     sq_norm_fx_z = factory.build(SqNormFxSubZ(f))
 
     flocs = f(vp.locs)
 
-    l = torch.ones(num_locs, f.num_dims).fill_(-torch.inf)
-    u = torch.ones(num_locs, f.num_dims).fill_(torch.inf)
+    l = torch.ones(vp.num_locs, f.num_dims).fill_(-torch.inf)
+    u = torch.ones(vp.num_locs, f.num_dims).fill_(torch.inf)
 
     l = replace_inf_with(replace_neginf_with(l))  # \TODO check why this is needed:
     u = replace_inf_with(replace_neginf_with(u))
