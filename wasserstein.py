@@ -261,7 +261,6 @@ def get_fn_sq_w2_f_p__f_disc_q_local_linear(
 
     return fn_sq_w2_f_p__f_disc_q_local_linear
 
-
 def compute_w2_f_p__f_disc_q_local_linear(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
@@ -270,6 +269,7 @@ def compute_w2_f_p__f_disc_q_local_linear(
         **kwargs):
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_local_linear(signature, f, w2_q__disc_q, w2_p__q)
     return fn_sq_w2_f_p__f_disc_q().sqrt().detach()
+
 
 def get_fn_sq_w2_f_p__f_disc_q_local_constant(
         signature: ds.DiscretizedMultivariateNormal,
@@ -286,7 +286,6 @@ def get_fn_sq_w2_f_p__f_disc_q_local_constant(
 
     return fn_sq_w2_f_p__f_disc_q_local_constant
 
-
 def compute_w2_f_p__f_disc_q_local_constant(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
@@ -296,3 +295,37 @@ def compute_w2_f_p__f_disc_q_local_constant(
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_local_constant(signature, f, w2_q__disc_q, w2_p__q)
     return fn_sq_w2_f_p__f_disc_q().sqrt().detach()
 
+
+def get_fn_sq_w2_f_p__f_disc_q_local_affine(
+        signature: ds.DiscretizedMultivariateNormal,
+        f: dynamics.Dynamics,
+        w2_q__disc_q: float,
+        w2_p__q: float)-> Callable:
+
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
+
+    w2_p__disc_q = w2_q__disc_q + w2_p__q
+
+    def fn_sq_w2_f_p__f_disc_q_local_affine(beta):
+        alpha = global_lbp_sq_norm_fx_fc(f, voronoi_partition, beta)
+        alpha_max = alpha[signature.probs > 0.].max(dim=-1).values
+        return alpha_max * w2_p__disc_q ** 2 + torch.einsum('i,i->', signature.probs, beta)
+
+    return fn_sq_w2_f_p__f_disc_q_local_affine
+
+def compute_w2_f_p__f_disc_q_local_affine(
+        signature: ds.DiscretizedMultivariateNormal,
+        f: dynamics.Dynamics,
+        w2_q__disc_q: float,
+        w2_p__q: float,
+        **kwargs):
+
+    fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_local_affine(signature, f, w2_q__disc_q, w2_p__q)
+
+    optimized_beta, losses = minimize_with_adam(
+        param=torch.rand(signature.locs.size(0), requires_grad=True),
+        objective=fn_sq_w2_f_p__f_disc_q,
+        non_negative_constraint=True,
+        **kwargs)
+
+    return fn_sq_w2_f_p__f_disc_q(optimized_beta).sqrt().detach()

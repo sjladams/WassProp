@@ -1,3 +1,4 @@
+from typing import Optional
 import torch
 from bound_propagation import BoundModelFactory, HyperRectangle, Parallel, VectorSub, IntervalBounds, LinearBounds, Mul, Reciprocal
 
@@ -121,7 +122,7 @@ def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoi
     return ibp_bound
 
 
-def global_lbp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiPartition) -> torch.Tensor:
+def global_lbp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiPartition, beta: Optional[torch.Tensor] = None) -> torch.Tensor:
     """
     find vector a such that ||f(x) - f(c_i)||^2 leq a_i||x-c_i|| for all x and c_i the loc of region R_i
 
@@ -129,11 +130,14 @@ def global_lbp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoi
     :param vp: VoronoiPartition
     """
 
+    if beta is None:
+        beta = torch.zeros_like(vp.num_locs, f.num_dims)
+
     # below we use a non-formal optimization based method. Using the bound-propagation package result in very-
     # conservative results
 
     def compute_local_lipschitz(x):
-        local_lipschitz = (f(x) - f(vp.locs)).pow(2).sum(-1) / (x - vp.locs).pow(2).sum(-1)
+        local_lipschitz = ((f(x) - f(vp.locs)).pow(2).sum(-1) - beta) / (x - vp.locs).pow(2).sum(-1)
         local_lipschitz = torch.nan_to_num(local_lipschitz, nan=f.global_lipschitz ** 2)
         return local_lipschitz
 

@@ -257,7 +257,8 @@ def single_step(dynamics: Dynamics,
 
         if run_local_affine:
             print(f"-- Local Affine --")
-            w2_local_affine[idx] = None
+            w2_local_affine[idx] = wasserstein.compute_w2_f_p__f_disc_q_local_affine(
+                sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, lr=lr, num_iterations=num_iterations)
             raise NotImplementedError
 
         if run_together:
