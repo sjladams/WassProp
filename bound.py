@@ -1,9 +1,8 @@
-from typing import Union
 import torch
-from bound_propagation import Pow, BoundModelFactory, HyperRectangle, Parallel, VectorSub, IntervalBounds, LinearBounds
+from bound_propagation import BoundModelFactory, HyperRectangle, Parallel, VectorSub, IntervalBounds, LinearBounds, Mul, Reciprocal
 
 from regions import HyperRectangularVoronoiPartition
-from torch_modules import SumVector
+from torch_modules import SqNorm
 
 factory = BoundModelFactory()
 
@@ -66,8 +65,7 @@ class SqNormFxSubZ(torch.nn.Sequential):
         super().__init__(
             Parallel(f, torch.nn.Identity(), split_size=f.num_dims),
             VectorSub(),
-            Pow(2),
-            SumVector(f.num_dims)
+            SqNorm(f.num_dims)
         )
 
 

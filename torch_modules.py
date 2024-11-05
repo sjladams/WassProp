@@ -1,4 +1,5 @@
 import torch
+from bound_propagation import Pow
 
 class ScalarMult(torch.nn.Linear):
     def __init__(self, in_features: int, scalar: float):
@@ -18,3 +19,8 @@ class SumVector(torch.nn.Linear):
         super(SumVector, self).__init__(in_features, 1, bias=False)
         with torch.no_grad():
             self.weight.fill_(1.0)
+
+class SqNorm(torch.nn.Sequential):
+    def __init__(self, num_dims):
+        super().__init__(Pow(2), SumVector(num_dims))
+
