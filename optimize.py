@@ -49,7 +49,7 @@ def minimize_with_adam(objective: Callable, param: torch.Tensor, lr=0.01, num_it
             print("Converged after {} iterations.".format(iteration))
             break
 
-    if print_progress:
+    if print_progress and param.size() == torch.Size():
         print(f"Optimal param: {param:.4f} \n")
 
     return param, loss_history

@@ -3,6 +3,7 @@ from bound_propagation import BoundModelFactory, HyperRectangle, Parallel, Vecto
 
 from regions import HyperRectangularVoronoiPartition
 from torch_modules import SqNorm
+from optimize import minimize_with_adam
 
 factory = BoundModelFactory()
 
@@ -118,3 +119,36 @@ def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoi
 
     ibp_bound = sq_norm_fx_z.ibp(HyperRectangle(l_locs, u_locs))
     return ibp_bound
+
+
+def global_lbp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiPartition) -> torch.Tensor:
+    """
+    find vector a such that ||f(x) - f(c_i)||^2 leq a_i||x-c_i|| for all x and c_i the loc of region R_i
+
+    :param f: dynamics
+    :param vp: VoronoiPartition
+    """
+
+    # below we use a non-formal optimization based method. Using the bound-propagation package result in very-
+    # conservative results
+
+    def compute_local_lipschitz(x):
+        local_lipschitz = (f(x) - f(vp.locs)).pow(2).sum(-1) / (x - vp.locs).pow(2).sum(-1)
+        local_lipschitz = torch.nan_to_num(local_lipschitz, nan=f.global_lipschitz ** 2)
+        return local_lipschitz
+
+    def objective(x):
+        return - compute_local_lipschitz(x).sum() # or take mean?
+
+    x_opt, losses = minimize_with_adam(
+        objective,
+        param=(vp.locs.clone().detach() + torch.randn_like(vp.locs)).requires_grad_(True),
+        lr=0.01,
+        num_iterations=5000,
+        tolerance=1e-8,
+        print_progress=True
+    )
+
+    alpha = compute_local_lipschitz(x_opt).detach().clamp(min=0., max=f.global_lipschitz**2)
+
+    return alpha

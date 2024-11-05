@@ -8,7 +8,7 @@ import dynamics
 import discretize_distributions as ds
 from regions import HyperRectangularVoronoiPartition
 
-from bound import local_ibp_sq_norm_fx_fc, get_norm_of_proj_matrix, global_ibp_sq_norm_fx_fc
+from bound import local_ibp_sq_norm_fx_fc, get_norm_of_proj_matrix, global_ibp_sq_norm_fx_fc, global_lbp_sq_norm_fx_fc
 
 from optimize import minimize_with_adam
 
@@ -225,11 +225,12 @@ def get_fn_sq_w2_f_p__f_disc_q_together(
 
     return fn_sq_w2_f_p__f_disc_q_together
 
-def compute_w2_f_p__f_disc_q_together(signature: ds.DiscretizedMultivariateNormal,
-                                      f: dynamics.Dynamics,
-                                      w2_q__disc_q: float,
-                                      w2_p__q: float,
-                                      **kwargs):
+def compute_w2_f_p__f_disc_q_together(
+        signature: ds.DiscretizedMultivariateNormal,
+        f: dynamics.Dynamics,
+        w2_q__disc_q: float,
+        w2_p__q: float,
+        **kwargs):
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_together(signature, f, w2_q__disc_q, w2_p__q)
 
     optimized_lambda, losses = minimize_with_adam(
@@ -250,22 +251,48 @@ def get_fn_sq_w2_f_p__f_disc_q_local_linear(
 
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
 
-    beta  = global_ibp_sq_norm_fx_fc(f, voronoi_partition).upper.squeeze(-1)
-    alpha = torch.zeros(voronoi_partition.num_locs, 1)
-    alpha_max = alpha.max(dim=-2).values
+    alpha = global_lbp_sq_norm_fx_fc(f, voronoi_partition)
+    alpha_max = alpha[signature.probs > 0.].max(dim=-1).values
 
     w2_p__disc_q = w2_q__disc_q + w2_p__q
 
     def fn_sq_w2_f_p__f_disc_q_local_linear():
-        return alpha_max * (w2_p__disc_q) + torch.einsum('i,i->', signature.probs, beta)
+        return alpha_max * w2_p__disc_q ** 2
 
     return fn_sq_w2_f_p__f_disc_q_local_linear
 
 
-def compute_w2_f_p__f_disc_q_local_linear(signature: ds.DiscretizedMultivariateNormal,
-                             f: dynamics.Dynamics,
-                             w2_q__disc_q: float,
-                             w2_p__q: float,
-                             **kwargs):
+def compute_w2_f_p__f_disc_q_local_linear(
+        signature: ds.DiscretizedMultivariateNormal,
+        f: dynamics.Dynamics,
+        w2_q__disc_q: float,
+        w2_p__q: float,
+        **kwargs):
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_local_linear(signature, f, w2_q__disc_q, w2_p__q)
     return fn_sq_w2_f_p__f_disc_q().sqrt().detach()
+
+def get_fn_sq_w2_f_p__f_disc_q_local_constant(
+        signature: ds.DiscretizedMultivariateNormal,
+        f: dynamics.Dynamics,
+        w2_q__disc_q: float,
+        w2_p__q: float)-> Callable:
+
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
+
+    beta  = global_ibp_sq_norm_fx_fc(f, voronoi_partition).upper.squeeze(-1)
+
+    def fn_sq_w2_f_p__f_disc_q_local_constant():
+        return  torch.einsum('i,i->', signature.probs, beta)
+
+    return fn_sq_w2_f_p__f_disc_q_local_constant
+
+
+def compute_w2_f_p__f_disc_q_local_constant(
+        signature: ds.DiscretizedMultivariateNormal,
+        f: dynamics.Dynamics,
+        w2_q__disc_q: float,
+        w2_p__q: float,
+        **kwargs):
+    fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_local_constant(signature, f, w2_q__disc_q, w2_p__q)
+    return fn_sq_w2_f_p__f_disc_q().sqrt().detach()
+
