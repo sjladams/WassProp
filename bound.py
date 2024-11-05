@@ -131,7 +131,7 @@ def global_lbp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoi
     """
 
     if beta is None:
-        beta = torch.zeros(vp.num_locs, f.num_dims)
+        beta = torch.zeros(vp.num_locs)
 
     # below we use a non-formal optimization based method. Using the bound-propagation package result in very-
     # conservative results
