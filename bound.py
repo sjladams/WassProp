@@ -1,7 +1,9 @@
+from typing import Union
 import torch
-from bound_propagation import Pow, BoundModelFactory, HyperRectangle, Parallel, VectorSub
+from bound_propagation import Pow, BoundModelFactory, HyperRectangle, Parallel, VectorSub, IntervalBounds, LinearBounds
 
 from regions import HyperRectangularVoronoiPartition
+from torch_modules import SumVector
 
 factory = BoundModelFactory()
 
@@ -59,57 +61,41 @@ def get_norm_of_proj_matrix(vp: HyperRectangularVoronoiPartition):
     return torch.norm(proj_matrix - vp.locs.unsqueeze(-2), dim=-1, p=2)
 
 
-class SqVecNorm(torch.nn.Sequential):
-    def __init__(self, in_features: int):
-        linear = torch.nn.Linear(in_features, 1, bias=False)
-        with torch.no_grad():
-            linear.weight.fill_(1.0)
-        super().__init__(Pow(2), linear)
+class SqNormFxSubZ(torch.nn.Sequential):
+    def __init__(self, f):
+        super().__init__(
+            Parallel(f, torch.nn.Identity(), split_size=f.num_dims),
+            VectorSub(),
+            Pow(2),
+            SumVector(f.num_dims)
+        )
 
 
-def bound_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiPartition):
+@torch.no_grad()
+def local_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiPartition) -> IntervalBounds:
     """
     find matrix B such that ||f(x) - f(c_i)||^2 leq B^{(ik)} for all x in region [l_k, u_k] and c_i the loc
      of region R_i
 
     :param f: dynamics
     :param vp: VoronoiPartition
+    :param use_lbp: whether to use LBP (crown) or IBP
     """
     num_locs = vp.locs.size(-2)
 
-    sq_norm_fx_z = torch.nn.Sequential(
-        Parallel(f, torch.nn.Identity(), split_size=f.num_dims),
-        VectorSub(),
-        SqVecNorm(f.num_dims)
-    )
-    sq_norm_fx_z = factory.build(sq_norm_fx_z)
+    sq_norm_fx_z = factory.build(SqNormFxSubZ(f))
 
     flocs = f(vp.locs)
 
     l_flocs = torch.cat((vp.lower.unsqueeze(-3).repeat(num_locs, 1, 1), flocs.unsqueeze(-2).repeat(1, num_locs, 1)), dim=-1)
     u_flocs = torch.cat((vp.upper.unsqueeze(-3).repeat(num_locs, 1, 1), flocs.unsqueeze(-2).repeat(1, num_locs, 1)), dim=-1)
 
-    # \TODO check why this is needed:
-    l_flocs = replace_inf_with(replace_neginf_with(l_flocs))
+    l_flocs = replace_inf_with(replace_neginf_with(l_flocs))   # \TODO check why this is needed:
     u_flocs = replace_inf_with(replace_neginf_with(u_flocs))
 
-    input_bounds = HyperRectangle(l_flocs.view(-1, f.num_dims*2), u_flocs.view(-1, f.num_dims*2))
+    input_bounds = HyperRectangle(l_flocs, u_flocs)
 
-    return sq_norm_fx_z.ibp(input_bounds).upper.view(num_locs, num_locs)
-
-
-def bound_sq_norm_fx_fc_OLD(f: torch.nn.Sequential, vp: HyperRectangularVoronoiPartition):
-    """
-    find matrix B such that ||f(x) - f(c_i)||^2 leq B^{(ik)} for all x in region [l_k, u_k] and c_i the loc
-     of region R_i
-
-    :param f: dynamics
-    :param vp:
-    """
-
-    lp2_norm_difference_upper = torch.norm(f(vp.upper).unsqueeze(0) - f(vp.locs).unsqueeze(1), p=2, dim=-1)
-    lp2_norm_difference_lower = torch.norm(f(vp.lower).unsqueeze(0) - f(vp.locs).unsqueeze(1), p=2, dim=-1)
-    return torch.max(lp2_norm_difference_upper, lp2_norm_difference_lower)
+    return sq_norm_fx_z.ibp(input_bounds)
 
 
 def replace_inf_with(tensor: torch.Tensor, value: float=1e6):
@@ -118,3 +104,32 @@ def replace_inf_with(tensor: torch.Tensor, value: float=1e6):
 def replace_neginf_with(tensor, value=-1e6):
     return tensor.masked_fill(torch.isneginf(tensor), value)
 
+
+@torch.no_grad()
+def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiPartition) -> IntervalBounds:
+    """
+    find vector b such that ||f(x) - f(c_i)||^2 leq b_i for all x  and c_i the loc of region R_i
+
+    :param f: dynamics
+    :param vp: VoronoiPartition
+    """
+    num_locs = vp.locs.size(-2)
+
+    sq_norm_fx_z = factory.build(SqNormFxSubZ(f))
+
+    flocs = f(vp.locs)
+
+    l = torch.ones(num_locs, f.num_dims).fill_(-torch.inf)
+    u = torch.ones(num_locs, f.num_dims).fill_(torch.inf)
+
+    l = replace_inf_with(replace_neginf_with(l))  # \TODO check why this is needed:
+    u = replace_inf_with(replace_neginf_with(u))
+
+    l_flocs = torch.cat((l, flocs), dim=-1)
+    u_flocs = torch.cat((u, flocs), dim=-1)
+
+    input_bounds = HyperRectangle(l_flocs, u_flocs)
+
+
+    ibp_bound = sq_norm_fx_z.ibp(input_bounds)
+    return ibp_bound

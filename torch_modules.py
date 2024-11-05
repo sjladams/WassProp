@@ -12,3 +12,9 @@ class ScalarAdd(torch.nn.Linear):
         with torch.no_grad():
             self.weight.copy_(torch.eye(in_features))
             self.bias.fill_(scalar)
+
+class SumVector(torch.nn.Linear):
+    def __init__(self, in_features: int):
+        super(SumVector, self).__init__(in_features, 1, bias=False)
+        with torch.no_grad():
+            self.weight.fill_(1.0)

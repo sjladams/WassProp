@@ -8,7 +8,7 @@ import dynamics
 import discretize_distributions as ds
 from regions import HyperRectangularVoronoiPartition
 
-from bound import bound_sq_norm_fx_fc, get_norm_of_proj_matrix
+from bound import local_ibp_sq_norm_fx_fc, get_norm_of_proj_matrix, global_ibp_sq_norm_fx_fc
 
 from optimize import minimize_with_adam
 
@@ -18,12 +18,11 @@ def get_fn_sq_w2_f_p__f_disc_p(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
-        w2_p__q: float
-) -> Callable:
+        w2_p__q: float) -> Callable:
 
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
 
-    sq_norm_fx_fc = bound_sq_norm_fx_fc(f, voronoi_partition).diag()
+    sq_norm_fx_fc = local_ibp_sq_norm_fx_fc(f, voronoi_partition).upper.squeeze(-1).diag()
 
     sq_norm_proj_matrix = get_norm_of_proj_matrix(voronoi_partition).pow(2)
 
@@ -40,8 +39,7 @@ def compute_w2_f_p__f_disc_p(
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
         w2_p__q: float,
-        **kwargs
-):
+        **kwargs):
     fn_sq_w2_f_p__f_disc_p = get_fn_sq_w2_f_p__f_disc_p(signature, f, w2_q__disc_q, w2_p__q)
 
     lambd = torch.tensor(0.1, requires_grad=True)
@@ -59,8 +57,7 @@ def get_fn_sq_w2_f_disc_p__f_disc_q(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
-        w2_p__q: float
-) -> Callable:
+        w2_p__q: float) -> Callable:
 
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
 
@@ -83,8 +80,7 @@ def compute_w2_f_disc_p__f_disc_q(
         w2_q__disc_q: float,
         w2_p__q: float,
         budget_type: str = 'w2_p__disc_q',
-        **kwargs
-):
+        **kwargs):
 
     if w2_p__q == 0.:
         return torch.tensor(0.)
@@ -108,8 +104,7 @@ def compute_w2_f_disc_p__f_disc_q_via_linprog(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
-        w2_p__q: float
-):
+        w2_p__q: float):
     w2_disc_p__disc_q = 2 * (w2_q__disc_q + w2_p__q)
 
     f_signature_locs = f(signature.locs)
@@ -163,12 +158,11 @@ def get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
-        w2_p__q: float
-) -> Callable:
+        w2_p__q: float) -> Callable:
 
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
 
-    sq_norm_fx_fc = bound_sq_norm_fx_fc(f, voronoi_partition)
+    sq_norm_fx_fc = local_ibp_sq_norm_fx_fc(f, voronoi_partition).upper.squeeze(-1)
     averaged_sq_norm_fx_fc = torch.einsum('jl,j->l', sq_norm_fx_fc, signature.probs)
 
     sq_norm_proj_matrix = get_norm_of_proj_matrix(voronoi_partition).pow(2)
@@ -186,8 +180,7 @@ def compute_w2_f_p__f_disc_q_independent_coupling(
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
         w2_p__q: float,
-        **kwargs
-):
+        **kwargs):
 
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
         signature, f, w2_q__disc_q, w2_p__q)
@@ -202,13 +195,12 @@ def compute_w2_f_p__f_disc_q_independent_coupling(
     return fn_sq_w2_f_p__f_disc_q(optimized_lambda).sqrt().detach()
 
 
-# ----- W_2(f#p, f#disc#q) - New method -----
+# ----- W_2(f#p, f#disc#q) - Together Method -----
 def get_fn_sq_w2_f_p__f_disc_q_together(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
-        w2_p__q: float
-) -> Callable:
+        w2_p__q: float) -> Callable:
 
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
 
@@ -222,7 +214,7 @@ def get_fn_sq_w2_f_p__f_disc_q_together(
 
         factor = math.sqrt(2)
 
-    sq_norm_fx_fc = bound_sq_norm_fx_fc(f, voronoi_partition).diag()
+    sq_norm_fx_fc = local_ibp_sq_norm_fx_fc(f, voronoi_partition).upper.squeeze(-1).diag()
     sq_norm_proj_matrix = get_norm_of_proj_matrix(voronoi_partition).pow(2)
 
     w2_p__disc_q = w2_q__disc_q + w2_p__q
@@ -247,3 +239,33 @@ def compute_w2_f_p__f_disc_q_together(signature: ds.DiscretizedMultivariateNorma
         **kwargs)
 
     return fn_sq_w2_f_p__f_disc_q(optimized_lambda).sqrt().detach()
+
+
+# ----- W_2(f#p, f#disc#q) - Local Linearization Method -----
+def get_fn_sq_w2_f_p__f_disc_q_local_linear(
+        signature: ds.DiscretizedMultivariateNormal,
+        f: dynamics.Dynamics,
+        w2_q__disc_q: float,
+        w2_p__q: float)-> Callable:
+
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
+
+    beta  = global_ibp_sq_norm_fx_fc(f, voronoi_partition).upper.squeeze(-1)
+    alpha = torch.zeros(voronoi_partition.num_locs, 1)
+    alpha_max = alpha.max(dim=-2).values
+
+    w2_p__disc_q = w2_q__disc_q + w2_p__q
+
+    def fn_sq_w2_f_p__f_disc_q_local_linear():
+        return alpha_max * (w2_p__disc_q) + torch.einsum('i,i->', signature.probs, beta)
+
+    return fn_sq_w2_f_p__f_disc_q_local_linear
+
+
+def compute_w2_f_p__f_disc_q_local_linear(signature: ds.DiscretizedMultivariateNormal,
+                             f: dynamics.Dynamics,
+                             w2_q__disc_q: float,
+                             w2_p__q: float,
+                             **kwargs):
+    fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_local_linear(signature, f, w2_q__disc_q, w2_p__q)
+    return fn_sq_w2_f_p__f_disc_q().sqrt().detach()
