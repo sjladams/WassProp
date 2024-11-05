@@ -304,12 +304,20 @@ def get_fn_sq_w2_f_p__f_disc_q_local_affine(
 
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
 
+    alpha = global_lbp_sq_norm_fx_fc(f, voronoi_partition)
+    beta  = global_ibp_sq_norm_fx_fc(f, voronoi_partition).upper.squeeze(-1)
+
     w2_p__disc_q = w2_q__disc_q + w2_p__q
 
-    def fn_sq_w2_f_p__f_disc_q_local_affine(beta):
-        alpha = global_lbp_sq_norm_fx_fc(f, voronoi_partition, beta)
-        alpha_max = alpha[signature.probs > 0.].max(dim=-1).values
-        return alpha_max * w2_p__disc_q ** 2 + torch.einsum('i,i->', signature.probs, beta)
+    def fn_sq_w2_f_p__f_disc_q_local_affine():
+        mask = torch.ones(alpha.size(0), alpha.size(0)).tril()[alpha.sort().indices]
+        alpha_options = torch.einsum('ij, j->ij', mask, alpha)
+        beta_options = torch.einsum('ij, j->ij', 1-mask, beta)
+
+        alpha_max = alpha_options.max(dim=-1).values
+        result_options = alpha_max * w2_p__disc_q ** 2 + torch.einsum('j,ij->i', signature.probs, beta_options)
+
+        return result_options.min()
 
     return fn_sq_w2_f_p__f_disc_q_local_affine
 
@@ -322,10 +330,4 @@ def compute_w2_f_p__f_disc_q_local_affine(
 
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_local_affine(signature, f, w2_q__disc_q, w2_p__q)
 
-    optimized_beta, losses = minimize_with_adam(
-        param=torch.rand(signature.locs.size(0), requires_grad=True),
-        objective=fn_sq_w2_f_p__f_disc_q,
-        non_negative_constraint=True,
-        **kwargs)
-
-    return fn_sq_w2_f_p__f_disc_q(optimized_beta).sqrt().detach()
+    return fn_sq_w2_f_p__f_disc_q().sqrt().detach()
