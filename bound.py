@@ -28,7 +28,7 @@ def get_proj_matrix(vp: HyperRectangularVoronoiPartition):
 
     below_l = torch.where(mask_c_smaller_l, l_ex, torch.zeros_like(l_ex))
     above_u = torch.where(mask_c_larger_u, u_ex, torch.zeros_like(l_ex))
-    overlapping = torch.where(mask_c_in_region.unsqueeze(-1).repeat(1,1,2),
+    overlapping = torch.where(mask_c_in_region.unsqueeze(-1).repeat(1,1,vp.locs.size(-1)),
                               torch.zeros_like(locs_ex).fill_(torch.nan),
                               torch.zeros_like(locs_ex))
 
@@ -49,7 +49,7 @@ def get_proj_matrix(vp: HyperRectangularVoronoiPartition):
         )
         proj_matrix[:-1, -1] = closest_edge_shell[:-1]
 
-    return proj_matrix
+    return torch.nan_to_num(proj_matrix)
 
 def get_norm_of_proj_matrix(vp: HyperRectangularVoronoiPartition):
     """
