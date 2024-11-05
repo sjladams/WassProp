@@ -44,17 +44,23 @@ def plot_multi_step(dynamics, w2_bounds, tag):
         plt.show()
 
 
-
-
 def plot_single_step(dynamics, w2_bounds, tag, w2_p__q_options):
     fig_w2_bounds = plt.figure()
     plt.plot(w2_p__q_options, w2_bounds['gl'], label='Global Lipschitz')
-    plt.plot(w2_p__q_options, w2_bounds['independent_coupling'], label='Independent Coupling')
-    plt.plot(w2_p__q_options, w2_bounds['local_linear'], label='Local Linearization')
-    plt.plot(w2_p__q_options, w2_bounds['together'], label='Together')
+    if 'independent_coupling' in w2_bounds:
+        plt.plot(w2_p__q_options, w2_bounds['independent_coupling'], label='Independent Coupling')
+    if 'local_linear' in w2_bounds:
+        plt.plot(w2_p__q_options, w2_bounds['local_linear'], label='Local Linear')
+    if 'local_constant' in w2_bounds:
+        plt.plot(w2_p__q_options, w2_bounds['local_constant'], label='Local Constant')
+    if 'local_affine' in w2_bounds:
+        plt.plot(w2_p__q_options, w2_bounds['local_affine'], label='Local Affine')
+    if 'together' in w2_bounds:
+        plt.plot(w2_p__q_options, w2_bounds['together'], label='Together')
     if 'triangle_type1' in w2_bounds:
         plt.plot(w2_p__q_options, w2_bounds['triangle_type1'], label=r'Triangle (Budget Term 2 = $W_2(\Delta p,\Delta q)$)')
-    plt.plot(w2_p__q_options, w2_bounds['triangle_type2'], label=r'Triangle (Budget Term 2 = $W_2(p,\Delta q)$)')
+    if 'triangle_type2' in w2_bounds:
+        plt.plot(w2_p__q_options, w2_bounds['triangle_type2'], label=r'Triangle (Budget Term 2 = $W_2(p,\Delta q)$)')
 
     plt.legend()
     plt.title(tag)
