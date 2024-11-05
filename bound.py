@@ -60,7 +60,7 @@ def get_norm_of_proj_matrix(vp: HyperRectangularVoronoiPartition):
     return torch.norm(proj_matrix - vp.locs.unsqueeze(-2), dim=-1, p=2)
 
 
-class SqNormFxSubZ(torch.nn.Sequential):
+class SqNormFxSubFz(torch.nn.Sequential):
     def __init__(self, f):
         super().__init__(
             Parallel(f, f, split_size=f.num_dims),
@@ -79,7 +79,7 @@ def local_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiP
     :param vp: VoronoiPartition
     :param use_lbp: whether to use LBP (crown) or IBP
     """
-    sq_norm_fx_z = factory.build(SqNormFxSubZ(f))
+    sq_norm_fx_z = factory.build(SqNormFxSubFz(f))
 
     l_flocs = torch.cat((vp.lower.unsqueeze(-3).repeat(vp.num_locs, 1, 1), vp.locs.unsqueeze(-2).repeat(1, vp.num_locs, 1)), dim=-1)
     u_flocs = torch.cat((vp.upper.unsqueeze(-3).repeat(vp.num_locs, 1, 1), vp.locs.unsqueeze(-2).repeat(1, vp.num_locs, 1)), dim=-1)
@@ -107,7 +107,7 @@ def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoi
     :param f: dynamics
     :param vp: VoronoiPartition
     """
-    sq_norm_fx_z = factory.build(SqNormFxSubZ(f))
+    sq_norm_fx_z = factory.build(SqNormFxSubFz(f))
 
     l = torch.ones(vp.num_locs, f.num_dims).fill_(-torch.inf)
     u = torch.ones(vp.num_locs, f.num_dims).fill_(torch.inf)
