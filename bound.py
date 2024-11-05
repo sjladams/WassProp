@@ -81,15 +81,13 @@ def local_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiP
     """
     sq_norm_fx_z = factory.build(SqNormFxSubFz(f))
 
-    l_flocs = torch.cat((vp.lower.unsqueeze(-3).repeat(vp.num_locs, 1, 1), vp.locs.unsqueeze(-2).repeat(1, vp.num_locs, 1)), dim=-1)
-    u_flocs = torch.cat((vp.upper.unsqueeze(-3).repeat(vp.num_locs, 1, 1), vp.locs.unsqueeze(-2).repeat(1, vp.num_locs, 1)), dim=-1)
+    l = replace_inf_with(replace_neginf_with(vp.lower))   # \TODO check why this is needed:
+    u = replace_inf_with(replace_neginf_with(vp.upper))
 
-    l_flocs = replace_inf_with(replace_neginf_with(l_flocs))   # \TODO check why this is needed:
-    u_flocs = replace_inf_with(replace_neginf_with(u_flocs))
+    l_locs = torch.cat((l.unsqueeze(-3).repeat(vp.num_locs, 1, 1), vp.locs.unsqueeze(-2).repeat(1, vp.num_locs, 1)), dim=-1)
+    u_locs = torch.cat((u.unsqueeze(-3).repeat(vp.num_locs, 1, 1), vp.locs.unsqueeze(-2).repeat(1, vp.num_locs, 1)), dim=-1)
 
-    input_bounds = HyperRectangle(l_flocs, u_flocs)
-
-    return sq_norm_fx_z.ibp(input_bounds)
+    return sq_norm_fx_z.ibp(HyperRectangle(l_locs, u_locs))
 
 
 def replace_inf_with(tensor: torch.Tensor, value: float=1e6):
@@ -115,11 +113,8 @@ def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoi
     l = replace_inf_with(replace_neginf_with(l))  # \TODO check why this is needed:
     u = replace_inf_with(replace_neginf_with(u))
 
-    l_flocs = torch.cat((l, vp.locs), dim=-1)
-    u_flocs = torch.cat((u, vp.locs), dim=-1)
+    l_locs = torch.cat((l, vp.locs), dim=-1)
+    u_locs = torch.cat((u, vp.locs), dim=-1)
 
-    input_bounds = HyperRectangle(l_flocs, u_flocs)
-
-
-    ibp_bound = sq_norm_fx_z.ibp(input_bounds)
+    ibp_bound = sq_norm_fx_z.ibp(HyperRectangle(l_locs, u_locs))
     return ibp_bound
