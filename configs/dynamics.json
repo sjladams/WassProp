@@ -24,10 +24,49 @@
                 "variance_noise_dist": [0.3],
                 "loc_initial_dist": [4.0],
                 "variance_initial_dist": [1.0]
+            },
+            "1": {
+                "loc_noise_dist": [0.0],
+                "variance_noise_dist": [0.3],
+                "loc_initial_dist": [4.0],
+                "variance_initial_dist": [0.1]
             }
         }
     },
     "BoundedLinearDiagonalDynamics": {
+        "dimensions": {
+            "1": {
+                "options": {
+                    "0": {
+                        "diagonal": [0.5],
+                        "loc_noise_dist": [0.0],
+                        "variance_noise_dist": [0.3],
+                        "loc_initial_dist": [0.0],
+                        "variance_initial_dist": [1.0]
+                    }
+                }
+            },
+            "2": {
+                "options": {
+                    "0": {
+                        "diagonal": [3.0, 0.001],
+                        "loc_noise_dist": [0.0, 0.0],
+                        "variance_noise_dist": [0.3, 0.3],
+                        "loc_initial_dist": [0.0, 0.0],
+                        "variance_initial_dist": [0.0001, 0.5]
+                    },
+                    "1": {
+                        "diagonal": [3.0, 0.001],
+                        "loc_noise_dist": [0.0, 0.0],
+                        "variance_noise_dist": [0.3, 0.3],
+                        "loc_initial_dist": [1.0, 1.0],
+                        "variance_initial_dist": [0.001, 0.5]
+                    }
+                }
+            }
+        }
+    },
+    "LinearSigmoidDynamics": {
         "dimensions": {
             "1": {
                 "options": {
