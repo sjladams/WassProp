@@ -79,7 +79,7 @@ def local_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiP
 
     :param f: dynamics
     :param vp: VoronoiPartition
-    :param use_lbp: whether to use LBP (crown) or IBP
+
     """
     sq_norm_fx_z = factory.build(SqNormFxSubFz(f))
 
@@ -122,7 +122,11 @@ def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoi
     return ibp_bound
 
 
-def global_lbp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiPartition, beta: Optional[torch.Tensor] = None) -> torch.Tensor:
+def global_lbp_sq_norm_fx_fc(
+        f: torch.nn.Sequential,
+        vp: HyperRectangularVoronoiPartition,
+        use_lbp: bool = True,
+        beta: Optional[torch.Tensor] = None) -> torch.Tensor:
     """
     find vector a such that ||f(x) - f(c_i)||^2 leq a_i||x-c_i|| for all x and c_i the loc of region R_i
 
@@ -133,26 +137,47 @@ def global_lbp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoi
     if beta is None:
         beta = torch.zeros(vp.num_locs)
 
-    # below we use a non-formal optimization based method. Using the bound-propagation package result in very-
-    # conservative results
+    if use_lbp:
+        # the procedure below only works for "independent" dimension, to be defined properly
 
-    def compute_local_lipschitz(x):
-        local_lipschitz = ((f(x) - f(vp.locs)).pow(2).sum(-1) - beta) / (x - vp.locs).pow(2).sum(-1)
-        local_lipschitz = torch.nan_to_num(local_lipschitz, nan=f.global_lipschitz ** 2)
-        return local_lipschitz
+        # negative quadrant:
+        input_bound_neg = HyperRectangle(torch.ones(vp.num_locs, vp.num_dims).fill_(-10.), vp.locs) # \todo to be set to -inf
+        lb_neg = factory.build(f).crown(input_bound_neg)
+        alpha_neg = torch.max(
+            torch.svd(lb_neg.lower[0]).S.max(-1).values,
+            torch.svd(lb_neg.upper[0]).S.max(-1).values
+        ).pow(2)
 
-    def objective(x):
-        return - compute_local_lipschitz(x).sum() # or take mean?
+        # positive quadrant:
+        input_bound_pos = HyperRectangle(vp.locs, torch.ones(vp.num_locs, vp.num_dims).fill_(10.)) # \todo to be set to inf
+        lb_pos = factory.build(f).crown(input_bound_pos)
+        alpha_pos = torch.max(
+            torch.svd(lb_pos.lower[0]).S.max(-1).values,
+            torch.svd(lb_pos.upper[0]).S.max(-1).values
+        ).pow(2)
 
-    x_opt, losses = minimize_with_adam(
-        objective,
-        param=(vp.locs.clone().detach() + torch.randn_like(vp.locs)).requires_grad_(True),
-        lr=0.01,
-        num_iterations=5000,
-        tolerance=1e-8,
-        print_progress=True
-    )
+        alpha = torch.max(alpha_neg, alpha_pos).clamp(min=0., max=f.global_lipschitz**2)
+    else:
+        # below we use a non-formal optimization based method. Using the bound-propagation package result in very-
+        # conservative results
 
-    alpha = compute_local_lipschitz(x_opt).detach().clamp(min=0., max=f.global_lipschitz**2)
+        def compute_local_lipschitz(x):
+            local_lipschitz = ((f(x) - f(vp.locs)).pow(2).sum(-1) - beta) / (x - vp.locs).pow(2).sum(-1)
+            local_lipschitz = torch.nan_to_num(local_lipschitz, nan=f.global_lipschitz ** 2)
+            return local_lipschitz
+
+        def objective(x):
+            return - compute_local_lipschitz(x).sum() # or take mean?
+
+        x_opt, losses = minimize_with_adam(
+            objective,
+            param=(vp.locs.clone().detach() + torch.randn_like(vp.locs)).requires_grad_(True),
+            lr=0.01,
+            num_iterations=5000,
+            tolerance=1e-8,
+            print_progress=True
+        )
+
+        alpha = compute_local_lipschitz(x_opt).detach().clamp(min=0., max=f.global_lipschitz**2)
 
     return alpha
