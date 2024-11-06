@@ -19,7 +19,7 @@ if __name__ == '__main__':
         lr = 0.01,
         num_iterations = 1000,
         plot = False,
-        prob_shell = 0.0
+        prob_shell = 0.0001
     )
 
     params = load_params(args)
@@ -31,13 +31,13 @@ if __name__ == '__main__':
     w2_bounds, tag = single_step(
         dynamics=dynamics,
         w2_p__q_options=w2_p__q_options,
-        run_independent_coupling=False,
-        run_local_linear=True,
-        run_local_constant=True,
-        run_local_affine=False,
+        run_independent_coupling=True,
+        run_local_linear=False,
+        run_local_constant=False,
+        run_local_affine=True,
         run_together=False,
-        run_triangle_type2=False,
         run_triangle_type1=False,
+        run_triangle_type2=False,
         **params
     )
 
