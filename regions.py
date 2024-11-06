@@ -19,6 +19,10 @@ class HyperRectangularVoronoiPartition:
         return self.locs.size(0)
 
     @property
+    def num_dims(self):
+        return self._num_dims
+
+    @property
     def locs(self):
         return torch.cat((self._locs_inner, self._loc_shell.unsqueeze(-2)), dim=-2)
 
