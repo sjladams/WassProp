@@ -1,12 +1,12 @@
 from typing import Optional
 import torch
-from bound_propagation import BoundModelFactory, HyperRectangle, Parallel, VectorSub, IntervalBounds
+import bound_propagation as bp
 
 from regions import HyperRectangularVoronoiPartition
 from torch_modules import SqNorm, linear_factory
 from optimize import minimize_with_adam
 
-factory = BoundModelFactory()
+factory = bp.BoundModelFactory()
 
 def get_proj_matrix(vp: HyperRectangularVoronoiPartition):
     """
@@ -65,14 +65,14 @@ def get_norm_of_proj_matrix(vp: HyperRectangularVoronoiPartition):
 class SqNormFxSubFz(torch.nn.Sequential):
     def __init__(self, f):
         super().__init__(
-            Parallel(f, f, split_size=f.num_dims),
-            VectorSub(),
+            bp.Parallel(f, f, split_size=f.num_dims),
+            bp.VectorSub(),
             SqNorm(f.num_dims)
         )
 
 
 @torch.no_grad()
-def local_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiPartition) -> IntervalBounds:
+def local_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiPartition) -> bp.IntervalBounds:
     """
     find matrix B such that ||f(x) - f(c_i)||^2 leq B^{(ik)} for all x in region [l_k, u_k] and c_i the loc
      of region R_i
@@ -89,7 +89,7 @@ def local_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiP
     l_locs = torch.cat((l.unsqueeze(-3).repeat(vp.num_locs, 1, 1), vp.locs.unsqueeze(-2).repeat(1, vp.num_locs, 1)), dim=-1)
     u_locs = torch.cat((u.unsqueeze(-3).repeat(vp.num_locs, 1, 1), vp.locs.unsqueeze(-2).repeat(1, vp.num_locs, 1)), dim=-1)
 
-    return sq_norm_fx_z.ibp(HyperRectangle(l_locs, u_locs))
+    return sq_norm_fx_z.ibp(bp.HyperRectangle(l_locs, u_locs))
 
 
 def replace_inf_with(tensor: torch.Tensor, value: float=1e6):
@@ -100,7 +100,7 @@ def replace_neginf_with(tensor, value=-1e6):
 
 
 @torch.no_grad()
-def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiPartition) -> IntervalBounds:
+def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiPartition) -> bp.IntervalBounds:
     """
     find vector b such that ||f(x) - f(c_i)||^2 leq b_i for all x  and c_i the loc of region R_i
 
@@ -118,7 +118,7 @@ def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoi
     l_locs = torch.cat((l, vp.locs), dim=-1)
     u_locs = torch.cat((u, vp.locs), dim=-1)
 
-    ibp_bound = sq_norm_fx_z.ibp(HyperRectangle(l_locs, u_locs))
+    ibp_bound = sq_norm_fx_z.ibp(bp.HyperRectangle(l_locs, u_locs))
     return ibp_bound
 
 
@@ -141,7 +141,7 @@ def global_lbp_sq_norm_fx_fc(
         # the procedure below only works for "independent" dimension, to be defined properly
 
         # negative quadrant:
-        input_bound_neg = HyperRectangle(torch.ones(vp.num_locs, vp.num_dims).fill_(-1e6), vp.locs)
+        input_bound_neg = bp.HyperRectangle(torch.ones(vp.num_locs, vp.num_dims).fill_(-1e6), vp.locs)
         lb_neg = linear_factory.build(f).crown(input_bound_neg)
         alpha_neg = torch.max(
             torch.svd(lb_neg.lower[0]).S.max(-1).values,
@@ -149,7 +149,7 @@ def global_lbp_sq_norm_fx_fc(
         ).pow(2)
 
         # positive quadrant:
-        input_bound_pos = HyperRectangle(vp.locs, torch.ones(vp.num_locs, vp.num_dims).fill_(1e6))
+        input_bound_pos = bp.HyperRectangle(vp.locs, torch.ones(vp.num_locs, vp.num_dims).fill_(1e6))
         lb_pos = linear_factory.build(f).crown(input_bound_pos)
         alpha_pos = torch.max(
             torch.svd(lb_pos.lower[0]).S.max(-1).values,

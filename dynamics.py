@@ -1,7 +1,6 @@
 import torch
-from abc import ABC, abstractmethod
 from typing import Union
-from bound_propagation import Sub, Mul, Clamp
+import bound_propagation as bp
 
 from torch_modules import ScalarMult, ScalarAdd
 
@@ -26,10 +25,10 @@ class LogisticMap(Dynamics):
     def __init__(self, r: float, **kwargs):
         self.r = r
 
-        clamp_0_1 = Sub(torch.nn.ReLU(), torch.nn.Sequential(ScalarAdd(self.num_dims, -1), torch.nn.ReLU()))
+        clamp_0_1 = bp.Sub(torch.nn.ReLU(), torch.nn.Sequential(ScalarAdd(self.num_dims, -1), torch.nn.ReLU()))
 
         super(LogisticMap, self).__init__(
-            Mul(clamp_0_1, torch.nn.Sequential(clamp_0_1, ScalarAdd(self.num_dims, -1))),
+            bp.Mul(clamp_0_1, torch.nn.Sequential(clamp_0_1, ScalarAdd(self.num_dims, -1))),
             ScalarMult(self.num_dims, -r)
         )
 
@@ -49,7 +48,7 @@ class BoundedLinearDiagonalDynamics(Dynamics):
         with torch.no_grad():
             linear.weight.copy_(torch.diag(diagonal))
 
-        super(BoundedLinearDiagonalDynamics, self).__init__(linear, Clamp(min, max))
+        super(BoundedLinearDiagonalDynamics, self).__init__(linear, bp.Clamp(min, max))
 
     @property
     def global_lipschitz(self):
