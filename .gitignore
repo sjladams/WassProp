@@ -1,3 +1,4 @@
 *.pyc
 .env
 *.xml
+/.idea/DUQviaWasserstein.iml

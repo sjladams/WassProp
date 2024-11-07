@@ -1,7 +1,7 @@
 import torch
 from typing import Callable
 
-def minimize_with_adam(objective: Callable, param: torch.Tensor, lr=0.001, num_iterations=100, tolerance=1e-8,
+def minimize_with_adam(objective: Callable, param: torch.Tensor, lr=0.01, num_iterations=100, tolerance=1e-8,
                        print_progress: bool = True, non_negative_constraint: bool = False,  **kwargs):
     """
 
@@ -20,11 +20,14 @@ def minimize_with_adam(objective: Callable, param: torch.Tensor, lr=0.001, num_i
     # Store losses for tracking the optimization progress
     loss_history = []
 
+    if print_progress:
+        print("\n Starting optimization...")
+
     for iteration in range(num_iterations):
         optimizer.zero_grad()  # Reset gradients to zero before backpropagation
 
         loss = objective(param, **kwargs)
-        loss.backward()
+        loss.backward(retain_graph=True)
 
         # Perform an optimization step (gradient descent step)
         optimizer.step()
@@ -38,12 +41,15 @@ def minimize_with_adam(objective: Callable, param: torch.Tensor, lr=0.001, num_i
         loss_history.append(loss.item())
 
         # Optional: Print progress
-        if iteration % 500 == 0 and print_progress:
+        if (iteration % 500 == 0 or iteration == num_iterations - 1) and print_progress:
             print(f"Iteration {iteration}/{num_iterations}, Bound: {loss.item()}")
 
         # Check for convergence (early stopping)
         if len(loss_history) > 1 and abs(loss_history[-1] - loss_history[-2]) < tolerance and print_progress:
             print("Converged after {} iterations.".format(iteration))
             break
+
+    if print_progress and param.size() == torch.Size():
+        print(f"Optimal param: {param:.4f} \n")
 
     return param, loss_history

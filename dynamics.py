@@ -1,29 +1,15 @@
-import math
 import torch
-from abc import ABC, abstractmethod
+from typing import Union
+import bound_propagation as bp
 
-from regions import HyperRectangularVoronoiPartition
+from torch_modules import ScalarMult, ScalarAdd
 
 
-class Dynamics(ABC):
+class Dynamics(torch.nn.Sequential):
     num_dims = None
 
-    @abstractmethod
-    def bound_lp2_norm_difference(self, voronoi_partition: HyperRectangularVoronoiPartition):
-        """
-        find b such that ||f(x) - f(c)|| leq b for all x in regions
-        :param voronoi_partition:
-        :return:
-        """
-        pass
-
-    def __call__(self, x: torch.Tensor):
-        """
-        Function Evaluation
-        :param x:
-        :return:
-        """
-        return x
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     @property
     def global_lipschitz(self):
@@ -33,106 +19,76 @@ class Dynamics(ABC):
         """
         return None
 
-class _ConvexDynamics(Dynamics):
-    def __init__(self):
-        super(_ConvexDynamics, self).__init__()
 
-    def bound_lp2_norm_difference(self, voronoi_partition: HyperRectangularVoronoiPartition):
-        bound = torch.max(
-            torch.norm(self(voronoi_partition.lower) - self(voronoi_partition.points), p=2, dim=-1),
-            torch.norm(self(voronoi_partition.upper) - self(voronoi_partition.points), p=2, dim=-1)
-        )
-        fmax_in_region = torch.logical_and(voronoi_partition.lower <= self.location_max_value,
-                                           self.location_max_value <= voronoi_partition.upper
-                                           ).all(dim=-1)
-        bound[fmax_in_region] = torch.norm(self.max_value - self(voronoi_partition.points[fmax_in_region]), p=2, dim=-1)
-        return bound
-
-    @property
-    def location_max_value(self):
-        return torch.ones(self.num_dims).fill_(torch.nan)
-
-    @property
-    def max_value(self):
-        return self(self.location_max_value)
-
-
-class _MonotoneDynamics(Dynamics):
-    def __init__(self):
-        super(_MonotoneDynamics, self).__init__()
-
-    def bound_lp2_norm_difference(self, voronoi_partition: HyperRectangularVoronoiPartition):
-        return torch.max(
-            torch.norm(self(voronoi_partition.lower) - self(voronoi_partition.points), p=2, dim=-1),
-            torch.norm(self(voronoi_partition.upper) - self(voronoi_partition.points), p=2, dim=-1)
-        )
-
-
-class GaussianDynamics1d(_ConvexDynamics):
-    def __init__(self, loc: torch.Tensor, scale: torch.Tensor):
-        self.num_dims = loc.size(0)
-        self.loc = loc
-        self.scale = scale
-        self.gaussian_distribution = torch.distributions.Normal(loc=loc, scale=scale)
-        super(GaussianDynamics1d, self).__init__()
-
-    def __call__(self, x: torch.Tensor):
-        log_pdf = self.gaussian_distribution.log_prob(x)
-        return torch.exp(log_pdf)
-
-    @property
-    def location_max_value(self):
-        return self.loc
-
-    @property
-    def global_lipschitz(self):
-        # \TODO
-        if not (self.scale <= 1).all():
-            raise NotImplementedError
-        else:
-            return math.exp(-1 / 2) / math.sqrt(2 * math.pi)
-
-class ChaoticDynamics(_ConvexDynamics):
+class LogisticMap(Dynamics):
     num_dims = 1
-    def __init__(self, r: float):
+    def __init__(self, r: float, **kwargs):
         self.r = r
-        super(ChaoticDynamics, self).__init__()
 
-    def __call__(self, x: torch.Tensor):
-        return torch.where((x > 0) & (x < 1), self.r * x * (1 - x), torch.zeros_like(x)) # @Eduardo, why not simply take self.r * x * (1 - x) ??
+        clamp_0_1 = bp.Sub(torch.nn.ReLU(), torch.nn.Sequential(ScalarAdd(self.num_dims, -1), torch.nn.ReLU()))
+
+        super(LogisticMap, self).__init__(
+            bp.Mul(clamp_0_1, torch.nn.Sequential(clamp_0_1, ScalarAdd(self.num_dims, -1))),
+            ScalarMult(self.num_dims, -r)
+        )
 
     @property
     def global_lipschitz(self):
         return self.r
 
-    @property
-    def location_max_value(self):
-        return torch.tensor(1 / (2 * self.r))
 
-class LinearDynamics(_MonotoneDynamics):
-    def __init__(self, mat: torch.Tensor):
-        self.num_dims = mat.size(0)
-        self.mat = mat
-        self.mat_is_diagonal = not (mat - mat.diagonal() > 0).any()  # \todo use this for mat_diagonal check in DistSignatures package
-        super(LinearDynamics, self).__init__()
+class BoundedLinearDiagonalDynamics(Dynamics):
+    def __init__(self, diagonal: Union[torch.Tensor, list], min=-2., max=2., **kwargs):
+        if isinstance(diagonal, list):
+            diagonal = torch.tensor(diagonal)
+        self.num_dims = diagonal.size(0)
+        self._diagonal = diagonal
 
-    def __call__(self, x: torch.Tensor):
-        y = torch.matmul(x.clip(-2., 2.), self.mat.T)
-        return y
+        linear = torch.nn.Linear(self.num_dims, self.num_dims, bias=False)
+        with torch.no_grad():
+            linear.weight.copy_(torch.diag(diagonal))
+
+        super(BoundedLinearDiagonalDynamics, self).__init__(linear, bp.Clamp(min, max))
 
     @property
     def global_lipschitz(self):
-        if self.mat_is_diagonal:
-            return self.mat.diagonal().abs().max()
-        else:
-            raise NotImplementedError
+        return self._diagonal.abs().max()
+
+
+class SigmoidDynamics(Dynamics):
+    def __init__(self, num_dims: int = 1, **kwargs):
+        super(SigmoidDynamics, self).__init__(torch.nn.Sigmoid())
+        self.num_dims = num_dims
+
+    @property
+    def global_lipschitz(self):
+        return 0.25
+
+
+class LinearSigmoidDynamics(Dynamics):
+    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
+        if isinstance(diagonal, list):
+            diagonal = torch.tensor(diagonal)
+        self.num_dims = diagonal.size(0)
+        self._diagonal = diagonal
+
+        super(LinearSigmoidDynamics, self).__init__(
+            BoundedLinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
+            SigmoidDynamics(self.num_dims)
+        )
+
+    @property
+    def global_lipschitz(self):
+        return self._diagonal.abs().max() * 0.25
 
 def get_dynamics(dynamics_type: str, **kwargs):
-    if dynamics_type == 'GaussianDynamics1d':
-        return GaussianDynamics1d(**kwargs)
-    elif dynamics_type == 'ChaoticDynamics':
-        return ChaoticDynamics(**kwargs)
-    elif dynamics_type == 'LinearDynamics':
-        return LinearDynamics(**kwargs)
+    if dynamics_type == 'LogisticMap':
+        return LogisticMap(**kwargs)
+    elif dynamics_type == 'BoundedLinearDiagonalDynamics':
+        return BoundedLinearDiagonalDynamics(**kwargs)
+    elif dynamics_type == 'SigmoidDynamics':
+        return SigmoidDynamics(**kwargs)
+    elif dynamics_type == 'LinearSigmoidDynamics':
+        return LinearSigmoidDynamics(**kwargs)
     else:
         raise ValueError(f"Unknown dynamics: {dynamics_type}")
