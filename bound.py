@@ -1,9 +1,9 @@
 from typing import Optional
 import torch
-from bound_propagation import BoundModelFactory, HyperRectangle, Parallel, VectorSub, IntervalBounds, LinearBounds, Mul, Reciprocal
+from bound_propagation import BoundModelFactory, HyperRectangle, Parallel, VectorSub, IntervalBounds
 
 from regions import HyperRectangularVoronoiPartition
-from torch_modules import SqNorm
+from torch_modules import SqNorm, linear_factory
 from optimize import minimize_with_adam
 
 factory = BoundModelFactory()
@@ -141,16 +141,16 @@ def global_lbp_sq_norm_fx_fc(
         # the procedure below only works for "independent" dimension, to be defined properly
 
         # negative quadrant:
-        input_bound_neg = HyperRectangle(torch.ones(vp.num_locs, vp.num_dims).fill_(-10.), vp.locs) # \todo to be set to -inf
-        lb_neg = factory.build(f).crown(input_bound_neg)
+        input_bound_neg = HyperRectangle(torch.ones(vp.num_locs, vp.num_dims).fill_(-1e6), vp.locs)
+        lb_neg = linear_factory.build(f).crown(input_bound_neg)
         alpha_neg = torch.max(
             torch.svd(lb_neg.lower[0]).S.max(-1).values,
             torch.svd(lb_neg.upper[0]).S.max(-1).values
         ).pow(2)
 
         # positive quadrant:
-        input_bound_pos = HyperRectangle(vp.locs, torch.ones(vp.num_locs, vp.num_dims).fill_(10.)) # \todo to be set to inf
-        lb_pos = factory.build(f).crown(input_bound_pos)
+        input_bound_pos = HyperRectangle(vp.locs, torch.ones(vp.num_locs, vp.num_dims).fill_(1e6))
+        lb_pos = linear_factory.build(f).crown(input_bound_pos)
         alpha_pos = torch.max(
             torch.svd(lb_pos.lower[0]).S.max(-1).values,
             torch.svd(lb_pos.upper[0]).S.max(-1).values
