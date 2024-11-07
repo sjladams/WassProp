@@ -300,26 +300,45 @@ def get_fn_sq_w2_f_p__f_disc_q_local_affine(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
-        w2_p__q: float)-> Callable:
+        w2_p__q: float,
+        find_optimal_alpha_beta: bool = False)-> Callable:
 
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
 
-    alpha = global_lbp_sq_norm_fx_fc(f, voronoi_partition)
-    beta  = global_ibp_sq_norm_fx_fc(f, voronoi_partition).upper.squeeze(-1)
-
     w2_p__disc_q = w2_q__disc_q + w2_p__q
 
-    def fn_sq_w2_f_p__f_disc_q_local_affine():
-        mask = torch.ones(alpha.size(0), alpha.size(0)).tril()[alpha.sort().indices]
-        alpha_options = torch.einsum('ij, j->ij', mask, alpha)
-        beta_options = torch.einsum('ij, j->ij', 1-mask, beta)
+    if find_optimal_alpha_beta:
+        num_options = 3
+        beta_options = torch.linspace(0., 0.2, num_options).unsqueeze(-1).repeat(1, voronoi_partition.num_locs)   # \todo add attribute "range" to dynamics, which can be used here to set the upper bound for beta
+        alpha_options = torch.zeros_like(beta_options).fill_(torch.nan)
 
+        for idx in range(num_options):
+            alpha_options[idx] = global_lbp_sq_norm_fx_fc(
+                f,
+                voronoi_partition,
+                beta=torch.ones(voronoi_partition.num_locs).fill_(beta_options[idx]),
+                use_lbp=False
+            )
+
+        raise NotImplementedError
         alpha_max = alpha_options.max(dim=-1).values
-        result_options = alpha_max * w2_p__disc_q ** 2 + torch.einsum('j,ij->i', signature.probs, beta_options)
 
-        return result_options.min()
+    else:
+        alpha = global_lbp_sq_norm_fx_fc(f, voronoi_partition)
+        beta  = global_ibp_sq_norm_fx_fc(f, voronoi_partition).upper.squeeze(-1)
+
+        def fn_sq_w2_f_p__f_disc_q_local_affine():
+            mask = torch.ones(alpha.size(0), alpha.size(0)).tril()[alpha.sort().indices]
+            alpha_options = torch.einsum('ij, j->ij', mask, alpha)
+            beta_options = torch.einsum('ij, j->ij', 1-mask, beta)
+
+            alpha_max = alpha_options.max(dim=-1).values
+            result_options = alpha_max * w2_p__disc_q ** 2 + torch.einsum('j,ij->i', signature.probs, beta_options)
+
+            return result_options.min()
 
     return fn_sq_w2_f_p__f_disc_q_local_affine
+
 
 def compute_w2_f_p__f_disc_q_local_affine(
         signature: ds.DiscretizedMultivariateNormal,
