@@ -122,6 +122,14 @@ def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoi
     return ibp_bound
 
 
+def check_if_affine_bound_is_linear_at_locs(A, b, locs, y_locs):
+    """
+    Checks if affine bound is linear around locs, i.e., check if A*locs + b = y_locs
+    """
+    bias = torch.einsum('nij,nj->ni', A, locs) + b - y_locs
+    return (bias.abs() <= 1e-4).all()
+
+
 def global_lbp_sq_norm_fx_fc(
         f: torch.nn.Sequential,
         vp: HyperRectangularVoronoiPartition,
@@ -157,6 +165,18 @@ def global_lbp_sq_norm_fx_fc(
         ).pow(2)
 
         alpha = torch.max(alpha_neg, alpha_pos).clamp(min=0., max=f.global_lipschitz**2)
+
+        # Check if
+        y_locs = f(vp.locs)
+        msg_tmpl = "{} bound in {} quadrant is not linear. Check BoundModule for dynamics or use Gradient Descent"
+        assert check_if_affine_bound_is_linear_at_locs(lb_neg.lower[0], lb_neg.lower[1], vp.locs, y_locs), \
+            msg_tmpl.format("Lower", "negative")
+        assert check_if_affine_bound_is_linear_at_locs(lb_neg.upper[0], lb_neg.upper[1], vp.locs, y_locs), \
+            msg_tmpl.format("Upper", "negative")
+        assert check_if_affine_bound_is_linear_at_locs(lb_pos.lower[0], lb_pos.lower[1], vp.locs, y_locs), \
+            msg_tmpl.format("Lower", "positive")
+        assert check_if_affine_bound_is_linear_at_locs(lb_pos.upper[0], lb_pos.upper[1], vp.locs, y_locs), \
+            msg_tmpl.format("Upper", "positive")
     else:
         # below we use a non-formal optimization based method. Using the bound-propagation package result in very-
         # conservative results
