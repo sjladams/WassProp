@@ -127,7 +127,7 @@ def check_if_affine_bound_is_linear_at_locs(A, b, locs, y_locs):
     Checks if affine bound is linear around locs, i.e., check if A*locs + b = y_locs
     """
     bias = torch.einsum('nij,nj->ni', A, locs) + b - y_locs
-    return (bias.abs() <= 1e-4).all()
+    return (bias.abs() <= 1e-5).all()
 
 
 def global_lbp_sq_norm_fx_fc(
@@ -149,16 +149,16 @@ def global_lbp_sq_norm_fx_fc(
         # the procedure below only works for "independent" dimension, to be defined properly
 
         # negative quadrant:
-        input_bound_neg = bp.HyperRectangle(torch.ones(vp.num_locs, vp.num_dims).fill_(-1e6), vp.locs)
-        lb_neg = linear_factory.build(f).crown(input_bound_neg)
+        input_bound_neg = bp.HyperRectangle(torch.ones(vp.num_locs, vp.num_dims).fill_(-torch.inf), vp.locs)
+        lb_neg = linear_factory.build(f).crown_ibp(input_bound_neg)
         alpha_neg = torch.max(
             torch.svd(lb_neg.lower[0]).S.max(-1).values,
             torch.svd(lb_neg.upper[0]).S.max(-1).values
         ).pow(2)
 
         # positive quadrant:
-        input_bound_pos = bp.HyperRectangle(vp.locs, torch.ones(vp.num_locs, vp.num_dims).fill_(1e6))
-        lb_pos = linear_factory.build(f).crown(input_bound_pos)
+        input_bound_pos = bp.HyperRectangle(vp.locs, torch.ones(vp.num_locs, vp.num_dims).fill_(torch.inf))
+        lb_pos = linear_factory.build(f).crown_ibp(input_bound_pos)
         alpha_pos = torch.max(
             torch.svd(lb_pos.lower[0]).S.max(-1).values,
             torch.svd(lb_pos.upper[0]).S.max(-1).values

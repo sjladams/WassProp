@@ -1,3 +1,4 @@
+from typing import Union, Optional, Tuple
 import torch
 import bound_propagation as bp
 
@@ -25,9 +26,37 @@ class SqNorm(torch.nn.Sequential):
         super().__init__(bp.Pow(2), Sum(num_dims))
 
 
+class SigmoidTangentBisectionStrategy:
+    def upper_tangent(self, bound_module, lower, upper):
+        lower_act = bound_module(lower)
+
+        def f_upper(d: torch.Tensor) -> torch.Tensor:
+            a_slope = (bound_module(d) - lower_act) / (d - lower)
+            a_derivative = bound_module.derivative(d)
+            return a_slope - a_derivative
+
+        # Bisection will return left and right bounds for d s.t. f_upper(d) is zero
+        # Derivative of left bound will over-approximate the slope - hence a true bound
+        d_upper, _ = bp.activation.bisection(torch.zeros_like(upper), upper, f_upper, num_iter=1000)
+        return d_upper
+
+    def lower_tangent(self, bound_module, lower, upper):
+        upper_act = bound_module(upper)
+
+        def f_lower(d: torch.Tensor) -> torch.Tensor:
+            a_slope = (upper_act - bound_module(d)) / (upper - d)
+            a_derivative = bound_module.derivative(d)
+            return a_derivative - a_slope
+
+        # Bisection will return left and right bounds for d s.t. f_lower(d) is zero
+        # Derivative of right bound will over-approximate the slope - hence a true bound
+        _, d_lower = bp.activation.bisection(lower, torch.zeros_like(lower), f_lower, num_iter=1000)
+        return d_lower
+
 class BoundSigmoid(bp.BoundSigmoid):
     def __init__(self, *args, **kwargs):
         super(BoundSigmoid, self).__init__(*args, **kwargs)
+        self.tangent_strategy = SigmoidTangentBisectionStrategy()
 
     @bp.activation.assert_bound_order
     def alpha_beta(self, preactivation):
@@ -106,32 +135,61 @@ class BoundSigmoid(bp.BoundSigmoid):
         #################
         # Upper bound #
         # If tangent to upper is below lower, then take direct slope between lower and upper
-        direct = np & (slope <= upper_prime)
-        add_linear(self.alpha_upper, self.beta_upper, mask=direct, a=slope, x=lower, y=lower_act)
+        direct = np & ((slope < upper_prime)) | neginf
+        add_linear(self.alpha_upper, self.beta_upper, mask=direct, a=slope, x=upper, y=upper_act)
 
         # Else use bisection to find upper bound on slope.
-        implicit = np & (slope > upper_prime)
+        implicit = np & ~((slope < upper_prime) | neginf)
 
         if torch.any(implicit):
-            d = self.tangent_strategy.upper_tangent(self, lower.clamp(-10., 0.)[implicit], upper.clamp(0., 10.)[implicit])
+            d = self.tangent_strategy.upper_tangent(self, lower.clamp(-1000, 100)[implicit], upper.clamp(-1000, 1000)[implicit])
 
             # Slope has to attach to (lower, sigma(lower))
             add_linear(self.alpha_upper, self.beta_upper, mask=implicit, a=self.derivative(d), x=lower, y=lower_act, a_mask=False)
 
         # Lower bound #
         # If tangent to lower is above upper, then take direct slope between lower and upper
-        direct = np & (slope <= lower_prime)
-        add_linear(self.alpha_lower, self.beta_lower, mask=direct, a=slope, x=upper, y=upper_act)
+        direct = np & ((slope < lower_prime) | inf)
+        add_linear(self.alpha_lower, self.beta_lower, mask=direct, a=slope, x=lower, y=lower_act)
 
         # Else use bisection to find upper bound on slope.
-        implicit = np & (slope > lower_prime)
+        implicit = np & ~((slope < lower_prime) | inf)
 
         if torch.any(implicit):
-            d = self.tangent_strategy.lower_tangent(self, lower.clamp(-10., 0.)[implicit], upper.clamp(0., 10.)[implicit])
+            d = self.tangent_strategy.lower_tangent(self, lower.clamp(-1000, 1000)[implicit], upper.clamp(-1000, 1000)[implicit])
 
             # Slope has to attach to (upper, sigma(upper))
             add_linear(self.alpha_lower, self.beta_lower, mask=implicit, a=self.derivative(d), x=upper, y=upper_act, a_mask=False)
 
+class BoundLinear(bp.BoundLinear):
+    def __init__(self, *args, **kwargs):
+        super(BoundLinear, self).__init__(*args, **kwargs)
+
+    @bp.activation.assert_bound_order
+    def ibp_forward(self, bounds, save_relaxation=False, save_input_bounds=False):
+        center, diff = bounds.center, bounds.width / 2
+
+        if torch.logical_and(bounds.lower.isneginf(), ~bounds.upper.isinf()).any():
+            upper = bounds.upper.matmul(self.module.weight)
+            if self.module.bias is not None:
+                upper = upper + self.module.bias.unsqueeze(-2)
+
+            w_diff = diff.matmul(self.module.weight.abs())
+
+            lower = upper - w_diff
+        elif torch.logical_and(~bounds.lower.isneginf(), bounds.upper.isinf()).any():
+            lower = bounds.lower.matmul(self.module.weight)
+            if self.module.bias is not None:
+                lower + self.module.bias.unsqueeze(-2)
+
+            w_diff = diff.matmul(self.module.weight.abs())
+
+            upper = lower + w_diff
+        else:
+            lower, upper = bp.linear.ibp_forward_linear_jit(self.module.weight, self.module.bias, center, diff)
+
+        return bp.IntervalBounds(bounds.region, lower, upper)
 
 linear_factory = bp.BoundModelFactory()
 linear_factory.register(torch.nn.Sigmoid, BoundSigmoid)
+linear_factory.register(torch.nn.Linear, BoundLinear)
