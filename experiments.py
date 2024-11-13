@@ -163,6 +163,7 @@ def single_step(dynamics: Dynamics,
                 run_independent_coupling: bool = True,
                 run_local_linear: bool = True,
                 run_local_constant: bool = True,
+                run_local_linear_or_constant: bool = True,
                 run_local_affine: bool = True,
                 run_together: bool = True,
                 run_triangle_type1: bool = False,
@@ -231,6 +232,7 @@ def single_step(dynamics: Dynamics,
     w2_together = torch.zeros(len(w2_p__q_options))
     w2_local_linear = torch.zeros(len(w2_p__q_options))
     w2_local_constant = torch.zeros(len(w2_p__q_options))
+    w2_local_linear_or_constant = torch.zeros(len(w2_p__q_options))
     w2_local_affine = torch.zeros(len(w2_p__q_options))
     w2_triangle_type1 = torch.zeros(len(w2_p__q_options))
     w2_triangle_type2 = torch.zeros(len(w2_p__q_options))
@@ -250,9 +252,14 @@ def single_step(dynamics: Dynamics,
             w2_local_linear[idx] = wasserstein.compute_w2_f_p__f_disc_q_local_linear(
                 sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, lr=lr, num_iterations=num_iterations)
 
-        if run_local_linear:
+        if run_local_constant:
             print(f"-- Local Constant --")
             w2_local_constant[idx] = wasserstein.compute_w2_f_p__f_disc_q_local_constant(
+                sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, lr=lr, num_iterations=num_iterations)
+
+        if run_local_linear_or_constant:
+            print(f"-- Local Linear or Constant --")
+            w2_local_linear_or_constant[idx] = wasserstein.compute_w2_f_p__f_disc_q_local_linear_or_constant(
                 sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, lr=lr, num_iterations=num_iterations)
 
         if run_local_affine:
@@ -303,6 +310,8 @@ def single_step(dynamics: Dynamics,
             print(f"\t Local Linear: {w2_local_linear[idx]:.4f}\n")
         if run_local_constant:
             print(f"\t Local Constant: {w2_local_constant[idx]:.4f}\n")
+        if run_local_linear_or_constant:
+            print(f"\t Local Constant: {w2_local_linear_or_constant[idx]:.4f}\n")
         if run_local_affine:
             print(f"\t Local Affine: {w2_local_affine[idx]:.4f}\n")
         if run_together:
@@ -324,6 +333,8 @@ def single_step(dynamics: Dynamics,
         w2_bounds['local_linear'] = w2_local_linear
     if run_local_constant:
         w2_bounds['local_constant'] = w2_local_constant
+    if run_local_linear_or_constant:
+        w2_bounds['local_linear_or_constant'] = w2_local_linear_or_constant
     if run_local_affine:
         w2_bounds['local_affine'] = w2_local_affine
     if run_together:

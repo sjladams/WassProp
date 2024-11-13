@@ -53,6 +53,8 @@ def plot_single_step(dynamics, w2_bounds, tag, w2_p__q_options):
         plt.plot(w2_p__q_options, w2_bounds['local_linear'], label='Local Linear')
     if 'local_constant' in w2_bounds:
         plt.plot(w2_p__q_options, w2_bounds['local_constant'], label='Local Constant')
+    if 'local_linear_or_constant' in w2_bounds:
+        plt.plot(w2_p__q_options, w2_bounds['local_linear_or_constant'], label='Local Linear or Constant')
     if 'local_affine' in w2_bounds:
         plt.plot(w2_p__q_options, w2_bounds['local_affine'], label='Local Affine')
     if 'together' in w2_bounds:
