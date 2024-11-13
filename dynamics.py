@@ -36,23 +36,50 @@ class LogisticMap(Dynamics):
     def global_lipschitz(self):
         return self.r
 
+class LinearDynamics(Dynamics):
+    def __init__(self, mat: Union[torch.Tensor, list], **kwargs):
+        if isinstance(mat, list):
+            mat = torch.tensor(mat)
 
-class BoundedLinearDiagonalDynamics(Dynamics):
-    def __init__(self, diagonal: Union[torch.Tensor, list], min=-2., max=2., **kwargs):
-        if isinstance(diagonal, list):
-            diagonal = torch.tensor(diagonal)
-        self.num_dims = diagonal.size(0)
-        self._diagonal = diagonal
+        self.num_dims = mat.size(0)
+        self._mat = mat
 
         linear = torch.nn.Linear(self.num_dims, self.num_dims, bias=False)
         with torch.no_grad():
-            linear.weight.copy_(torch.diag(diagonal))
+            linear.weight.copy_(mat)
 
-        super(BoundedLinearDiagonalDynamics, self).__init__(linear, bp.Clamp(min, max))
+        super(LinearDynamics, self).__init__(linear)
 
     @property
     def global_lipschitz(self):
-        return self._diagonal.abs().max()
+        return torch.linalg.svd(self._mat).S[0]
+
+class LinearDiagonalDynamics(LinearDynamics):
+    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
+        if isinstance(diagonal, list):
+            diagonal = torch.tensor(diagonal)
+
+        super(LinearDiagonalDynamics, self).__init__(torch.diag(diagonal))
+
+class BoundedLinearDynamics(Dynamics):
+    def __init__(self,
+                 mat: Union[torch.Tensor, list],
+                 lower_bound: Union[float, torch.Tensor, list],
+                 upper_bound: Union[float, torch.Tensor, list],
+                 **kwargs):
+        linear_dynamics = LinearDynamics(mat)
+
+        super(BoundedLinearDynamics, self).__init__(linear_dynamics, bp.Clamp(lower_bound, upper_bound))
+
+class BoundedLinearDiagonalDynamics(BoundedLinearDynamics):
+    def __init__(self, diagonal: Union[torch.Tensor, list],
+                 lower_bound: Union[float, torch.Tensor, list],
+                 upper_bound: Union[float, torch.Tensor, list],
+                 **kwargs):
+        if isinstance(diagonal, list):
+            diagonal = torch.tensor(diagonal)
+
+        super(BoundedLinearDiagonalDynamics, self).__init__(torch.diag(diagonal), lower_bound, upper_bound)
 
 
 class SigmoidDynamics(Dynamics):
@@ -64,7 +91,6 @@ class SigmoidDynamics(Dynamics):
     def global_lipschitz(self):
         return 0.25
 
-
 class LinearSigmoidDynamics(Dynamics):
     def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
         if isinstance(diagonal, list):
@@ -73,7 +99,7 @@ class LinearSigmoidDynamics(Dynamics):
         self._diagonal = diagonal
 
         super(LinearSigmoidDynamics, self).__init__(
-            BoundedLinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
+            LinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
             SigmoidDynamics(self.num_dims)
         )
 
@@ -84,6 +110,12 @@ class LinearSigmoidDynamics(Dynamics):
 def get_dynamics(dynamics_type: str, **kwargs):
     if dynamics_type == 'LogisticMap':
         return LogisticMap(**kwargs)
+    elif dynamics_type == 'LinearDynamics':
+        return LinearDynamics(**kwargs)
+    elif dynamics_type == 'BoundedLinearDynamics':
+        return BoundedLinearDynamics(**kwargs)
+    elif dynamics_type == 'LinearDiagonalDynamics':
+        return LinearDiagonalDynamics(**kwargs)
     elif dynamics_type == 'BoundedLinearDiagonalDynamics':
         return BoundedLinearDiagonalDynamics(**kwargs)
     elif dynamics_type == 'SigmoidDynamics':
