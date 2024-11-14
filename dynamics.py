@@ -1,8 +1,8 @@
 import torch
-from typing import Union
+from typing import Union, Optional
 import bound_propagation as bp
 
-from torch_modules import ScalarMult, ScalarAdd
+from modules import ScalarMult, ScalarAdd, Linear, ClampLinear
 
 
 class Dynamics(torch.nn.Sequential):
@@ -36,23 +36,22 @@ class LogisticMap(Dynamics):
     def global_lipschitz(self):
         return self.r
 
+
 class LinearDynamics(Dynamics):
-    def __init__(self, mat: Union[torch.Tensor, list], **kwargs):
-        if isinstance(mat, list):
-            mat = torch.tensor(mat)
+    def __init__(self, weight: Union[torch.Tensor, list], bias: Optional[Union[torch.Tensor, list]] = None, **kwargs):
+        if isinstance(weight, list):
+            weight = torch.tensor(weight)
+        if isinstance(bias, list):
+            bias = torch.tensor(bias)
 
-        self.num_dims = mat.size(0)
-        self._mat = mat
+        self.num_dims = weight.size(-1)
+        self._global_lipschitz = torch.linalg.svd(weight).S[0]
 
-        linear = torch.nn.Linear(self.num_dims, self.num_dims, bias=False)
-        with torch.no_grad():
-            linear.weight.copy_(mat)
-
-        super(LinearDynamics, self).__init__(linear)
+        super(LinearDynamics, self).__init__(Linear(weight, bias))
 
     @property
     def global_lipschitz(self):
-        return torch.linalg.svd(self._mat).S[0]
+        return self._global_lipschitz
 
 class LinearDiagonalDynamics(LinearDynamics):
     def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
@@ -63,13 +62,22 @@ class LinearDiagonalDynamics(LinearDynamics):
 
 class BoundedLinearDynamics(Dynamics):
     def __init__(self,
-                 mat: Union[torch.Tensor, list],
-                 lower_bound: Union[float, torch.Tensor, list],
-                 upper_bound: Union[float, torch.Tensor, list],
+                 weight: Union[torch.Tensor, list],
+                 bias: Optional[Union[torch.Tensor, list]] = None,
+                 lower_bound: Optional[Union[float, torch.Tensor, list]] = -torch.inf,
+                 upper_bound: Optional[Union[float, torch.Tensor, list]] = torch.inf,
                  **kwargs):
-        linear_dynamics = LinearDynamics(mat)
 
-        super(BoundedLinearDynamics, self).__init__(linear_dynamics, bp.Clamp(lower_bound, upper_bound))
+        assert not lower_bound in [None, -torch.inf] or not upper_bound in [None, -torch.inf]
+
+        self.num_dims = weight.size(-1)
+        self._global_lipschitz = torch.linalg.svd(weight).S[0]
+
+        super(BoundedLinearDynamics, self).__init__(Linear(weight, bias), ClampLinear(lower_bound, upper_bound))
+
+    @property
+    def global_lipschitz(self):
+        return self._global_lipschitz
 
 class BoundedLinearDiagonalDynamics(BoundedLinearDynamics):
     def __init__(self, diagonal: Union[torch.Tensor, list],
@@ -79,7 +87,10 @@ class BoundedLinearDiagonalDynamics(BoundedLinearDynamics):
         if isinstance(diagonal, list):
             diagonal = torch.tensor(diagonal)
 
-        super(BoundedLinearDiagonalDynamics, self).__init__(torch.diag(diagonal), lower_bound, upper_bound)
+        super(BoundedLinearDiagonalDynamics, self).__init__(weight=torch.diag(diagonal),
+                                                            bias=None,
+                                                            lower_bound=lower_bound,
+                                                            upper_bound=upper_bound)
 
 
 class SigmoidDynamics(Dynamics):

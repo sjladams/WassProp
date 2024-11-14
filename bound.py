@@ -3,7 +3,7 @@ import torch
 import bound_propagation as bp
 
 from regions import HyperRectangularVoronoiPartition
-from torch_modules import SqNorm, linear_factory
+from modules import SqNorm, linear_factory
 from optimize import minimize_with_adam
 
 factory = bp.BoundModelFactory()

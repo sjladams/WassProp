@@ -1,30 +1,7 @@
-from typing import Union, Optional, Tuple
 import torch
 import bound_propagation as bp
 
-class ScalarMult(torch.nn.Linear): #\todo rename MultScalar
-    def __init__(self, in_features: int, scalar: float):
-        super(ScalarMult, self).__init__(in_features, in_features, bias=False)
-        with torch.no_grad():
-            self.weight.copy_(torch.eye(in_features) * scalar)
-
-class ScalarAdd(torch.nn.Linear): # \todo rename AddScalar
-    def __init__(self, in_features: int, scalar: float):
-        super(ScalarAdd, self).__init__(in_features, in_features)
-        with torch.no_grad():
-            self.weight.copy_(torch.eye(in_features))
-            self.bias.fill_(scalar)
-
-class Sum(torch.nn.Linear):
-    def __init__(self, in_features: int):
-        super(Sum, self).__init__(in_features, 1, bias=False)
-        with torch.no_grad():
-            self.weight.fill_(1.0)
-
-class SqNorm(torch.nn.Sequential):
-    def __init__(self, num_dims):
-        super().__init__(bp.Pow(2), Sum(num_dims))
-
+__all__ = ['BoundSigmoid']
 
 class SigmoidTangentBisectionStrategy:
     def upper_tangent(self, bound_module, lower, upper):
@@ -160,36 +137,3 @@ class BoundSigmoid(bp.BoundSigmoid):
 
             # Slope has to attach to (upper, sigma(upper))
             add_linear(self.alpha_lower, self.beta_lower, mask=implicit, a=self.derivative(d), x=upper, y=upper_act, a_mask=False)
-
-class BoundLinear(bp.BoundLinear):
-    def __init__(self, *args, **kwargs):
-        super(BoundLinear, self).__init__(*args, **kwargs)
-
-    @bp.activation.assert_bound_order
-    def ibp_forward(self, bounds, save_relaxation=False, save_input_bounds=False):
-        center, diff = bounds.center, bounds.width / 2
-
-        if torch.logical_and(bounds.lower.isneginf(), ~bounds.upper.isinf()).any():
-            upper = bounds.upper.matmul(self.module.weight)
-            if self.module.bias is not None:
-                upper = upper + self.module.bias.unsqueeze(-2)
-
-            w_diff = diff.matmul(self.module.weight.abs())
-
-            lower = upper - w_diff
-        elif torch.logical_and(~bounds.lower.isneginf(), bounds.upper.isinf()).any():
-            lower = bounds.lower.matmul(self.module.weight)
-            if self.module.bias is not None:
-                lower + self.module.bias.unsqueeze(-2)
-
-            w_diff = diff.matmul(self.module.weight.abs())
-
-            upper = lower + w_diff
-        else:
-            lower, upper = bp.linear.ibp_forward_linear_jit(self.module.weight, self.module.bias, center, diff)
-
-        return bp.IntervalBounds(bounds.region, lower, upper)
-
-linear_factory = bp.BoundModelFactory()
-linear_factory.register(torch.nn.Sigmoid, BoundSigmoid)
-linear_factory.register(torch.nn.Linear, BoundLinear)

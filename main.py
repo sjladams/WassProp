@@ -11,7 +11,7 @@ if __name__ == '__main__':
     torch.manual_seed(0)
 
     args = parse_arguments(
-        dynamics_type = 'LinearSigmoidDynamics',
+        dynamics_type = 'BoundedLinearDiagonalDynamics',
         num_dims = 1,
         dynamics_setting = 0,
         num_locs = 10,
