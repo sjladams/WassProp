@@ -5,6 +5,7 @@ import bound_propagation as bp
 from regions import HyperRectangularVoronoiPartition
 from modules import SqNorm, linear_factory
 from optimize import minimize_with_adam
+from tensors import check_mat_diag
 
 factory = bp.BoundModelFactory()
 
@@ -146,19 +147,26 @@ def global_lbp_sq_norm_fx_fc(
         beta = torch.zeros(vp.num_locs)
 
     if use_lbp:
-        # the procedure below only works for "independent" dimension, to be defined properly
-
         # negative quadrant:
         input_bound_neg = bp.HyperRectangle(torch.ones(vp.num_locs, vp.num_dims).fill_(-torch.inf), vp.locs)
         lb_neg = linear_factory.build(f).crown_ibp(input_bound_neg)
+
+        assert check_mat_diag(lb_neg.lower[0]) and check_mat_diag(lb_neg.upper[0]), \
+            "Currently global_lbp_sq_norm_fc only works for independent dimensions"
+
+        # positive quadrant:
+        input_bound_pos = bp.HyperRectangle(vp.locs, torch.ones(vp.num_locs, vp.num_dims).fill_(torch.inf))
+        lb_pos = linear_factory.build(f).crown_ibp(input_bound_pos)
+
+        assert check_mat_diag(lb_pos.lower[0]) and check_mat_diag(lb_pos.upper[0]), \
+            "Currently global_lbp_sq_norm_fc only works for independent dimensions"
+
+        # From linear bounds to bounds on the norms:
         alpha_neg = torch.max(
             torch.svd(lb_neg.lower[0]).S.max(-1).values,
             torch.svd(lb_neg.upper[0]).S.max(-1).values
         ).pow(2)
 
-        # positive quadrant:
-        input_bound_pos = bp.HyperRectangle(vp.locs, torch.ones(vp.num_locs, vp.num_dims).fill_(torch.inf))
-        lb_pos = linear_factory.build(f).crown_ibp(input_bound_pos)
         alpha_pos = torch.max(
             torch.svd(lb_pos.lower[0]).S.max(-1).values,
             torch.svd(lb_pos.upper[0]).S.max(-1).values
@@ -166,7 +174,7 @@ def global_lbp_sq_norm_fx_fc(
 
         alpha = torch.max(alpha_neg, alpha_pos).clamp(min=0., max=f.global_lipschitz**2)
 
-        # Check if
+        # Check if the bound is linear at the locations
         y_locs = f(vp.locs)
         msg_tmpl = "{} bound in {} quadrant is not linear. Check BoundModule for dynamics or use Gradient Descent"
         assert check_if_affine_bound_is_linear_at_locs(lb_neg.lower[0], lb_neg.lower[1], vp.locs, y_locs), \
