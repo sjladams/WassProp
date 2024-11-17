@@ -4,6 +4,13 @@ import bound_propagation as bp
 
 __all__ = ['BoundLinear', 'Linear']
 
+
+def nan_matmul(mat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
+    elem_mul = torch.einsum('ij,...j->...ij', mat, vec)
+    elem_mul = torch.nan_to_num(elem_mul, posinf=torch.inf, neginf=-torch.inf)
+    return elem_mul.sum(-1)
+
+
 class Linear(torch.nn.Linear):
     def __init__(self, weight: torch.Tensor, bias: Optional[torch.Tensor] = None, **kwargs):
         super(Linear, self).__init__(weight.size(-2), weight.size(-1), bias=bias is not None)
@@ -25,7 +32,7 @@ class BoundLinear(bp.BoundLinear):
             if self.module.bias is not None:
                 upper = upper + self.module.bias.unsqueeze(-2)
 
-            w_diff = diff.matmul(self.module.weight.abs())
+            w_diff = nan_matmul(self.module.weight.abs(), diff)
 
             lower = upper - w_diff
         elif torch.logical_and(~bounds.lower.isneginf(), bounds.upper.isinf()).any():
@@ -33,7 +40,7 @@ class BoundLinear(bp.BoundLinear):
             if self.module.bias is not None:
                 lower + self.module.bias.unsqueeze(-2)
 
-            w_diff = diff.matmul(self.module.weight.abs())
+            w_diff = nan_matmul(self.module.weight.abs(), diff)
 
             upper = lower + w_diff
         else:
