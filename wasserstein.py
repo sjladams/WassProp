@@ -20,7 +20,7 @@ def get_fn_sq_w2_f_p__f_disc_p(
         w2_q__disc_q: float,
         w2_p__q: float) -> Callable:
 
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
     sq_norm_fx_fc = local_ibp_sq_norm_fx_fc(f, voronoi_partition).upper.squeeze(-1).diag()
 
@@ -59,7 +59,7 @@ def get_fn_sq_w2_f_disc_p__f_disc_q(
         w2_q__disc_q: float,
         w2_p__q: float) -> Callable:
 
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
     fc = f(signature.locs)
     sq_norm_fc_fc = torch.norm(fc.unsqueeze(-3) - fc.unsqueeze(-2), p=2, dim=-1).pow(2)
@@ -160,7 +160,7 @@ def get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
         w2_q__disc_q: float,
         w2_p__q: float) -> Callable:
 
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
     sq_norm_fx_fc = local_ibp_sq_norm_fx_fc(f, voronoi_partition).upper.squeeze(-1)
     averaged_sq_norm_fx_fc = torch.einsum('jl,j->l', sq_norm_fx_fc, signature.probs)
@@ -202,7 +202,7 @@ def get_fn_sq_w2_f_p__f_disc_q_together(
         w2_q__disc_q: float,
         w2_p__q: float) -> Callable:
 
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
     if w2_p__q == 0.:
         sq_norm_fc_fc = torch.zeros(voronoi_partition.num_locs, voronoi_partition.num_locs)
@@ -249,7 +249,7 @@ def get_fn_sq_w2_f_p__f_disc_q_local_linear(
         w2_q__disc_q: float,
         w2_p__q: float)-> Callable:
 
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
     alpha = global_lbp_sq_norm_fx_fc(f, voronoi_partition)
     alpha_max = alpha[signature.probs > 0.].max(dim=-1).values
@@ -277,7 +277,7 @@ def get_fn_sq_w2_f_p__f_disc_q_local_constant(
         w2_q__disc_q: float,
         w2_p__q: float)-> Callable:
 
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
     beta  = global_ibp_sq_norm_fx_fc(f, voronoi_partition).upper.squeeze(-1)
 
@@ -301,7 +301,7 @@ def get_fn_sq_w2_f_p__f_disc_q_local_linear_or_constant(
         w2_q__disc_q: float,
         w2_p__q: float)-> Callable:
 
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
     w2_p__disc_q = w2_q__disc_q + w2_p__q
 
@@ -341,7 +341,7 @@ def get_fn_sq_w2_f_p__f_disc_q_local_affine(
         w2_q__disc_q: float,
         w2_p__q: float)-> Callable:
 
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs_inner, signature.loc_shell, signature.shell)
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
     w2_p__disc_q = w2_q__disc_q + w2_p__q
 
