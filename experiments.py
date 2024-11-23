@@ -8,6 +8,7 @@ import discretize_distributions as ds
 import GMMWas
 import wasserstein
 from dynamics import Dynamics
+from plot import plot_multi_step
 
 
 def multi_step(dynamics: Dynamics,
@@ -109,6 +110,9 @@ def multi_step(dynamics: Dynamics,
 
     tag = f"{dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f}, |C|={num_locs})"
     w2_bounds = {'emp': w2_empirical, 'gl': w2_global_lipschitz, 'lagr_dual': w2_lagrangian_duality}
+
+    if plot:
+        plot_multi_step(dynamics, w2_bounds, tag) #TODO: Change to plot trajectories?
 
     return w2_bounds, tag
 
