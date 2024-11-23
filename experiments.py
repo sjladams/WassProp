@@ -197,7 +197,7 @@ def single_step(dynamics: Dynamics,
     q0_samples = q0.sample(torch.Size((num_samples,)))
 
     # Propagate the system
-    sign_q0 = ds.discretization_generator(dist=q0, num_locs=num_locs, prob_shell=prob_shell)
+    sign_q0 = ds.discretization_generator(dist=q0, num_locs=num_locs)
 
     ### Propagate the (approximate) state distribution over the dynamics
     q1 = ds.MixtureMultivariateNormal(
