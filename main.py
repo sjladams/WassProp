@@ -19,7 +19,6 @@ if __name__ == '__main__':
         lr = 0.01,
         num_iterations = 1000,
         plot = False,
-        prob_shell = 0.0001
     )
 
     params = load_params(args)
@@ -43,4 +42,3 @@ if __name__ == '__main__':
     )
 
     plot.plot_single_step(dynamics, w2_bounds, tag, w2_p__q_options)
-
