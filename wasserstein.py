@@ -62,15 +62,20 @@ def get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
     alpha = global_lbp_sq_norm_fx_fc(f, voronoi_partition)
 
     def fn_sq_w2_f_p__f_disc_q_independent_coupling(lambd: torch.Tensor):
-        v = lambd * signature.locs - ((signature.probs * alpha).unsqueeze(1) * signature.locs).sum(dim=0, keepdim=True)
-        coeff_v = 1 / (lambd - torch.dot(signature.probs, alpha))
 
-        c__transpose__c = torch.sum(signature.locs ** 2, dim=1)
-        sum_pi_alpha_c__transpose__c = torch.sum(signature.probs * alpha * c__transpose__c)
+        locs = signature.locs.detach()
+        probs = signature.probs
+        budget_sq = (w2_p__disc_q ** 2).detach()
 
-        quadrat_sol = coeff_v * (v ** 2).sum(dim=1) - lambd * (signature.locs ** 2).sum(dim=1) + sum_pi_alpha_c__transpose__c
+        v = lambd * locs - ((probs * alpha).unsqueeze(1) * locs).sum(dim=0, keepdim=True)
+        coeff_v = 1 / (lambd - torch.dot(probs, alpha))
 
-        result = lambd * w2_p__disc_q ** 2 + torch.dot(signature.probs, quadrat_sol)
+        c__transpose__c = torch.sum(locs ** 2, dim=1)
+        sum_pi_alpha_c__transpose__c = torch.sum(probs * alpha * c__transpose__c)
+
+        quadrat_sol = coeff_v * (v ** 2).sum(dim=1) - lambd * (locs ** 2).sum(dim=1) + sum_pi_alpha_c__transpose__c
+
+        result = lambd * budget_sq + torch.dot(probs, quadrat_sol)
 
         return result
 
