@@ -39,17 +39,6 @@ def get_proj_matrix(vp: HyperRectangularVoronoiPartition):
     # Account for proj_{R_i}(c_i) = c_i
     proj_matrix.diagonal(dim1=-3, dim2=-2).copy_(vp.locs.swapaxes(-1, -2))
 
-    # Handle non-overlapping regions:
-    if vp.shell[:,0].isneginf().all() and vp.shell[:,1].isinf().all():
-        proj_matrix[:, -1] = vp.locs  # To guarantee numerical stability, we set the projection on an empty set to zero
-    else:
-        closest_edge_shell = torch.where(
-            (vp.locs - vp.shell[..., 0]).abs() < (vp.locs - vp.shell[..., 1]).abs(),
-            vp.shell[..., 0],
-            vp.shell[..., 1]
-        )
-        proj_matrix[:-1, -1] = closest_edge_shell[:-1]
-
     return torch.nan_to_num(proj_matrix)
 
 def get_norm_of_proj_matrix(vp: HyperRectangularVoronoiPartition):
