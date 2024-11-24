@@ -76,4 +76,5 @@ def load_params(args):
             "num_locs": args.num_locs,
             "lr": args.lr,
             "num_iterations": args.num_iterations,
+            "plot":args.plot,
             **dynamics_params}

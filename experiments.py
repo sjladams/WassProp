@@ -123,7 +123,8 @@ def multi_step(dynamics: Dynamics,
                  }
 
     if plot:
-        plot_multi_step(dynamics, w2_bounds, tag) #TODO: Change to plot trajectories?
+        plot_multi_step(p_trajectories, num_time_steps, num_samples)
+        plot_multi_step(q_trajectories, num_time_steps, num_samples)
 
     return w2_bounds, tag
 
