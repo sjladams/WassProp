@@ -92,10 +92,15 @@ def compute_w2_f_p__f_disc_q_independent_coupling(
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
         signature, f, w2_q__disc_q, w2_p__q)
 
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
+    alpha = global_lbp_sq_norm_fx_fc(f, voronoi_partition)
+    avg_alpha = torch.dot(alpha, signature.probs).detach() + 1e-3
+
     optimized_lambda, losses = minimize_with_adam(
-        param=torch.tensor(0.1, requires_grad=True),
+        param=torch.tensor(15., requires_grad=True),
         objective=fn_sq_w2_f_p__f_disc_q,
         non_negative_constraint=True,
+        min_value=avg_alpha,
         **kwargs
     )
 
