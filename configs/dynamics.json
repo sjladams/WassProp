@@ -21,15 +21,15 @@
         "options": {
             "0": {
                 "loc_noise_dist": [0.0],
-                "variance_noise_dist": [0.3],
+                "variance_noise_dist": [0.5],
                 "loc_initial_dist": [4.0],
                 "variance_initial_dist": [1.0]
             },
             "1": {
                 "loc_noise_dist": [0.0],
                 "variance_noise_dist": [0.3],
-                "loc_initial_dist": [4.0],
-                "variance_initial_dist": [0.1]
+                "loc_initial_dist": [0.2],
+                "variance_initial_dist": [0.8]
             }
         }
     },
@@ -39,11 +39,20 @@
                 "options": {
                     "0": {
                         "diagonal": [3.0],
-                        "lower_bound": -1.0,
-                        "upper_bound": 1.0,
+                        "lower_bound": -2.0,
+                        "upper_bound": 2.0,
                         "loc_noise_dist": [0.0],
-                        "variance_noise_dist": [0.3],
+                        "variance_noise_dist": [1.0],
                         "loc_initial_dist": [0.0],
+                        "variance_initial_dist": [1.0]
+                    },
+                    "1": {
+                        "diagonal": [3.0],
+                        "lower_bound": -2.0,
+                        "upper_bound": 2.0,
+                        "loc_noise_dist": [0.0],
+                        "variance_noise_dist": [1.0],
+                        "loc_initial_dist": [4.0],
                         "variance_initial_dist": [1.0]
                     }
                 }
@@ -100,6 +109,17 @@
                         "variance_noise_dist": [0.3, 0.3],
                         "loc_initial_dist": [1.0, 1.0],
                         "variance_initial_dist": [0.001, 0.5]
+                    }
+                }
+            },
+            "10": {
+                "options": {
+                    "0": {
+                        "diagonal": [3.0, 0.001, 0.005, 0.007, 0.03, 0.001, 0.001, 0.001, 0.001, 0.001],
+                        "loc_noise_dist": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                        "variance_noise_dist": [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3],
+                        "loc_initial_dist": [0.0, 1.0, 0.5, -0.7, 0.3, 2.0, -3.0, 0.4, -0.1, 4.0],
+                        "variance_initial_dist": [0.0001, 0.5, 0.7, 0.2, 1.5, 2.5, 0.1, 0.5, 0.8, 0.2]
                     }
                 }
             }
