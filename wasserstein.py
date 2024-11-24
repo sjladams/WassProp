@@ -89,6 +89,9 @@ def compute_w2_f_p__f_disc_q_independent_coupling(
         w2_p__q: float,
         **kwargs):
 
+    if w2_p__q == 0.:
+        return compute_w2_f_p__f_disc_p(signature, f, w2_q__disc_q, w2_p__q, ** kwargs)
+
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
         signature, f, w2_q__disc_q, w2_p__q)
 
@@ -141,6 +144,9 @@ def compute_w2_f_p__f_disc_q_local_linear_or_constant(
         w2_q__disc_q: float,
         w2_p__q: float,
         **kwargs):
+
+    if w2_p__q == 0.:
+        return compute_w2_f_p__f_disc_p(signature, f, w2_q__disc_q, w2_p__q, ** kwargs)
 
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_local_linear_or_constant(signature, f, w2_q__disc_q, w2_p__q)
 
