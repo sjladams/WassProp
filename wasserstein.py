@@ -55,6 +55,7 @@ def get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
         w2_p__q: float) -> Callable:
+
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
     w2_p__disc_q = w2_q__disc_q + w2_p__q
