@@ -1,8 +1,12 @@
 import torch
 from typing import Callable
 
-def minimize_with_adam(objective: Callable, param: torch.Tensor, lr=0.01, num_iterations=100, tolerance=1e-8,
-                       print_progress: bool = True, non_negative_constraint: bool = False,  **kwargs):
+def minimize_with_adam(objective: Callable,
+                       param: torch.Tensor,
+                       lr=0.01, num_iterations=100, tolerance=1e-8,
+                       print_progress: bool = True,
+                       non_negative_constraint: bool = False, min_value: torch.Tensor = None,
+                       **kwargs):
     """
 
     :param objective:
@@ -35,7 +39,10 @@ def minimize_with_adam(objective: Callable, param: torch.Tensor, lr=0.01, num_it
         if non_negative_constraint:
             # Projection step to ensure param >= 0
             with torch.no_grad():
-                param.clamp_(min=0)
+                if min_value is None:
+                    param.clamp_(min=0)
+                else:
+                    param.clamp_(min=min_value.item())
 
         # Optionally track the loss (objective function value)
         loss_history.append(loss.item())
