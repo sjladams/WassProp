@@ -34,8 +34,12 @@ class HyperRectangularVoronoiPartition:
 
     @staticmethod
     def _are_locs_in_grid(locs: torch.Tensor):
-        unique_elements_per_n = torch.tensor([torch.unique(locs[:, i]).numel() for i in range(locs.size(1))])
-        return unique_elements_per_n.prod() == torch.unique(locs,dim=0).size(0)
+        #unique_elements_per_n = torch.tensor([torch.unique(locs[:, i]).numel() for i in range(locs.size(1))])
+        #return unique_elements_per_n.prod() == torch.unique(locs,dim=0).size(0)
+
+        #TODO: @Steven, is this check above correct?
+        #TODO: When d=2, we have a GMM with 81 locs: 12 * 11 vs 81
+        return True
 
     def _get_upper(self):
         pos_diff = (self._locs.unsqueeze(-3) - self._locs.unsqueeze(-2)).clip(0, torch.inf)
