@@ -14,20 +14,38 @@ from optimize import minimize_with_adam
 def get_fn_sq_w2_f_p__f_disc_p(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
-        w2_q__disc_q: float,
-        w2_p__q: float) -> Callable:
+        center_ball: ds.MultivariateNormal) -> Callable:
 
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
+    alphas = global_lbp_sq_norm_fx_fc(f, voronoi_partition)
+    locs = signature.locs
+    means = center_ball.mean
+    sigmas = center_ball._sqrt_diag_covariance_matrix
+    lower = voronoi_partition.lower
+    upper = voronoi_partition.upper
 
-    sq_norm_fx_fc = local_ibp_sq_norm_fx_fc(f, voronoi_partition).upper.squeeze(-1).diag()
+    upper[torch.isposinf(upper)] = 1e4 # large value
+    lower[torch.isneginf(lower)] = -1e4
 
-    sq_norm_proj_matrix = get_norm_of_proj_matrix(voronoi_partition).pow(2)
+    def fn_sq_w2_f_p__f_disc_p():
 
-    w2_p__disc_q = w2_q__disc_q + w2_p__q
+        scaled_lower = (lower - means) / (2**0.5 * sigmas)
+        scaled_upper = (upper - means) / (2 ** 0.5 * sigmas)
 
-    def fn_sq_w2_f_p__f_disc_p(lambd: torch.Tensor):
-        inner_sup = torch.max(sq_norm_fx_fc - lambd * sq_norm_proj_matrix, dim=-1).values
-        return lambd * w2_p__disc_q ** 2 + torch.einsum('m,m->', signature.probs, inner_sup)
+        erf_lower = torch.special.erf(scaled_lower)
+        erf_upper = torch.special.erf(scaled_upper)
+
+        common_factor = 0.5 * ((locs - means) ** 2 + sigmas ** 2)
+
+        factor_exp_upper = (1 / (2 * torch.pi) ** 0.5) * sigmas * (upper - 2 * locs + means) * torch.exp(-scaled_upper ** 2)
+        factor_exp_lower = (1 / (2 * torch.pi) ** 0.5) * sigmas * (lower - 2 * locs + means) * torch.exp(
+            -scaled_lower ** 2)
+
+        #Using Mathematica
+        integral_per_dim = common_factor * (erf_upper - erf_lower) - factor_exp_upper + factor_exp_lower
+        integral = torch.prod(integral_per_dim, dim=1)
+
+        return torch.dot(alphas, integral)
 
     return fn_sq_w2_f_p__f_disc_p
 
@@ -36,17 +54,12 @@ def compute_w2_f_p__f_disc_p(
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
         w2_p__q: float,
+        center_ball: ds.MultivariateNormal,
         **kwargs):
-    fn_sq_w2_f_p__f_disc_p = get_fn_sq_w2_f_p__f_disc_p(signature, f, w2_q__disc_q, w2_p__q)
 
-    lambd = torch.tensor(0.1, requires_grad=True)
-    optimized_lambda, losses = minimize_with_adam(
-        param=lambd,
-        objective=fn_sq_w2_f_p__f_disc_p,
-        non_negative_constraint=True,
-        **kwargs)
+    fn_sq_w2_f_p__f_disc_p = get_fn_sq_w2_f_p__f_disc_p(signature, f, center_ball)
 
-    return fn_sq_w2_f_p__f_disc_p(optimized_lambda).sqrt().detach()
+    return fn_sq_w2_f_p__f_disc_p().sqrt().detach()
 
 
 # ----- W_2(f#p, f#disc#q) for Independent Coupling approach -----
@@ -87,10 +100,11 @@ def compute_w2_f_p__f_disc_q_independent_coupling(
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
         w2_p__q: float,
+        center_ball: ds.MultivariateNormal,
         **kwargs):
 
     if w2_p__q == 0.:
-        return compute_w2_f_p__f_disc_p(signature, f, w2_q__disc_q, w2_p__q, ** kwargs)
+        return compute_w2_f_p__f_disc_p(signature, f, w2_q__disc_q, w2_p__q, center_ball, ** kwargs)
 
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
         signature, f, w2_q__disc_q, w2_p__q)
@@ -143,10 +157,11 @@ def compute_w2_f_p__f_disc_q_local_linear_or_constant(
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
         w2_p__q: float,
+        center_ball: ds.MultivariateNormal,
         **kwargs):
 
     if w2_p__q == 0.:
-        return compute_w2_f_p__f_disc_p(signature, f, w2_q__disc_q, w2_p__q, ** kwargs)
+        return compute_w2_f_p__f_disc_p(signature, f, w2_q__disc_q, w2_p__q, center_ball, ** kwargs)
 
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_local_linear_or_constant(signature, f, w2_q__disc_q, w2_p__q)
 
