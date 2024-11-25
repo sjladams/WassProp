@@ -92,21 +92,23 @@ def multi_step(dynamics: Dynamics,
 
         ### Our Method
         w2_lagrangian_duality[k + 1] = wasserstein.compute_w2_f_p__f_disc_q_local_linear_or_constant(
-            sign_q0,
-            dynamics,
+            signature=sign_q0,
+            f=dynamics,
             w2_q__disc_q=sign_q0.w2 + w2_compr,
             w2_p__q=w2_lagrangian_duality[k],
             lr=lr,
-            num_iterations=num_iterations)
+            num_iterations=num_iterations,
+            center_ball=q0)
 
         ### Independent coupling method
         w2_independent_coupling[k + 1] = wasserstein.compute_w2_f_p__f_disc_q_independent_coupling(
-            sign_q0,
-            dynamics,
+            signature=sign_q0,
+            f=dynamics,
             w2_q__disc_q=sign_q0.w2 + w2_compr,
             w2_p__q=w2_independent_coupling[k],
             lr=lr,
-            num_iterations=num_iterations)
+            num_iterations=num_iterations,
+            center_ball=q0)
 
         print(f"Bounds on W_2(W_2(p_{k+1}, q_{k+1})) via:\n"
               f"\t Global Lipschitz: {w2_global_lipschitz[k+1]:.4f}\n"
