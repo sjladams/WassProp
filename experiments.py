@@ -144,7 +144,7 @@ def multi_step(dynamics: Dynamics,
 def single_step(
         dynamics: Dynamics,
         noise_dist: ds.MultivariateNormal,
-        initial_dist: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
+        q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
         num_samples: int,
         num_locs: int,
         w2_p__q_options: Union[List, float],
@@ -173,18 +173,17 @@ def single_step(
         plt.show()
 
     # Initialize state distributions
-    q0 = initial_dist
-    q0_samples = q0.sample(torch.Size((num_samples,)))
+    q_samples = q.sample(torch.Size((num_samples,)))
 
     # Propagate the system
-    sign_q0 = ds.discretization_generator(dist=q0, num_locs=num_locs)
+    sign_q = ds.discretization_generator(dist=q, num_locs=num_locs)
 
     ### Propagate the (approximate) state distribution over the dynamics
     q1 = ds.MixtureMultivariateNormal(
         mixture_distribution=torch.distributions.Categorical(
-            probs=sign_q0.probs),
+            probs=sign_q.probs),
         component_distribution=ds.MultivariateNormal(
-            loc=dynamics(sign_q0.locs) + noise_dist.loc,
+            loc=dynamics(sign_q.locs) + noise_dist.loc,
             covariance_matrix=noise_dist.covariance_matrix
         ))
 
@@ -199,19 +198,19 @@ def single_step(
             w2_compr = GMMWas.w2(q1, q1_pre_compression)
 
     q1_samples = q1.sample(torch.Size((num_samples,)))
-    f_q0_samples = dynamics(q0_samples) + noise_dist.sample(torch.Size((num_samples,)))
+    f_q_samples = dynamics(q_samples) + noise_dist.sample(torch.Size((num_samples,)))
 
     if dynamics.num_dims == 1 and plot:
         fig_propagation = plt.figure()
-        plt.hist(q0_samples.squeeze(), alpha=0.5, label='q', bins=100, density=True)
-        plt.hist(f_q0_samples.squeeze(), alpha=0.5, label='f#q', bins=100, density=True)
+        plt.hist(q_samples.squeeze(), alpha=0.5, label='q', bins=100, density=True)
+        plt.hist(f_q_samples.squeeze(), alpha=0.5, label='f#q', bins=100, density=True)
         plt.legend()
         plt.title(f"Histograms of q and f#q")
         plt.show()
 
         fig_signature = plt.figure()
-        plt.bar(sign_q0.locs.squeeze(), sign_q0.probs, width=0.1)
-        plt.hist(q0_samples, alpha=0.5, label='q', bins=100, density=True)
+        plt.bar(sign_q.locs.squeeze(), sign_q.probs, width=0.1)
+        plt.hist(q_samples, alpha=0.5, label='q', bins=100, density=True)
         plt.title(f"Signature of q and Histogram of q")
         plt.show()
 
@@ -226,23 +225,23 @@ def single_step(
         print(f"\n ------ W_2(p,q) = {w2_p__q} ------ \n")
 
         if run_empirical:
-            w2_empirical[idx] = ot.solve_sample(f_q0_samples.view(-1, dynamics.num_dims),
+            w2_empirical[idx] = ot.solve_sample(f_q_samples.view(-1, dynamics.num_dims),
                                                 q1_samples.view(-1, dynamics.num_dims)
                                                 ).value.sqrt()
 
-        w2_global_lipschitz[idx] = dynamics.global_lipschitz * (sign_q0.w2 + w2_compr + w2_p__q)
+        w2_global_lipschitz[idx] = dynamics.global_lipschitz * (sign_q.w2 + w2_compr + w2_p__q)
 
         if run_independent_coupling:
             print(f"-- Independent Coupling --")
             w2_independent_coupling[idx] = wasserstein.compute_w2_f_p__f_disc_q_independent_coupling(
-                sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q + w2_compr, lr=lr, num_iterations=num_iterations)
+                sign_q, dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q + w2_compr, lr=lr, num_iterations=num_iterations)
 
         if run_lagrangian_duality:
             print(f"-- Lagrangian Duality --")
             w2_lagrangian_duality[idx] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-                sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q + w2_compr, lr=lr, num_iterations=num_iterations)
+                sign_q, dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q + w2_compr, lr=lr, num_iterations=num_iterations)
 
-        print(f"Bounds on W_2(W_2(f#p, f#disc#q)) for W_2(p,q) = {w2_p__q} and W_2(q_0, Delta_C#q_0) = {sign_q0.w2:.4f} via:\n"
+        print(f"Bounds on W_2(W_2(f#p, f#disc#q)) for W_2(p,q) = {w2_p__q} and W_2(q_0, Delta_C#q_0) = {sign_q.w2:.4f} via:\n"
               f"\t Global Lipschits: {w2_global_lipschitz[idx]:.4f}\n")
         if run_empirical:
             print(f"\t Empirical: {w2_empirical[idx]:.4f}\n")
@@ -260,7 +259,7 @@ def single_step(
         w2_bounds['lagrangian_duality'] = w2_lagrangian_duality
 
     samples = {
-        'f_q0': f_q0_samples,
+        'f_q0': f_q_samples,
         'q1': q1_samples
     }
 

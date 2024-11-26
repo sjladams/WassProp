@@ -32,7 +32,7 @@ if __name__ == '__main__':
     w2_bounds, _, _ = single_step(
         dynamics=dynamics,
         noise_dist=noise_dist,
-        initial_dist=initial_dist,
+        q=initial_dist,
         w2_p__q_options=w2_p__q_options,
         run_independent_coupling=True,
         run_lagrangian_duality=True,
