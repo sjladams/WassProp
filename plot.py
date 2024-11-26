@@ -1,22 +1,5 @@
 import matplotlib.pyplot as plt
-
-
-def plot_multi_step(dynamics, w2_bounds, tag):
-    K = w2_bounds['gl'].shape[0] - 1
-
-    fig_w2_bounds = plt.figure()
-    plt.plot(range(K+1), w2_bounds['emp'], label='Empirical')
-    plt.plot(range(K+1), w2_bounds['gl'], label='Global Lipschitz')
-    if 'type1' in w2_bounds:
-        plt.plot(range(K+1), w2_bounds['type1'],
-                 label=r'Own (Budget Term 2 = $W_2(\Delta p,\Delta q)$)')
-    plt.plot(range(K+1), w2_bounds['type2'],
-             label=r'Own (Budget Term 2 = $W_2(p,\Delta q)$)')
-    plt.legend()
-    plt.title(tag)
-    plt.xticks(range(K))
-    plt.xlabel('k')
-    plt.ylabel(r'$W_2(p_k, q_k)$')
+import torch
 
     if dynamics.__class__.__name__ == 'ChaoticDynamics':
         plt.yscale('log')
@@ -44,9 +27,8 @@ def plot_multi_step(dynamics, w2_bounds, tag):
         plt.show()
 
 @torch.no_grad()
-def plot_single_step(dynamics, w2_bounds, w2_p__q_options, num_locs, **kwargs):
-
-    tag = f"{dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f}, |C|={num_locs})"
+def plot_single_step(dynamics, w2_bounds: dict, **kwargs):
+    w2_p__q_options = list(w2_bounds.keys())
 
     fig_w2_bounds = plt.figure()
     plt.plot(w2_p__q_options, w2_bounds['gl'], label='Global Lipschitz')
@@ -66,9 +48,12 @@ def plot_single_step(dynamics, w2_bounds, w2_p__q_options, num_locs, **kwargs):
         plt.plot(w2_p__q_options, w2_bounds['triangle_type1'], label=r'Triangle (Budget Term 2 = $W_2(\Delta p,\Delta q)$)')
     if 'triangle_type2' in w2_bounds:
         plt.plot(w2_p__q_options, w2_bounds['triangle_type2'], label=r'Triangle (Budget Term 2 = $W_2(p,\Delta q)$)')
+    for key in w2_bounds[w2_p__q_options[0]].keys():
+        if not key in ['sign_q']:
+            plt.plot(w2_p__q_options, [w2_bounds[w2_p__q][key] for w2_p__q in w2_p__q_options], label=key)
 
     plt.legend()
-    plt.title(tag)
+    plt.title(f"{dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f})")
     plt.xlabel('$W_2(p,q)$')
     plt.xticks(w2_p__q_options)
     plt.ylabel(r'$W_2(f p, f \Delta q)$')

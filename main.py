@@ -39,7 +39,7 @@ if __name__ == '__main__':
         **params
     )
 
-    plot.plot_single_step(dynamics, w2_bounds, w2_p__q_options, **params)
+    plot.plot_single_step(dynamics, w2_bounds, **params)
 
     # Run multi step experiment
     w2_bounds, samples = multi_step(
