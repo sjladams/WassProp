@@ -1,8 +1,15 @@
 import torch
-from typing import Callable
+from typing import Callable, Optional, Union
 
-def minimize_with_adam(objective: Callable, param: torch.Tensor, lr=0.01, num_iterations=100, tolerance=1e-8,
-                       print_progress: bool = True, non_negative_constraint: bool = False,  **kwargs):
+def minimize_with_adam(
+        objective: Callable,
+        param: torch.Tensor,
+        lr=0.01,
+        num_iterations=100,
+        tolerance=1e-8,
+        print_progress: bool=True,
+        lower_constraint: Optional[Union[torch.Tensor, float]]=None,
+        **kwargs):
     """
 
     :param objective:
@@ -10,6 +17,8 @@ def minimize_with_adam(objective: Callable, param: torch.Tensor, lr=0.01, num_it
     :param lr:
     :param num_iterations:
     :param tolerance:
+    :param print_progress:
+    :param lower_constraint: element-wise lower-bound, if torch.Tensor, should be of same shape as param
     :return:
     """
     torch.autograd.set_detect_anomaly(True)
@@ -32,10 +41,10 @@ def minimize_with_adam(objective: Callable, param: torch.Tensor, lr=0.01, num_it
         # Perform an optimization step (gradient descent step)
         optimizer.step()
 
-        if non_negative_constraint:
-            # Projection step to ensure param >= 0
+        if lower_constraint is not None:
+            # Projection step to ensure param >= lower_constraint
             with torch.no_grad():
-                param.clamp_(min=0)
+                param.clamp_(min=lower_constraint)
 
         # Optionally track the loss (objective function value)
         loss_history.append(loss.item())

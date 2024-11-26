@@ -45,7 +45,7 @@ def compute_w2_f_p__f_disc_p(
     optimized_lambda, losses = minimize_with_adam(
         param=lambd,
         objective=fn_sq_w2_f_p__f_disc_p,
-        non_negative_constraint=True,
+        lower_constraint=0.,
         **kwargs)
 
     return fn_sq_w2_f_p__f_disc_p(optimized_lambda).sqrt()
@@ -88,7 +88,7 @@ def compute_w2_f_p__f_disc_q_independent_coupling(
     optimized_lambda, losses = minimize_with_adam(
         param=torch.tensor(0.1, requires_grad=True),
         objective=fn_sq_w2_f_p__f_disc_q,
-        non_negative_constraint=True,
+        lower_constraint=True,
         **kwargs
     )
 
