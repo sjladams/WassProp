@@ -255,4 +255,9 @@ def single_step(
     if run_lagrangian_duality:
         w2_bounds['lagrangian_duality'] = w2_lagrangian_duality
 
-    return w2_bounds
+    samples = {
+        'f_q0': f_q0_samples,
+        'q1': q1_samples
+    }
+
+    return w2_bounds, samples, q1
