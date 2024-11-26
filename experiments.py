@@ -184,9 +184,14 @@ def single_step(
         ))
 
     # Compress the mixture distribution
-    q1_pre_compression = copy(q1)
-    q1.compress(n_max=num_locs) # \todo create seperate varialbe n_max
-    w2_compr = GMMWas.w2(q1, q1_pre_compression)
+    with torch.no_grad():
+        q1_pre_compression = copy(q1)
+        # \todo make the unique(), i.e., the filtering in .compress() optional. Currently, it is always applied. This is problematic because GMMWas.w2 is an over-approximation, such that the w2 between the true and filtered are not guaranteed to be zero..
+        if num_locs <= q1.num_components:
+            w2_compr = 0.
+        else:
+            q1.compress(n_max=num_locs) # \todo create seperate varialbe n_max
+            w2_compr = GMMWas.w2(q1, q1_pre_compression)
 
     q1_samples = q1.sample(torch.Size((num_samples,)))
     f_q0_samples = dynamics(q0_samples) + noise_distribution.sample(torch.Size((num_samples,)))
