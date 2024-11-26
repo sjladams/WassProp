@@ -42,9 +42,10 @@ if __name__ == '__main__':
     plot.plot_single_step(dynamics, w2_bounds, w2_p__q_options, **params)
 
     # Run multi step experiment
-    w2_bounds, tag = multi_step(
+    w2_bounds, samples = multi_step(
         dynamics=dynamics,
-        w2_p__q_options=w2_p__q_options,
-        num_time_steps=4,
+        noise_dist=noise_dist,
+        q=initial_dist,
+        num_time_steps=2,
         **params
     )
