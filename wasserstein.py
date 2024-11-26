@@ -161,7 +161,7 @@ def compute_w2_f_p__f_disc_q_independent_coupling(
 
 
 # ----- W_2(f#p, f#disc#q) for Lagrangian Duality approach -----
-def get_fn_sq_w2_f_p__f_disc_q_local_linear_or_constant(
+def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
@@ -180,23 +180,23 @@ def get_fn_sq_w2_f_p__f_disc_q_local_linear_or_constant(
     alpha_options = torch.einsum('ij, j->ij', mask, alpha)
     beta_options = torch.einsum('ij, j->ij', 1 - mask, beta)
 
-    def fn_sq_w2_f_p__f_disc_q_local_linear_or_constant():
+    def fn_sq_w2_f_p__f_disc_q_lagrangian_duality():
         alpha_max = alpha_options.max(dim=-1).values
         result_options = alpha_max * w2_p__disc_q ** 2 + torch.einsum('j,ij->i', signature.probs, beta_options)
 
         return result_options.min()
 
-    return fn_sq_w2_f_p__f_disc_q_local_linear_or_constant
+    return fn_sq_w2_f_p__f_disc_q_lagrangian_duality
 
 
 @compute_w2_wrapper
-def compute_w2_f_p__f_disc_q_local_linear_or_constant(
+def compute_w2_f_p__f_disc_q_lagrangian_duality(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
         w2_p__q: float,
         **kwargs):
 
-    fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_local_linear_or_constant(signature, f, w2_q__disc_q, w2_p__q)
+    fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(signature, f, w2_q__disc_q, w2_p__q)
 
     return fn_sq_w2_f_p__f_disc_q().sqrt()

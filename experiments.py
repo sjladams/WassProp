@@ -91,7 +91,7 @@ def multi_step(dynamics: Dynamics,
         w2_global_lipschitz[k+1] = dynamics.global_lipschitz * (sign_q0.w2 + w2_compr + w2_global_lipschitz[k])
 
         ### Our Method
-        w2_lagrangian_duality[k + 1] = wasserstein.compute_w2_f_p__f_disc_q_local_linear_or_constant(
+        w2_lagrangian_duality[k + 1] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
             sign_q0, dynamics, w2_q__disc_q=sign_q0.w2 + w2_compr, w2_p__q=w2_lagrangian_duality[k], lr=lr,
             num_iterations=num_iterations)
 
@@ -217,7 +217,7 @@ def single_step(dynamics: Dynamics,
 
         if run_local_linear_or_constant:
             print(f"-- Local Linear or Constant --")
-            w2_local_linear_or_constant[idx] = wasserstein.compute_w2_f_p__f_disc_q_local_linear_or_constant(
+            w2_local_linear_or_constant[idx] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
                 sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, lr=lr, num_iterations=num_iterations)
 
         print(f"Bounds on W_2(W_2(f#p, f#disc#q)) for W_2(p,q) = {w2_p__q} and W_2(q_0, Delta_C#q_0) = {sign_q0.w2:.4f} via:\n"
