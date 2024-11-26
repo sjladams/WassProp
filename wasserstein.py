@@ -142,14 +142,19 @@ def compute_w2_f_p__f_disc_q_independent_coupling(
         w2_q__disc_q: float,
         w2_p__q: float,
         **kwargs):
+    # \todo revise independend coupling: use package on stable truncated gaussians, and get rid of doulbe alpha computation
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
+    alpha = global_lbp_sq_norm_fx_fc(f, voronoi_partition)
+    avg_alpha = torch.dot(alpha, signature.probs).detach()
 
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
         signature, f, w2_q__disc_q, w2_p__q)
 
     optimized_lambda, losses = minimize_with_adam(
-        param=torch.tensor(0.1, requires_grad=True),
+        param=avg_alpha + 2.,
         objective=fn_sq_w2_f_p__f_disc_q,
         lower_constraint=True,
+        min_value=avg_alpha,
         **kwargs
     )
 
