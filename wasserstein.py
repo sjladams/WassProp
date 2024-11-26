@@ -32,6 +32,7 @@ def get_fn_sq_w2_f_p__f_disc_p(
     return fn_sq_w2_f_p__f_disc_p
 
 
+@torch.no_grad()
 def compute_w2_f_p__f_disc_p(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
@@ -47,7 +48,7 @@ def compute_w2_f_p__f_disc_p(
         non_negative_constraint=True,
         **kwargs)
 
-    return fn_sq_w2_f_p__f_disc_p(optimized_lambda).sqrt().detach()
+    return fn_sq_w2_f_p__f_disc_p(optimized_lambda).sqrt()
 
 
 # ----- W_2(f#p, f#disc#q) for Independent Coupling approach -----
@@ -73,6 +74,7 @@ def get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
     return fn_sq_w2_f_p__f_disc_q_independent_coupling
 
 
+@torch.no_grad()
 def compute_w2_f_p__f_disc_q_independent_coupling(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
@@ -90,7 +92,7 @@ def compute_w2_f_p__f_disc_q_independent_coupling(
         **kwargs
     )
 
-    return fn_sq_w2_f_p__f_disc_q(optimized_lambda).sqrt().detach()
+    return fn_sq_w2_f_p__f_disc_q(optimized_lambda).sqrt()
 
 
 # ----- W_2(f#p, f#disc#q) for Lagrangian Duality approach -----
@@ -122,6 +124,7 @@ def get_fn_sq_w2_f_p__f_disc_q_local_linear_or_constant(
     return fn_sq_w2_f_p__f_disc_q_local_linear_or_constant
 
 
+@torch.no_grad()
 def compute_w2_f_p__f_disc_q_local_linear_or_constant(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
