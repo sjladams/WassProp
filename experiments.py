@@ -183,6 +183,11 @@ def single_step(
             covariance_matrix=noise_distribution.covariance_matrix
         ))
 
+    # Compress the mixture distribution
+    q1_pre_compression = copy(q1)
+    q1.compress(n_max=num_locs) # \todo create seperate varialbe n_max
+    w2_compr = GMMWas.w2(q1, q1_pre_compression)
+
     q1_samples = q1.sample(torch.Size((num_samples,)))
     f_q0_samples = dynamics(q0_samples) + noise_distribution.sample(torch.Size((num_samples,)))
 
@@ -209,17 +214,22 @@ def single_step(
     for idx, w2_p__q in enumerate(w2_p__q_options):
         print(f"\n ------ W_2(p,q) = {w2_p__q} ------ \n")
 
-        w2_global_lipschitz[idx] = dynamics.global_lipschitz * (sign_q0.w2 + w2_p__q)
+        if run_empirical:
+            w2_empirical[idx] = ot.solve_sample(f_q0_samples.view(-1, dynamics.num_dims),
+                                                q1_samples.view(-1, dynamics.num_dims)
+                                                ).value.sqrt()
+
+        w2_global_lipschitz[idx] = dynamics.global_lipschitz * (sign_q0.w2 + w2_compr + w2_p__q)
 
         if run_independent_coupling:
             print(f"-- Independent Coupling --")
             w2_independent_coupling[idx] = wasserstein.compute_w2_f_p__f_disc_q_independent_coupling(
-                sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, lr=lr, num_iterations=num_iterations)
+                sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q + w2_compr, lr=lr, num_iterations=num_iterations)
 
         if run_lagrangian_duality:
             print(f"-- Lagrangian Duality --")
             w2_lagrangian_duality[idx] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-                sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, lr=lr, num_iterations=num_iterations)
+                sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q + w2_compr, lr=lr, num_iterations=num_iterations)
 
         print(f"Bounds on W_2(W_2(f#p, f#disc#q)) for W_2(p,q) = {w2_p__q} and W_2(q_0, Delta_C#q_0) = {sign_q0.w2:.4f} via:\n"
               f"\t Global Lipschits: {w2_global_lipschitz[idx]:.4f}\n")
