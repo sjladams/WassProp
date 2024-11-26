@@ -10,6 +10,24 @@ from bound import local_ibp_sq_norm_fx_fc, get_norm_of_proj_matrix, global_ibp_s
 from optimize import minimize_with_adam
 
 
+@torch.no_grad()
+def compute_w2_wrapper(func):
+    def wrapper(
+            signature: ds.DiscretizedMultivariateNormal,
+            f: dynamics.Dynamics,
+            w2_q__disc_q: float,
+            w2_p__q: float,
+            **kwargs):
+
+        if w2_p__q == 0:
+            fn_sq_w2_f_q__f_disc_q = get_fn_sq_w2_f_q__f_disc_q(signature, f)
+
+            return fn_sq_w2_f_q__f_disc_q().sqrt()
+        else:
+            return func(signature, f, w2_q__disc_q, w2_p__q, **kwargs)
+    return wrapper
+
+
 # ----- W_2(f#p, f#disc#p) -----
 def get_fn_sq_w2_f_p__f_disc_p(
         signature: ds.DiscretizedMultivariateNormal,
@@ -32,23 +50,67 @@ def get_fn_sq_w2_f_p__f_disc_p(
     return fn_sq_w2_f_p__f_disc_p
 
 
-@torch.no_grad()
+def get_fn_sq_w2_f_q__f_disc_q(
+        signature: ds.DiscretizedMultivariateNormal,
+        f: dynamics.Dynamics) -> Callable:
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
+
+    alphas = global_lbp_sq_norm_fx_fc(f, voronoi_partition)
+    locs = signature.locs
+    means = signature.dist.mean
+    sigmas = signature.dist._sqrt_diag_covariance_matrix
+    lower = voronoi_partition.lower
+    upper = voronoi_partition.upper
+
+    upper[torch.isposinf(upper)] = 1e4  # large value
+    lower[torch.isneginf(lower)] = -1e4
+
+    scaled_lower = (lower - means) / (2 ** 0.5 * sigmas)
+    scaled_upper = (upper - means) / (2 ** 0.5 * sigmas)
+
+    erf_lower = torch.special.erf(scaled_lower)
+    erf_upper = torch.special.erf(scaled_upper)
+
+    common_factor = 0.5 * ((locs - means) ** 2 + sigmas ** 2)
+
+    def fn_sq_w2_f_p__f_disc_p():
+        factor_exp_upper = (1 / (2 * torch.pi) ** 0.5) * sigmas * (upper - 2 * locs + means) * torch.exp(
+            -scaled_upper ** 2)
+        factor_exp_lower = (1 / (2 * torch.pi) ** 0.5) * sigmas * (lower - 2 * locs + means) * torch.exp(
+            -scaled_lower ** 2)
+
+        #Using Mathematica
+        integral_per_dim = common_factor * (erf_upper - erf_lower) - factor_exp_upper + factor_exp_lower
+        integral = torch.prod(integral_per_dim, dim=1)
+
+        return torch.dot(alphas, integral)
+
+    return fn_sq_w2_f_p__f_disc_p
+
+
+@compute_w2_wrapper
 def compute_w2_f_p__f_disc_p(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
         w2_p__q: float,
         **kwargs):
-    fn_sq_w2_f_p__f_disc_p = get_fn_sq_w2_f_p__f_disc_p(signature, f, w2_q__disc_q, w2_p__q)
 
-    lambd = torch.tensor(0.1, requires_grad=True)
-    optimized_lambda, losses = minimize_with_adam(
-        param=lambd,
-        objective=fn_sq_w2_f_p__f_disc_p,
-        lower_constraint=0.,
-        **kwargs)
+    if w2_p__q == 0:
+        fn_sq_w2_f_q__f_disc_q = get_fn_sq_w2_f_q__f_disc_q(signature, f)
 
-    return fn_sq_w2_f_p__f_disc_p(optimized_lambda).sqrt()
+        return fn_sq_w2_f_q__f_disc_q().sqrt()
+    else:
+        fn_sq_w2_f_p__f_disc_p = get_fn_sq_w2_f_p__f_disc_p(signature, f, w2_q__disc_q, w2_p__q)
+
+        lambd = torch.tensor(0.1, requires_grad=True)
+        optimized_lambda, losses = minimize_with_adam(
+            param=lambd,
+            objective=fn_sq_w2_f_p__f_disc_p,
+            lower_constraint=0.,
+            **kwargs)
+
+        return fn_sq_w2_f_p__f_disc_p(optimized_lambda).sqrt()
 
 
 # ----- W_2(f#p, f#disc#q) for Independent Coupling approach -----
@@ -78,7 +140,7 @@ def get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
     return fn_sq_w2_f_p__f_disc_q_independent_coupling
 
 
-@torch.no_grad()
+@compute_w2_wrapper
 def compute_w2_f_p__f_disc_q_independent_coupling(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
@@ -128,7 +190,7 @@ def get_fn_sq_w2_f_p__f_disc_q_local_linear_or_constant(
     return fn_sq_w2_f_p__f_disc_q_local_linear_or_constant
 
 
-@torch.no_grad()
+@compute_w2_wrapper
 def compute_w2_f_p__f_disc_q_local_linear_or_constant(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
@@ -138,4 +200,4 @@ def compute_w2_f_p__f_disc_q_local_linear_or_constant(
 
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_local_linear_or_constant(signature, f, w2_q__disc_q, w2_p__q)
 
-    return fn_sq_w2_f_p__f_disc_q().sqrt().detach()
+    return fn_sq_w2_f_p__f_disc_q().sqrt()
