@@ -154,6 +154,7 @@ def single_step(
         run_independent_coupling: bool = True,
         run_lagrangian_duality: bool = True,
         run_empirical: bool = False,
+        p_samples: torch.Tensor = None,
         **kwargs):
 
     if isinstance(w2_p__q_options, float):
@@ -198,12 +199,13 @@ def single_step(
             w2_compr = GMMWas.w2(q1, q1_pre_compression)
 
     q1_samples = q1.sample(torch.Size((num_samples,)))
-    f_q_samples = dynamics(q_samples) + noise_dist.sample(torch.Size((num_samples,)))
+    p1_samples = (dynamics(p_samples if p_samples is not None else q_samples) +
+                  noise_dist.sample(torch.Size((num_samples,))))
 
     if dynamics.num_dims == 1 and plot:
         fig_propagation = plt.figure()
         plt.hist(q_samples.squeeze(), alpha=0.5, label='q', bins=100, density=True)
-        plt.hist(f_q_samples.squeeze(), alpha=0.5, label='f#q', bins=100, density=True)
+        plt.hist(p1_samples.squeeze(), alpha=0.5, label='f#q', bins=100, density=True)
         plt.legend()
         plt.title(f"Histograms of q and f#q")
         plt.show()
@@ -225,7 +227,7 @@ def single_step(
         print(f"\n ------ W_2(p,q) = {w2_p__q} ------ \n")
 
         if run_empirical:
-            w2_empirical[idx] = ot.solve_sample(f_q_samples.view(-1, dynamics.num_dims),
+            w2_empirical[idx] = ot.solve_sample(p1_samples.view(-1, dynamics.num_dims),
                                                 q1_samples.view(-1, dynamics.num_dims)
                                                 ).value.sqrt()
 
@@ -258,9 +260,4 @@ def single_step(
     if run_lagrangian_duality:
         w2_bounds['lagrangian_duality'] = w2_lagrangian_duality
 
-    samples = {
-        'f_q0': f_q_samples,
-        'q1': q1_samples
-    }
-
-    return w2_bounds, samples, q1
+    return w2_bounds, p1_samples, q1
