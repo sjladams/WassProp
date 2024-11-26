@@ -43,8 +43,11 @@ def plot_multi_step(dynamics, w2_bounds, tag):
 
         plt.show()
 
+@torch.no_grad()
+def plot_single_step(dynamics, w2_bounds, tag, w2_p__q_options, num_locs):
 
-def plot_single_step(dynamics, w2_bounds, tag, w2_p__q_options):
+    tag = f"{dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f}, |C|={num_locs})"
+
     fig_w2_bounds = plt.figure()
     plt.plot(w2_p__q_options, w2_bounds['gl'], label='Global Lipschitz')
     if 'independent_coupling' in w2_bounds:

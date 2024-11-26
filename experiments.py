@@ -243,11 +243,10 @@ def single_step(
         if run_lagrangian_duality:
             print(f"\t Lagrangian Duality: {w2_lagrangian_duality[idx]:.4f}\n")
 
-    tag = f"{dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f}, |C|={num_locs})"
     w2_bounds = {'gl': w2_global_lipschitz}
     if run_independent_coupling:
         w2_bounds['independent_coupling'] = w2_independent_coupling
     if run_lagrangian_duality:
         w2_bounds['lagrangian_duality'] = w2_lagrangian_duality
 
-    return w2_bounds, tag
+    return w2_bounds

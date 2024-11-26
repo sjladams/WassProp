@@ -27,15 +27,15 @@ if __name__ == '__main__':
 
     # Run single step experiment:
     w2_p__q_options = [0., 0.1, 0.5, 1.0]
-    w2_bounds, tag = single_step(
+    w2_bounds = single_step(
         dynamics=dynamics,
         w2_p__q_options=w2_p__q_options,
         run_independent_coupling=True,
-        run_local_linear_or_constant=True,
+        run_lagrangian_duality=True,
         **params
     )
 
-    plot.plot_single_step(dynamics, w2_bounds, tag, w2_p__q_options)
+    plot.plot_single_step(dynamics, w2_bounds, w2_p__q_options, **params)
 
     # Run multi step experiment
     w2_bounds, tag = multi_step(
