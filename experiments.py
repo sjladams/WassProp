@@ -52,6 +52,7 @@ def multi_step(dynamics: Dynamics,
     # Store wasserstein error bounds
     w2_empirical = torch.zeros(num_time_steps+1)
     w2_global_lipschitz = torch.zeros(num_time_steps+1)
+    w2_independent_coupling = torch.zeros(num_time_steps+1)
     w2_lagrangian_duality = torch.zeros(num_time_steps + 1)
 
     # Store sample trajectories
@@ -90,13 +91,19 @@ def multi_step(dynamics: Dynamics,
         w2_global_lipschitz[k+1] = dynamics.global_lipschitz * (sign_q0.w2 + w2_compr + w2_global_lipschitz[k])
 
         ### Our Method
-        w2_lagrangian_duality[k + 1] = wasserstein.compute_w2_f_p__f_disc_q_local_linear_or_constant(
+        w2_lagrangian_duality[k + 1] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
             sign_q0, dynamics, w2_q__disc_q=sign_q0.w2 + w2_compr, w2_p__q=w2_lagrangian_duality[k], lr=lr,
+            num_iterations=num_iterations)
+
+        ### Independent coupling method
+        w2_independent_coupling[k + 1] = wasserstein.compute_w2_f_p__f_disc_q_independent_coupling(
+            sign_q0, dynamics, w2_q__disc_q=sign_q0.w2 + w2_compr, w2_p__q=w2_independent_coupling[k], lr=lr,
             num_iterations=num_iterations)
 
         print(f"Bounds on W_2(W_2(p_{k+1}, q_{k+1})) via:\n"
               f"\t Global Lipschitz: {w2_global_lipschitz[k+1]:.4f}\n"
               f"\t Lagrangian duality: {w2_lagrangian_duality[k+1]:.4f}\n"
+              f"\t Independent coupling: {w2_independent_coupling[k+1]:.4f}\n"
               f"\t Empirical: {w2_empirical[k+1]:.4f}\n")
 
         # Overwrite for next iteration
@@ -109,7 +116,12 @@ def multi_step(dynamics: Dynamics,
             p_trajectories = torch.cat((p_trajectories, p0_samples), dim=0)
 
     tag = f"{dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f}, |C|={num_locs})"
-    w2_bounds = {'emp': w2_empirical, 'gl': w2_global_lipschitz, 'lagr_dual': w2_lagrangian_duality}
+    w2_bounds = {
+        'emp': w2_empirical,
+        'gl': w2_global_lipschitz,
+        'lagr_dual': w2_lagrangian_duality,
+        'indep_coupl': w2_independent_coupling
+    }
 
     if plot:
         plot_multi_step(dynamics, w2_bounds, tag) #TODO: Change to plot trajectories?
@@ -205,7 +217,7 @@ def single_step(dynamics: Dynamics,
 
         if run_local_linear_or_constant:
             print(f"-- Local Linear or Constant --")
-            w2_local_linear_or_constant[idx] = wasserstein.compute_w2_f_p__f_disc_q_local_linear_or_constant(
+            w2_local_linear_or_constant[idx] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
                 sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, lr=lr, num_iterations=num_iterations)
 
         print(f"Bounds on W_2(W_2(f#p, f#disc#q)) for W_2(p,q) = {w2_p__q} and W_2(q_0, Delta_C#q_0) = {sign_q0.w2:.4f} via:\n"
