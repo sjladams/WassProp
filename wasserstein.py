@@ -96,21 +96,16 @@ def compute_w2_f_p__f_disc_p(
         w2_p__q: float,
         **kwargs):
 
-    if w2_p__q == 0:
-        fn_sq_w2_f_q__f_disc_q = get_fn_sq_w2_f_q__f_disc_q(signature, f)
+    fn_sq_w2_f_p__f_disc_p = get_fn_sq_w2_f_p__f_disc_p(signature, f, w2_q__disc_q, w2_p__q)
 
-        return fn_sq_w2_f_q__f_disc_q().sqrt()
-    else:
-        fn_sq_w2_f_p__f_disc_p = get_fn_sq_w2_f_p__f_disc_p(signature, f, w2_q__disc_q, w2_p__q)
+    lambd = torch.tensor(0.1, requires_grad=True)
+    optimized_lambda, losses = minimize_with_adam(
+        param=lambd,
+        objective=fn_sq_w2_f_p__f_disc_p,
+        lower_constraint=0.,
+        **kwargs)
 
-        lambd = torch.tensor(0.1, requires_grad=True)
-        optimized_lambda, losses = minimize_with_adam(
-            param=lambd,
-            objective=fn_sq_w2_f_p__f_disc_p,
-            lower_constraint=0.,
-            **kwargs)
-
-        return fn_sq_w2_f_p__f_disc_p(optimized_lambda).sqrt()
+    return fn_sq_w2_f_p__f_disc_p(optimized_lambda).sqrt()
 
 
 # ----- W_2(f#p, f#disc#q) for Independent Coupling approach -----
