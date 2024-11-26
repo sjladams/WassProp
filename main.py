@@ -24,11 +24,15 @@ if __name__ == '__main__':
     params = load_params(args)
 
     dynamics = get_dynamics(**params)
+    initial_dist = get_initial_dist(**params)
+    noise_dist = get_noise_dist(**params)
 
     # Run single step experiment:
     w2_p__q_options = [0., 0.1, 0.5, 1.0]
     w2_bounds, _, _ = single_step(
         dynamics=dynamics,
+        noise_dist=noise_dist,
+        initial_dist=initial_dist,
         w2_p__q_options=w2_p__q_options,
         run_independent_coupling=True,
         run_lagrangian_duality=True,

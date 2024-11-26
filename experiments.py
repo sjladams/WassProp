@@ -11,6 +11,18 @@ from dynamics import Dynamics
 from plot import plot_multi_step
 
 
+def get_initial_dist(loc_initial_dist, variance_initial_dist, **kwargs):
+    return construct_diag_gaussian_dist(loc_initial_dist, variance_initial_dist)
+
+def get_noise_dist(loc_noise_dist, variance_noise_dist, **kwargs):
+    return construct_diag_gaussian_dist(loc_noise_dist, variance_noise_dist)
+
+def construct_diag_gaussian_dist(loc_dist: Union[list, torch.Tensor], variance_dist: Union[list, torch.Tensor]):
+    loc_dist = torch.as_tensor(loc_dist)
+    covariance_dist = torch.diag(torch.as_tensor(variance_dist))
+    return ds.MultivariateNormal(loc=loc_dist, covariance_matrix=covariance_dist)
+
+
 def multi_step(dynamics: Dynamics,
                loc_noise_dist: torch.Tensor,
                variance_noise_dist: torch.Tensor,
@@ -131,10 +143,8 @@ def multi_step(dynamics: Dynamics,
 
 def single_step(
         dynamics: Dynamics,
-        loc_noise_dist: list,
-        variance_noise_dist: list,
-        loc_initial_dist: list,
-        variance_initial_dist: list,
+        noise_dist: ds.MultivariateNormal,
+        initial_dist: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
         num_samples: int,
         num_locs: int,
         w2_p__q_options: Union[List, float],
@@ -146,17 +156,11 @@ def single_step(
         run_empirical: bool = False,
         **kwargs):
 
-    loc_noise_dist = torch.tensor(loc_noise_dist)
-    covariance_noise_dist = torch.diag(torch.tensor(variance_noise_dist))
-    loc_initial_dist = torch.tensor(loc_initial_dist)
-    covariance_initial_dist = torch.diag(torch.tensor(variance_initial_dist))
-
     if isinstance(w2_p__q_options, float):
         w2_p__q_options = [w2_p__q_options]
 
     # Initialize System Dynamics
     print(f"Global Lipschitz constant of f: {dynamics.global_lipschitz}")
-    noise_distribution = ds.MultivariateNormal(loc=loc_noise_dist, covariance_matrix=covariance_noise_dist)
 
     if dynamics.num_dims == 1 and plot:
         # Plot dynamics
@@ -169,7 +173,7 @@ def single_step(
         plt.show()
 
     # Initialize state distributions
-    q0 = ds.MultivariateNormal(loc=loc_initial_dist, covariance_matrix=covariance_initial_dist)
+    q0 = initial_dist
     q0_samples = q0.sample(torch.Size((num_samples,)))
 
     # Propagate the system
@@ -180,8 +184,8 @@ def single_step(
         mixture_distribution=torch.distributions.Categorical(
             probs=sign_q0.probs),
         component_distribution=ds.MultivariateNormal(
-            loc=dynamics(sign_q0.locs) + noise_distribution.loc,
-            covariance_matrix=noise_distribution.covariance_matrix
+            loc=dynamics(sign_q0.locs) + noise_dist.loc,
+            covariance_matrix=noise_dist.covariance_matrix
         ))
 
     # Compress the mixture distribution
@@ -195,7 +199,7 @@ def single_step(
             w2_compr = GMMWas.w2(q1, q1_pre_compression)
 
     q1_samples = q1.sample(torch.Size((num_samples,)))
-    f_q0_samples = dynamics(q0_samples) + noise_distribution.sample(torch.Size((num_samples,)))
+    f_q0_samples = dynamics(q0_samples) + noise_dist.sample(torch.Size((num_samples,)))
 
     if dynamics.num_dims == 1 and plot:
         fig_propagation = plt.figure()
