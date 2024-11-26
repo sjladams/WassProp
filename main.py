@@ -31,14 +31,16 @@ if __name__ == '__main__':
         dynamics=dynamics,
         w2_p__q_options=w2_p__q_options,
         run_independent_coupling=False,
-        run_local_linear=True,
-        run_local_constant=True,
         run_local_linear_or_constant=True,
-        run_local_affine=False,
-        run_together=False,
-        run_triangle_type1=False,
-        run_triangle_type2=False,
         **params
     )
 
     plot.plot_single_step(dynamics, w2_bounds, tag, w2_p__q_options)
+
+    # Run multi step experiment
+    w2_bounds, tag = multi_step(
+        dynamics=dynamics,
+        w2_p__q_options=w2_p__q_options,
+        num_time_steps=4,
+        **params
+    )
