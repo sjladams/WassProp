@@ -1,30 +1,11 @@
 import matplotlib.pyplot as plt
 import torch
 
-    if dynamics.__class__.__name__ == 'ChaoticDynamics':
-        plt.yscale('log')
-        plt.xlim(1, K)
-    else:
-        plt.xlim(0, K)
 
-    plt.show()
+COLORS = ['Blues', 'BuPu', 'PuRd', 'Greens', 'Oranges', 'Reds', 'Greys', 'Purples',
+                      'YlOrBr', 'YlOrRd', 'OrRd', 'PuRd', 'RdPu', 'BuPu',
+                      'GnBu', 'PuBu', 'YlGnBu', 'PuBuGn', 'BuGn', 'YlGn']
 
-    if dynamics.__class__.__name__ in ['ChaoticDynamics', 'LinearDynamics']:
-        fig_our_w2_bounds = plt.figure()
-        if 'type1' in w2_bounds:
-            plt.plot(range(K+1), w2_bounds['type1'],
-                     label=r'Own (Budget Term 2 = $W_2(\Delta p,\Delta q)$)')
-        plt.plot(range(K+1), w2_bounds['type2'],
-                 label=r'Own (Budget Term 2 = $W_2(p,\Delta q)$)')
-        plt.legend()
-        plt.title(tag)
-        plt.xticks(range(K+1))
-        plt.xlabel('k')
-        plt.ylabel(r'$W_2(p_k, q_k)$')
-
-        plt.xlim(0, K)
-
-        plt.show()
 
 @torch.no_grad()
 def plot_single_step(dynamics, w2_bounds: dict, **kwargs):
@@ -42,3 +23,32 @@ def plot_single_step(dynamics, w2_bounds: dict, **kwargs):
     plt.ylabel(r'$W_2(f p, f \Delta q)$')
     plt.xlim(min(w2_p__q_options), max(w2_p__q_options))
     plt.show()
+
+
+@torch.no_grad()
+def plot_multi_step(dynamics, samples: dict):
+    if dynamics.num_dims == 1:
+        raise NotImplementedError
+    elif dynamics.num_dims == 2:
+        p_samples = torch.stack([samples[k]['p'] for k in samples.keys()])
+        q_samples = torch.stack([samples[k]['q'] for k in samples.keys()])
+
+        fig, ax = plt.subplots(nrows=1, ncols=2)
+        for k in list(samples.keys()):
+            # Plot using hist2d with color intensity indicating the density
+            ax[0].hist2d(p_samples[k,:,0], p_samples[k,:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1)
+            ax[1].hist2d(q_samples[k,:,0], q_samples[k,:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1)
+
+            # cb = plt.colorbar(label='Point Density')
+            # plt.legend(loc='lower right')
+
+            ax[0].set_xlabel('State[0]')
+            ax[1].set_xlabel('State[0]')
+            ax[0].set_ylabel('State[1]')
+            ax[0].grid(True)
+            ax[1].grid(True)
+            ax[0].axis('equal')
+            ax[1].axis('equal')
+            plt.show()
+    else:
+        raise NotImplementedError
