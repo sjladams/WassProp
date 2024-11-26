@@ -31,23 +31,6 @@ def plot_single_step(dynamics, w2_bounds: dict, **kwargs):
     w2_p__q_options = list(w2_bounds.keys())
 
     fig_w2_bounds = plt.figure()
-    plt.plot(w2_p__q_options, w2_bounds['gl'], label='Global Lipschitz')
-    if 'independent_coupling' in w2_bounds:
-        plt.plot(w2_p__q_options, w2_bounds['independent_coupling'], label='Independent Coupling')
-    if 'local_linear' in w2_bounds:
-        plt.plot(w2_p__q_options, w2_bounds['local_linear'], label='Local Linear')
-    if 'local_constant' in w2_bounds:
-        plt.plot(w2_p__q_options, w2_bounds['local_constant'], label='Local Constant')
-    if 'lagrangian_duality' in w2_bounds:
-        plt.plot(w2_p__q_options, w2_bounds['lagrangian_duality'], label='Lagrangian Duality')
-    if 'local_affine' in w2_bounds:
-        plt.plot(w2_p__q_options, w2_bounds['local_affine'], label='Local Affine')
-    if 'together' in w2_bounds:
-        plt.plot(w2_p__q_options, w2_bounds['together'], label='Together')
-    if 'triangle_type1' in w2_bounds:
-        plt.plot(w2_p__q_options, w2_bounds['triangle_type1'], label=r'Triangle (Budget Term 2 = $W_2(\Delta p,\Delta q)$)')
-    if 'triangle_type2' in w2_bounds:
-        plt.plot(w2_p__q_options, w2_bounds['triangle_type2'], label=r'Triangle (Budget Term 2 = $W_2(p,\Delta q)$)')
     for key in w2_bounds[w2_p__q_options[0]].keys():
         if not key in ['sign_q']:
             plt.plot(w2_p__q_options, [w2_bounds[w2_p__q][key] for w2_p__q in w2_p__q_options], label=key)
