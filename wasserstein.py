@@ -153,8 +153,7 @@ def compute_w2_f_p__f_disc_q_independent_coupling(
     optimized_lambda, losses = minimize_with_adam(
         param=avg_alpha + 2.,
         objective=fn_sq_w2_f_p__f_disc_q,
-        lower_constraint=True,
-        min_value=avg_alpha,
+        lower_constraint=avg_alpha,
         **kwargs
     )
 
