@@ -142,7 +142,7 @@ def single_step(
         lr: float = 0.01,
         num_iterations: int = 100,
         run_independent_coupling: bool = True,
-        run_local_linear_or_constant: bool = True,
+        run_lagrangian_duality: bool = True,
         **kwargs):
 
     loc_noise_dist = torch.tensor(loc_noise_dist)
@@ -204,7 +204,7 @@ def single_step(
     # store wasserstein error bounds
     w2_global_lipschitz = torch.zeros(len(w2_p__q_options))
     w2_independent_coupling = torch.zeros(len(w2_p__q_options))
-    w2_local_linear_or_constant = torch.zeros(len(w2_p__q_options))
+    w2_lagrangian_duality = torch.zeros(len(w2_p__q_options))
 
     for idx, w2_p__q in enumerate(w2_p__q_options):
         print(f"\n ------ W_2(p,q) = {w2_p__q} ------ \n")
@@ -216,23 +216,23 @@ def single_step(
             w2_independent_coupling[idx] = wasserstein.compute_w2_f_p__f_disc_q_independent_coupling(
                 sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, lr=lr, num_iterations=num_iterations)
 
-        if run_local_linear_or_constant:
-            print(f"-- Local Linear or Constant --")
-            w2_local_linear_or_constant[idx] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
+        if run_lagrangian_duality:
+            print(f"-- Lagrangian Duality --")
+            w2_lagrangian_duality[idx] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
                 sign_q0, dynamics, w2_q__disc_q=sign_q0.w2, w2_p__q=w2_p__q, lr=lr, num_iterations=num_iterations)
 
         print(f"Bounds on W_2(W_2(f#p, f#disc#q)) for W_2(p,q) = {w2_p__q} and W_2(q_0, Delta_C#q_0) = {sign_q0.w2:.4f} via:\n"
               f"\t Global Lipschits: {w2_global_lipschitz[idx]:.4f}\n")
         if run_independent_coupling:
             print(f"\t Independent Coupling: {w2_independent_coupling[idx]:.4f}\n")
-        if run_local_linear_or_constant:
-            print(f"\t Local Constant: {w2_local_linear_or_constant[idx]:.4f}\n")
+        if run_lagrangian_duality:
+            print(f"\t Lagrangian Duality: {w2_lagrangian_duality[idx]:.4f}\n")
 
     tag = f"{dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f}, |C|={num_locs})"
     w2_bounds = {'gl': w2_global_lipschitz}
     if run_independent_coupling:
         w2_bounds['independent_coupling'] = w2_independent_coupling
-    if run_local_linear_or_constant:
-        w2_bounds['local_linear_or_constant'] = w2_local_linear_or_constant
+    if run_lagrangian_duality:
+        w2_bounds['lagrangian_duality'] = w2_lagrangian_duality
 
     return w2_bounds, tag
