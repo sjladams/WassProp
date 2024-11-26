@@ -147,18 +147,17 @@ def single_step(
         q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
         num_samples: int,
         num_locs: int,
-        w2_p__q_options: Union[List, float],
         plot: bool = False,
         lr: float = 0.01,
         num_iterations: int = 100,
+        w2_p__q_global_lipschitz: float = 0.,
+        w2_p__q_independent_coupling: float = 0.,
+        w2_p__q_lagrangian_duality: float = 0.,
         run_independent_coupling: bool = True,
         run_lagrangian_duality: bool = True,
         run_empirical: bool = False,
         p_samples: torch.Tensor = None,
         **kwargs):
-
-    if isinstance(w2_p__q_options, float):
-        w2_p__q_options = [w2_p__q_options]
 
     # Initialize System Dynamics
     print(f"Global Lipschitz constant of f: {dynamics.global_lipschitz}")
@@ -217,21 +216,61 @@ def single_step(
         plt.show()
 
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
-    # store wasserstein error bounds
-    w2_empirical = torch.zeros(len(w2_p__q_options))
-    w2_global_lipschitz = torch.zeros(len(w2_p__q_options))
-    w2_independent_coupling = torch.zeros(len(w2_p__q_options))
-    w2_lagrangian_duality = torch.zeros(len(w2_p__q_options))
+    w2_bounds = {'sign_q': sign_q.w2}
 
-    for idx, w2_p__q in enumerate(w2_p__q_options):
+    if run_empirical:
+        w2_bounds['empirical'] = ot.solve_sample(p1_samples.view(-1, dynamics.num_dims),
+                                            q1_samples.view(-1, dynamics.num_dims)
+                                            ).value.sqrt()
+
+    w2_bounds['global_lipschitz'] = dynamics.global_lipschitz * (sign_q.w2 + w2_compr + w2_p__q_global_lipschitz)
+
+    if run_independent_coupling:
+        print(f"-- Independent Coupling --")
+        w2_bounds['independent_coupling'] = wasserstein.compute_w2_f_p__f_disc_q_independent_coupling(
+            sign_q, dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_independent_coupling + w2_compr, lr=lr, num_iterations=num_iterations)
+
+    if run_lagrangian_duality:
+        print(f"-- Lagrangian Duality --")
+        w2_bounds['lagrangian_duality'] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
+            sign_q, dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, lr=lr, num_iterations=num_iterations)
+
+    return w2_bounds, q1, {'q': q1_samples, 'p': p1_samples}
+
+
+def single_step_w2_options(
+        w2_p__q_options: Union[List[float], float],
+        **kwargs):
+
+    if isinstance(w2_p__q_options, float):
+        w2_p__q_options = [w2_p__q_options]
+
+    # store wasserstein error bounds
+    w2_bounds = dict()
+
+    #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
+    for w2_p__q in w2_p__q_options:
         print(f"\n ------ W_2(p,q) = {w2_p__q} ------ \n")
 
-        if run_empirical:
-            w2_empirical[idx] = ot.solve_sample(p1_samples.view(-1, dynamics.num_dims),
-                                                q1_samples.view(-1, dynamics.num_dims)
-                                                ).value.sqrt()
+        w2_bounds[w2_p__q], q, samples = single_step(
+            w2_p__q_global_lipschitz=w2_p__q,
+            w2_p__q_independent_coupling=w2_p__q,
+            w2_p__q_lagrangian_duality=w2_p__q,
+            **kwargs
+        )
 
-        w2_global_lipschitz[idx] = dynamics.global_lipschitz * (sign_q.w2 + w2_compr + w2_p__q)
+        print(
+            f"Bounds on W_2(W_2(f#p, f#disc#q)) for W_2(p,q) = {w2_p__q} and "
+            f"W_2(q_0, Delta_C#q_0) = {w2_bounds[w2_p__q]['sign_q']:.4f} via:\n"
+            f"\t Global Lipschits: {w2_bounds[w2_p__q]['global_lipschitz']:.4f}\n")
+        print(f"\t Empirical: {w2_bounds[w2_p__q]['empirical']:.4f}\n"
+              if 'empirical' in w2_bounds[w2_p__q] else "")
+        print(f"\t Independent Coupling: {w2_bounds[w2_p__q]['independent_coupling']:.4f}\n"
+              if 'independent_coupling' in w2_bounds[w2_p__q] else "")
+        print(f"\t Lagrangian Duality: {w2_bounds[w2_p__q]['lagrangian_duality']:.4f}\n"
+              if 'lagrangian_duality' in w2_bounds[w2_p__q] else "")
+
+    return w2_bounds
 
         if run_independent_coupling:
             print(f"-- Independent Coupling --")
@@ -260,4 +299,32 @@ def single_step(
     if run_lagrangian_duality:
         w2_bounds['lagrangian_duality'] = w2_lagrangian_duality
 
-    return w2_bounds, p1_samples, q1
+    # loop over time steps
+    for k in range(num_time_steps):
+        print(f'---- TIME STEP {k} ----')
+        w2_bounds, q, samples = single_step(
+            dynamics=dynamics,
+            noise_dist=noise_dist,
+            q=q,
+            p_samples=p_trajectories[k] if k==0 else None,
+            num_samples=num_samples,
+            w2_p__q_options=w2_empirical[k] if k > 0 else 0.,
+            **kwargs
+        )
+
+        w2_empirical[k+1] = w2_bounds['empirical']
+        w2_global_lipschitz[k + 1] = w2_bounds['gl']
+        w2_independent_coupling[k+1] = w2_bounds['independent_coupling']
+        w2_lagrangian_duality[k+1] = w2_bounds['lagrangian_duality']
+
+        p_trajectories[k] = samples['p']
+        q_trajectories[k] = samples['q']
+
+    w2_bounds = {
+        'empirical': w2_empirical,
+        'gl': w2_global_lipschitz,
+        'lagr_dual': w2_lagrangian_duality,
+        'indep_coupl': w2_independent_coupling
+    }
+
+    return w2_bounds, p_trajectories, q_trajectories

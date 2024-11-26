@@ -1,6 +1,6 @@
 import torch
 
-from experiments import single_step, multi_step, get_noise_dist, get_initial_dist
+from experiments import multi_step, get_noise_dist, get_initial_dist, single_step_w2_options
 from dynamics import get_dynamics
 import plot
 
@@ -29,7 +29,7 @@ if __name__ == '__main__':
 
     # Run single step experiment:
     w2_p__q_options = [0., 0.1, 0.5, 1.0]
-    w2_bounds, _, _ = single_step(
+    w2_bounds = single_step_w2_options(
         dynamics=dynamics,
         noise_dist=noise_dist,
         q=initial_dist,
