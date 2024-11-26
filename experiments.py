@@ -129,20 +129,21 @@ def multi_step(dynamics: Dynamics,
     return w2_bounds, tag
 
 
-def single_step(dynamics: Dynamics,
-                loc_noise_dist: list,
-                variance_noise_dist: list,
-                loc_initial_dist: list,
-                variance_initial_dist: list,
-                num_samples: int,
-                num_locs: int,
-                w2_p__q_options: Union[List, float],
-                plot: bool = False,
-                lr: float =0.01,
-                num_iterations: int = 100,
-                run_independent_coupling: bool = True,
-                run_local_linear_or_constant: bool = True,
-                **kwargs):
+def single_step(
+        dynamics: Dynamics,
+        loc_noise_dist: list,
+        variance_noise_dist: list,
+        loc_initial_dist: list,
+        variance_initial_dist: list,
+        num_samples: int,
+        num_locs: int,
+        w2_p__q_options: Union[List, float],
+        plot: bool = False,
+        lr: float = 0.01,
+        num_iterations: int = 100,
+        run_independent_coupling: bool = True,
+        run_local_linear_or_constant: bool = True,
+        **kwargs):
 
     loc_noise_dist = torch.tensor(loc_noise_dist)
     covariance_noise_dist = torch.diag(torch.tensor(variance_noise_dist))
