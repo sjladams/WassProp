@@ -1,6 +1,6 @@
 import torch
 
-from experiments import single_step, multi_step
+from experiments import single_step, multi_step, get_noise_dist, get_initial_dist
 from dynamics import get_dynamics
 import plot
 
