@@ -30,7 +30,7 @@ if __name__ == '__main__':
     w2_bounds, tag = single_step(
         dynamics=dynamics,
         w2_p__q_options=w2_p__q_options,
-        run_independent_coupling=False,
+        run_independent_coupling=True,
         run_local_linear_or_constant=True,
         **params
     )
