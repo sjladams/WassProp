@@ -143,6 +143,7 @@ def single_step(
         num_iterations: int = 100,
         run_independent_coupling: bool = True,
         run_lagrangian_duality: bool = True,
+        run_empirical: bool = False,
         **kwargs):
 
     loc_noise_dist = torch.tensor(loc_noise_dist)
@@ -212,6 +213,7 @@ def single_step(
 
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
     # store wasserstein error bounds
+    w2_empirical = torch.zeros(len(w2_p__q_options))
     w2_global_lipschitz = torch.zeros(len(w2_p__q_options))
     w2_independent_coupling = torch.zeros(len(w2_p__q_options))
     w2_lagrangian_duality = torch.zeros(len(w2_p__q_options))
@@ -238,12 +240,16 @@ def single_step(
 
         print(f"Bounds on W_2(W_2(f#p, f#disc#q)) for W_2(p,q) = {w2_p__q} and W_2(q_0, Delta_C#q_0) = {sign_q0.w2:.4f} via:\n"
               f"\t Global Lipschits: {w2_global_lipschitz[idx]:.4f}\n")
+        if run_empirical:
+            print(f"\t Empirical: {w2_empirical[idx]:.4f}\n")
         if run_independent_coupling:
             print(f"\t Independent Coupling: {w2_independent_coupling[idx]:.4f}\n")
         if run_lagrangian_duality:
             print(f"\t Lagrangian Duality: {w2_lagrangian_duality[idx]:.4f}\n")
 
     w2_bounds = {'gl': w2_global_lipschitz}
+    if run_empirical:
+        w2_bounds['empirical'] = w2_empirical
     if run_independent_coupling:
         w2_bounds['independent_coupling'] = w2_independent_coupling
     if run_lagrangian_duality:
