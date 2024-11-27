@@ -4,13 +4,13 @@ import torch
 from .arithmetic import ScalarMult, ScalarAdd, Sum, SqNorm
 from .linear import BoundLinear, Linear
 from .sigmoid import BoundSigmoid
-from .saturation import BoundClampLinear, ClampLinear
+from .saturation import BoundClamp
 from .sin import BoundSin
 
 linear_factory = bp.BoundModelFactory()
 linear_factory.register(torch.nn.Sigmoid, BoundSigmoid)
 linear_factory.register(Linear, BoundLinear)
-linear_factory.register(ClampLinear, BoundClampLinear)
+linear_factory.register(bp.Clamp, BoundClamp)
 
 __all__ = [
     'ScalarMult',
@@ -18,6 +18,5 @@ __all__ = [
     'Sum',
     'SqNorm',
     'linear_factory',
-    'ClampLinear',
     'BoundSin'
 ]

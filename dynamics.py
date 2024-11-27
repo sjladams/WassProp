@@ -2,7 +2,7 @@ import torch
 from typing import Union, Optional
 import bound_propagation as bp
 
-from modules import ScalarMult, ScalarAdd, Linear, ClampLinear
+from modules import ScalarMult, ScalarAdd, Linear
 
 
 class Dynamics(torch.nn.Sequential):
@@ -73,7 +73,7 @@ class BoundedLinearDynamics(Dynamics):
         self.num_dims = weight.size(-1)
         self._global_lipschitz = torch.linalg.svd(weight).S[0]
 
-        super(BoundedLinearDynamics, self).__init__(Linear(weight, bias), ClampLinear(lower_bound, upper_bound))
+        super(BoundedLinearDynamics, self).__init__(Linear(weight, bias), bp.Clamp(lower_bound, upper_bound))
 
     @property
     def global_lipschitz(self):
