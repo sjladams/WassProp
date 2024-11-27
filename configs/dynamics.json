@@ -116,7 +116,7 @@
             }
         }
     },
-    "LinearBoundedDynamics": {
+    "BoundedLinearDynamics": {
         "dimensions": {
             "2": {
                 "options": {

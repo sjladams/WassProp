@@ -97,6 +97,26 @@ class LinearDiagonalBoundedDynamics(LinearBoundedDynamics):
                                                             upper_bound=upper_bound)
 
 
+class BoundedLinearDynamics(Dynamics):
+    def __init__(self,
+                 weight: Union[torch.Tensor, list],
+                 bias: Optional[Union[torch.Tensor, list]] = None,
+                 lower_bound: Optional[Union[float, torch.Tensor, list]] = -torch.inf,
+                 upper_bound: Optional[Union[float, torch.Tensor, list]] = torch.inf,
+                 **kwargs):
+        if isinstance(weight, list):
+            weight = torch.tensor(weight)
+        if isinstance(bias, list):
+            bias = torch.tensor(bias)
+
+        assert not lower_bound in [None, -torch.inf] or not upper_bound in [None, -torch.inf]
+
+        self.num_dims = weight.size(-1)
+        self._global_lipschitz = torch.linalg.svd(weight).S[0]
+
+        super(BoundedLinearDynamics, self).__init__(bp.Clamp(lower_bound, upper_bound), Linear(weight, bias))
+
+
 class SigmoidDynamics(Dynamics):
     def __init__(self, num_dims: int = 1, **kwargs):
         super(SigmoidDynamics, self).__init__(torch.nn.Sigmoid())
@@ -129,6 +149,8 @@ def get_dynamics(dynamics_type: str, **kwargs):
     elif dynamics_type == 'LinearDynamics':
         return LinearDynamics(**kwargs)
     elif dynamics_type == 'LinearBoundedDynamics':
+        return LinearBoundedDynamics(**kwargs)
+    elif dynamics_type == 'BoundedLinearDynamics':
         return LinearBoundedDynamics(**kwargs)
     elif dynamics_type == 'LinearDiagonalDynamics':
         return LinearDiagonalDynamics(**kwargs)
