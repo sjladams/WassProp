@@ -254,6 +254,12 @@ class BoundSin(bp.BoundSin):
         upper_bisection_upper[neginf_4th] = 0.5 * self.period
 
         # Construct Bounds
+        neginf_correction = (upper[neginf] // self.period) * self.period
+        lower_bisection_lower[neginf] += neginf_correction
+        lower_bisection_upper[neginf] += neginf_correction
+        upper_bisection_lower[neginf] += neginf_correction
+        upper_bisection_upper[neginf] += neginf_correction
+
         d = self.tangent_strategy.increasing_lower_tangent_inf(
             self, upper[neginf], lower_bisection_lower[neginf], lower_bisection_upper[neginf])
         add_linear(self.alpha_lower, self.beta_lower, mask=neginf, a=self.derivative(d), x=upper, y=upper_act, a_mask=False)
@@ -304,6 +310,12 @@ class BoundSin(bp.BoundSin):
         upper_bisection_upper[inf_4th] = 1.25 * self.period
 
         # Construct Bounds
+        inf_correction = (lower[inf] // self.period) * self.period
+        lower_bisection_lower[inf] += inf_correction
+        lower_bisection_upper[inf] += inf_correction
+        upper_bisection_lower[inf] += inf_correction
+        upper_bisection_upper[inf] += inf_correction
+
         d = self.tangent_strategy.decreasing_lower_tangent_inf(
             self, lower[inf], lower_bisection_lower[inf], lower_bisection_upper[inf])
         add_linear(self.alpha_lower, self.beta_lower, mask=inf, a=self.derivative(d), x=lower, y=lower_act, a_mask=False)
