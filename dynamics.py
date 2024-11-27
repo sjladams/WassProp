@@ -67,6 +67,10 @@ class BoundedLinearDynamics(Dynamics):
                  lower_bound: Optional[Union[float, torch.Tensor, list]] = -torch.inf,
                  upper_bound: Optional[Union[float, torch.Tensor, list]] = torch.inf,
                  **kwargs):
+        if isinstance(weight, list):
+            weight = torch.tensor(weight)
+        if isinstance(bias, list):
+            bias = torch.tensor(bias)
 
         assert not lower_bound in [None, -torch.inf] or not upper_bound in [None, -torch.inf]
 
