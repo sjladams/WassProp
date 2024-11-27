@@ -22,7 +22,9 @@ class Dynamics(torch.nn.Sequential):
 
 class LogisticMap(Dynamics):
     num_dims = 1
-    def __init__(self, r: float, **kwargs):
+    def __init__(self,
+                 r: float,
+                 **kwargs):
         self.r = r
 
         clamp_0_1 = bp.Sub(torch.nn.ReLU(), torch.nn.Sequential(ScalarAdd(self.num_dims, -1), torch.nn.ReLU()))
@@ -38,7 +40,10 @@ class LogisticMap(Dynamics):
 
 
 class LinearDynamics(Dynamics):
-    def __init__(self, weight: Union[torch.Tensor, list], bias: Optional[Union[torch.Tensor, list]] = None, **kwargs):
+    def __init__(self,
+                 weight: Union[torch.Tensor, list],
+                 bias: Optional[Union[torch.Tensor, list]] = None,
+                 **kwargs):
         if isinstance(weight, list):
             weight = torch.tensor(weight)
         if isinstance(bias, list):
@@ -54,7 +59,9 @@ class LinearDynamics(Dynamics):
         return self._global_lipschitz
 
 class LinearDiagonalDynamics(LinearDynamics):
-    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
+    def __init__(self,
+                 diagonal: Union[torch.Tensor, list],
+                 **kwargs):
         if isinstance(diagonal, list):
             diagonal = torch.tensor(diagonal)
 
@@ -84,7 +91,8 @@ class BoundedLinearDynamics(Dynamics):
         return self._global_lipschitz
 
 class BoundedLinearDiagonalDynamics(BoundedLinearDynamics):
-    def __init__(self, diagonal: Union[torch.Tensor, list],
+    def __init__(self,
+                 diagonal: Union[torch.Tensor, list],
                  lower_bound: Union[float, torch.Tensor, list],
                  upper_bound: Union[float, torch.Tensor, list],
                  **kwargs):
