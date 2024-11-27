@@ -60,7 +60,7 @@ class LinearDiagonalDynamics(LinearDynamics):
 
         super(LinearDiagonalDynamics, self).__init__(torch.diag(diagonal))
 
-class BoundedLinearDynamics(Dynamics):
+class LinearBoundedDynamics(Dynamics):
     def __init__(self,
                  weight: Union[torch.Tensor, list],
                  bias: Optional[Union[torch.Tensor, list]] = None,
@@ -77,13 +77,13 @@ class BoundedLinearDynamics(Dynamics):
         self.num_dims = weight.size(-1)
         self._global_lipschitz = torch.linalg.svd(weight).S[0]
 
-        super(BoundedLinearDynamics, self).__init__(Linear(weight, bias), bp.Clamp(lower_bound, upper_bound))
+        super(LinearBoundedDynamics, self).__init__(Linear(weight, bias), bp.Clamp(lower_bound, upper_bound))
 
     @property
     def global_lipschitz(self):
         return self._global_lipschitz
 
-class BoundedLinearDiagonalDynamics(BoundedLinearDynamics):
+class LinearDiagonalBoundedDynamics(LinearBoundedDynamics):
     def __init__(self, diagonal: Union[torch.Tensor, list],
                  lower_bound: Union[float, torch.Tensor, list],
                  upper_bound: Union[float, torch.Tensor, list],
@@ -91,7 +91,7 @@ class BoundedLinearDiagonalDynamics(BoundedLinearDynamics):
         if isinstance(diagonal, list):
             diagonal = torch.tensor(diagonal)
 
-        super(BoundedLinearDiagonalDynamics, self).__init__(weight=torch.diag(diagonal),
+        super(LinearDiagonalBoundedDynamics, self).__init__(weight=torch.diag(diagonal),
                                                             bias=None,
                                                             lower_bound=lower_bound,
                                                             upper_bound=upper_bound)
@@ -127,12 +127,12 @@ def get_dynamics(dynamics_type: str, **kwargs):
         return LogisticMap(**kwargs)
     elif dynamics_type == 'LinearDynamics':
         return LinearDynamics(**kwargs)
-    elif dynamics_type == 'BoundedLinearDynamics':
-        return BoundedLinearDynamics(**kwargs)
+    elif dynamics_type == 'LinearBoundedDynamics':
+        return LinearBoundedDynamics(**kwargs)
     elif dynamics_type == 'LinearDiagonalDynamics':
         return LinearDiagonalDynamics(**kwargs)
-    elif dynamics_type == 'BoundedLinearDiagonalDynamics':
-        return BoundedLinearDiagonalDynamics(**kwargs)
+    elif dynamics_type == 'LinearDiagonalBoundedDynamics':
+        return LinearDiagonalBoundedDynamics(**kwargs)
     elif dynamics_type == 'SigmoidDynamics':
         return SigmoidDynamics(**kwargs)
     elif dynamics_type == 'LinearSigmoidDynamics':
