@@ -55,7 +55,7 @@ def get_fn_sq_w2_f_q__f_disc_q(
         f: dynamics.Dynamics) -> Callable:
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
-    alphas = global_lbp_sq_norm_fx_fc(f, voronoi_partition)
+    alphas = global_lbp_sq_norm_fx_fc(f, signature.locs)
     locs = signature.locs
     means = signature.dist.mean
     sigmas = signature.dist._sqrt_diag_covariance_matrix
@@ -115,11 +115,9 @@ def get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
         w2_q__disc_q: float,
         w2_p__q: float) -> Callable:
 
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
-
     w2_p__disc_q = w2_q__disc_q + w2_p__q
 
-    alpha = global_lbp_sq_norm_fx_fc(f, voronoi_partition)
+    alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
 
     def fn_sq_w2_f_p__f_disc_q_independent_coupling(lambd: torch.Tensor):
         v = lambd * signature.locs - ((signature.probs * alpha).unsqueeze(1) * signature.locs).sum(dim=0, keepdim=True)
@@ -143,8 +141,8 @@ def compute_w2_f_p__f_disc_q_independent_coupling(
         w2_p__q: float,
         **kwargs):
     # \todo revise independend coupling: use package on stable truncated gaussians, and get rid of doulbe alpha computation
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
-    alpha = global_lbp_sq_norm_fx_fc(f, voronoi_partition)
+
+    alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
     avg_alpha = torch.dot(alpha, signature.probs).detach()
 
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
@@ -167,15 +165,13 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
         w2_q__disc_q: float,
         w2_p__q: float)-> Callable:
 
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
-
     w2_p__disc_q = w2_q__disc_q + w2_p__q
 
-    alpha = global_lbp_sq_norm_fx_fc(f, voronoi_partition)
-    beta  = global_ibp_sq_norm_fx_fc(f, voronoi_partition).upper.squeeze(-1)
+    alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
+    beta  = global_ibp_sq_norm_fx_fc(f, signature.locs).upper.squeeze(-1)
 
     mask = torch.ones(alpha.size(0), alpha.size(0)).tril()[alpha.sort().indices]
-    mask = torch.cat((mask, torch.zeros(1, voronoi_partition.num_locs)), dim=0)
+    mask = torch.cat((mask, torch.zeros(1, signature.locs.shape[-2])), dim=0)
 
     alpha_options = torch.einsum('ij, j->ij', mask, alpha)
     beta_options = torch.einsum('ij, j->ij', 1 - mask, beta)

@@ -101,23 +101,27 @@ def replace_neginf_with(tensor, value=-1e6):
 
 
 @torch.no_grad()
-def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiPartition) -> bp.IntervalBounds:
+def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, locs: torch.Tensor) -> bp.IntervalBounds:
     """
     find vector b such that ||f(x) - f(c_i)||^2 leq b_i for all x  and c_i the loc of region R_i
 
     :param f: dynamics
-    :param vp: VoronoiPartition
+    :param locs: c_i's
     """
+    num_locs = locs.shape[-2]
+
     sq_norm_fx_z = factory.build(SqNormFxSubFz(f))
 
     l = torch.ones(vp.num_locs, f.num_dims).fill_(-torch.inf)
     u = torch.ones(vp.num_locs, f.num_dims).fill_(torch.inf)
+    l = torch.ones(num_locs, f.num_dims).fill_(-torch.inf)
+    u = torch.ones(num_locs, f.num_dims).fill_(torch.inf)
 
     l = replace_inf_with(replace_neginf_with(l))  # \TODO check why this is needed:
     u = replace_inf_with(replace_neginf_with(u))
 
-    l_locs = torch.cat((l, vp.locs), dim=-1)
-    u_locs = torch.cat((u, vp.locs), dim=-1)
+    l_locs = torch.cat((l, locs), dim=-1)
+    u_locs = torch.cat((u, locs), dim=-1)
 
     ibp_bound = sq_norm_fx_z.ibp(bp.HyperRectangle(l_locs, u_locs))
     return ibp_bound
@@ -133,29 +137,32 @@ def check_if_affine_bound_is_linear_at_locs(A, b, locs, y_locs):
 
 def global_lbp_sq_norm_fx_fc(
         f: torch.nn.Sequential,
-        vp: HyperRectangularVoronoiPartition,
+        locs: torch.Tensor,
         use_lbp: bool = True,
         beta: Optional[torch.Tensor] = None) -> torch.Tensor:
     """
     find vector a such that ||f(x) - f(c_i)||^2 leq a_i||x-c_i|| for all x and c_i the loc of region R_i
 
     :param f: dynamics
-    :param vp: VoronoiPartition
+    :param locs: batch of c's with shape (num_locs, num_dims)
     """
 
+    num_locs = locs.shape[-2]
+    num_dims = locs.shape[-1]
+
     if beta is None:
-        beta = torch.zeros(vp.num_locs)
+        beta = torch.zeros(num_locs)
 
     if use_lbp:
         # negative quadrant:
-        input_bound_neg = bp.HyperRectangle(torch.ones(vp.num_locs, vp.num_dims).fill_(-torch.inf), vp.locs)
+        input_bound_neg = bp.HyperRectangle(torch.ones(num_locs, num_dims).fill_(-torch.inf), locs)
         lb_neg = linear_factory.build(f).crown_ibp(input_bound_neg)
 
         assert check_mat_diag(lb_neg.lower[0]) and check_mat_diag(lb_neg.upper[0]), \
             "Currently global_lbp_sq_norm_fc only works for independent dimensions"
 
         # positive quadrant:
-        input_bound_pos = bp.HyperRectangle(vp.locs, torch.ones(vp.num_locs, vp.num_dims).fill_(torch.inf))
+        input_bound_pos = bp.HyperRectangle(locs, torch.ones(num_locs, num_dims).fill_(torch.inf))
         lb_pos = linear_factory.build(f).crown_ibp(input_bound_pos)
 
         assert check_mat_diag(lb_pos.lower[0]) and check_mat_diag(lb_pos.upper[0]), \
@@ -175,22 +182,22 @@ def global_lbp_sq_norm_fx_fc(
         alpha = torch.max(alpha_neg, alpha_pos).clamp(min=0., max=f.global_lipschitz**2)
 
         # Check if the bound is linear at the locations
-        y_locs = f(vp.locs)
+        y_locs = f(locs)
         msg_tmpl = "{} bound in {} quadrant is not linear. Check BoundModule for dynamics or use Gradient Descent"
-        assert check_if_affine_bound_is_linear_at_locs(lb_neg.lower[0], lb_neg.lower[1], vp.locs, y_locs), \
+        assert check_if_affine_bound_is_linear_at_locs(lb_neg.lower[0], lb_neg.lower[1], locs, y_locs), \
             msg_tmpl.format("Lower", "negative")
-        assert check_if_affine_bound_is_linear_at_locs(lb_neg.upper[0], lb_neg.upper[1], vp.locs, y_locs), \
+        assert check_if_affine_bound_is_linear_at_locs(lb_neg.upper[0], lb_neg.upper[1], locs, y_locs), \
             msg_tmpl.format("Upper", "negative")
-        assert check_if_affine_bound_is_linear_at_locs(lb_pos.lower[0], lb_pos.lower[1], vp.locs, y_locs), \
+        assert check_if_affine_bound_is_linear_at_locs(lb_pos.lower[0], lb_pos.lower[1], locs, y_locs), \
             msg_tmpl.format("Lower", "positive")
-        assert check_if_affine_bound_is_linear_at_locs(lb_pos.upper[0], lb_pos.upper[1], vp.locs, y_locs), \
+        assert check_if_affine_bound_is_linear_at_locs(lb_pos.upper[0], lb_pos.upper[1], locs, y_locs), \
             msg_tmpl.format("Upper", "positive")
     else:
         # below we use a non-formal optimization based method. Using the bound-propagation package result in very-
         # conservative results
 
         def compute_local_lipschitz(x):
-            local_lipschitz = ((f(x) - f(vp.locs)).pow(2).sum(-1) - beta) / (x - vp.locs).pow(2).sum(-1)
+            local_lipschitz = ((f(x) - f(locs)).pow(2).sum(-1) - beta) / (x - locs).pow(2).sum(-1)
             local_lipschitz = torch.nan_to_num(local_lipschitz, nan=f.global_lipschitz ** 2)
             return local_lipschitz
 
@@ -199,7 +206,7 @@ def global_lbp_sq_norm_fx_fc(
 
         x_opt, losses = minimize_with_adam(
             objective,
-            param=(vp.locs.clone().detach() + torch.randn_like(vp.locs)).requires_grad_(True),
+            param=(locs.clone().detach() + torch.randn_like(locs)).requires_grad_(True),
             lr=0.01,
             num_iterations=5000,
             tolerance=1e-8,
