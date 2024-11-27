@@ -106,14 +106,15 @@ class SigmoidDynamics(Dynamics):
     def global_lipschitz(self):
         return 0.25
 
-class LinearSigmoidDynamics(Dynamics):
+
+class LinearDiagonalSigmoidDynamics(Dynamics):
     def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
         if isinstance(diagonal, list):
             diagonal = torch.tensor(diagonal)
         self.num_dims = diagonal.size(0)
         self._diagonal = diagonal
 
-        super(LinearSigmoidDynamics, self).__init__(
+        super(LinearDiagonalSigmoidDynamics, self).__init__(
             LinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
             SigmoidDynamics(self.num_dims)
         )
@@ -137,5 +138,7 @@ def get_dynamics(dynamics_type: str, **kwargs):
         return SigmoidDynamics(**kwargs)
     elif dynamics_type == 'LinearSigmoidDynamics':
         return LinearSigmoidDynamics(**kwargs)
+    elif dynamics_type == 'LinearDiagonalSigmoidDynamics':
+        return LinearDiagonalSigmoidDynamics(**kwargs)
     else:
         raise ValueError(f"Unknown dynamics: {dynamics_type}")
