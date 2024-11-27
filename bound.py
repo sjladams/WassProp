@@ -112,8 +112,6 @@ def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, locs: torch.Tensor) -> bp.I
 
     sq_norm_fx_z = factory.build(SqNormFxSubFz(f))
 
-    l = torch.ones(vp.num_locs, f.num_dims).fill_(-torch.inf)
-    u = torch.ones(vp.num_locs, f.num_dims).fill_(torch.inf)
     l = torch.ones(num_locs, f.num_dims).fill_(-torch.inf)
     u = torch.ones(num_locs, f.num_dims).fill_(torch.inf)
 
