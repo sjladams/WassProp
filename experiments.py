@@ -54,8 +54,15 @@ def single_step(
         plt.title("Dynamics f(x)")
         plt.show()
 
-    # Initialize state distributions
-    q_samples = q.sample(torch.Size((num_samples,)))
+    # Compress the mixture distribution
+    with torch.no_grad():
+        q_pre_compression = copy(q)
+        # \todo make the unique(), i.e., the filtering in .compress() optional. Currently, it is always applied. This is problematic because GMMWas.w2 is an over-approximation, such that the w2 between the true and filtered are not guaranteed to be zero..
+        if num_locs <= q.num_components or True:  # \todo DISABLE!!
+            w2_compr = 0.
+        else:
+            q.compress(n_max=num_locs)  # \todo create seperate varialbe n_max
+            w2_compr = GMMWas.w2(q, q_pre_compression)
 
     # Approximate the state distribution
     sign_q = ds.discretization_generator(dist=q, num_locs=num_locs)
