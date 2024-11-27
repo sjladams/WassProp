@@ -60,6 +60,7 @@ class LinearDiagonalDynamics(LinearDynamics):
 
         super(LinearDiagonalDynamics, self).__init__(torch.diag(diagonal))
 
+
 class LinearBoundedDynamics(Dynamics):
     def __init__(self,
                  weight: Union[torch.Tensor, list],
@@ -82,6 +83,7 @@ class LinearBoundedDynamics(Dynamics):
     @property
     def global_lipschitz(self):
         return self._global_lipschitz
+
 
 class LinearDiagonalBoundedDynamics(LinearBoundedDynamics):
     def __init__(self, diagonal: Union[torch.Tensor, list],
@@ -142,6 +144,7 @@ class LinearDiagonalSigmoidDynamics(Dynamics):
     @property
     def global_lipschitz(self):
         return self._diagonal.abs().max() * 0.25
+
 
 def get_dynamics(dynamics_type: str, **kwargs):
     if dynamics_type == 'LogisticMap':
