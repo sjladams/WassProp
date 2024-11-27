@@ -27,22 +27,18 @@ class BoundLinear(bp.BoundLinear):
     def ibp_forward(self, bounds, save_relaxation=False, save_input_bounds=False):
         center, diff = bounds.center, bounds.width / 2
 
-        if torch.logical_and(bounds.lower.isneginf(), ~bounds.upper.isinf()).any():
-            upper = bounds.upper.matmul(self.module.weight)
+        if bounds.lower.isinf().any() or bounds.upper.isinf().any():
+            upper = nan_matmul(self.module.weight, bounds.upper)
+            lower = nan_matmul(self.module.weight, bounds.lower)
+
             if self.module.bias is not None:
                 upper = upper + self.module.bias.unsqueeze(-2)
+                lower = lower + self.module.bias.unsqueeze(-2)
 
             w_diff = nan_matmul(self.module.weight.abs(), diff)
 
-            lower = upper - w_diff
-        elif torch.logical_and(~bounds.lower.isneginf(), bounds.upper.isinf()).any():
-            lower = bounds.lower.matmul(self.module.weight)
-            if self.module.bias is not None:
-                lower + self.module.bias.unsqueeze(-2)
-
-            w_diff = nan_matmul(self.module.weight.abs(), diff)
-
-            upper = lower + w_diff
+            lower = torch.max(torch.nan_to_num(upper - w_diff, nan=-torch.inf, posinf=torch.inf, neginf=-torch.inf), lower)
+            upper = torch.min(torch.nan_to_num(lower + w_diff, nan=torch.inf, posinf=torch.inf, neginf=-torch.inf), upper)
         else:
             lower, upper = bp.linear.ibp_forward_linear_jit(self.module.weight, self.module.bias, center, diff)
 

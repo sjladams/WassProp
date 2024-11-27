@@ -1,14 +1,9 @@
 import torch
 import bound_propagation as bp
 
-__all__ = ['BoundClampLinear', 'ClampLinear']
+__all__ = ['BoundClamp']
 
-class ClampLinear(bp.Clamp):
-    def __init__(self, *args, **kwargs):
-        super(ClampLinear, self).__init__(*args, **kwargs)
-
-
-class BoundClampLinear(bp.BoundClamp):
+class BoundClamp(bp.BoundClamp):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
