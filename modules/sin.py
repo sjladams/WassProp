@@ -6,24 +6,24 @@ __all__ = ['BoundSin']
 
 
 class SinTangentBisectionStrategy(bp.activation.SinTangentBisectionStrategy):
-    def increasing_upper_tangent_inf(self, bound_module, lower, bisection_upper, bisection_lower):
+    def increasing_upper_tangent_inf(self, bound_module, lower, bisection_lower, bisection_upper):
         lower_act = bound_module(lower)
 
         def f_lower(d: torch.Tensor) -> torch.Tensor:
             a_slope = (bound_module(d)- lower_act) / (d - lower)
             a_derivative = bound_module.derivative(d)
-            return a_derivative - a_slope
+            return a_slope - a_derivative
 
         _, d_upper = bp.activation.bisection(bisection_lower, bisection_upper, f_lower, num_iter=100)
         return d_upper
 
-    def increasing_lower_tangent_inf(self, bound_module, upper, bisection_upper, bisection_lower):
+    def increasing_lower_tangent_inf(self, bound_module, upper, bisection_lower, bisection_upper):
         upper_act = bound_module(upper)
 
         def f_lower(d: torch.Tensor) -> torch.Tensor:
             a_slope = (upper_act - bound_module(d)) / (upper - d)
             a_derivative = bound_module.derivative(d)
-            return a_slope - a_derivative
+            return a_derivative - a_slope
 
         d_lower, _ = bp.activation.bisection(bisection_lower, bisection_upper, f_lower, num_iter=100)
         return d_lower
