@@ -57,10 +57,10 @@ def single_step(
     # Initialize state distributions
     q_samples = q.sample(torch.Size((num_samples,)))
 
-    # Propagate the system
+    # Approximate the state distribution
     sign_q = ds.discretization_generator(dist=q, num_locs=num_locs)
 
-    ### Propagate the (approximate) state distribution over the dynamics
+    # Propagate the (approximate) state distribution over the dynamics
     q1 = ds.MixtureMultivariateNormal(
         mixture_distribution=torch.distributions.Categorical(
             probs=sign_q.probs),
@@ -69,16 +69,8 @@ def single_step(
             covariance_matrix=noise_dist.covariance_matrix
         ))
 
-    # Compress the mixture distribution
-    with torch.no_grad():
-        q1_pre_compression = copy(q1)
-        # \todo make the unique(), i.e., the filtering in .compress() optional. Currently, it is always applied. This is problematic because GMMWas.w2 is an over-approximation, such that the w2 between the true and filtered are not guaranteed to be zero..
-        if num_locs <= q1.num_components or True:  # \todo DISABLE!!
-            w2_compr = 0.
-        else:
-            q1.compress(n_max=num_locs) # \todo create seperate varialbe n_max
-            w2_compr = GMMWas.w2(q1, q1_pre_compression)
-
+    # Empirically approximate the state distribution
+    q_samples = q.sample(torch.Size((num_samples,)))
     q1_samples = q1.sample(torch.Size((num_samples,)))
     p1_samples = (dynamics(p_samples if p_samples is not None else q_samples) +
                   noise_dist.sample(torch.Size((num_samples,))))
