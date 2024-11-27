@@ -72,7 +72,7 @@
             }
         }
     },
-    "LinearSigmoidDynamics": {
+    "LinearDiagonalSigmoidDynamics": {
         "dimensions": {
             "1": {
                 "options": {
