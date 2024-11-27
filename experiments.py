@@ -58,7 +58,7 @@ def single_step(
     with torch.no_grad():
         q_pre_compression = copy(q)
         # \todo make the unique(), i.e., the filtering in .compress() optional. Currently, it is always applied. This is problematic because GMMWas.w2 is an over-approximation, such that the w2 between the true and filtered are not guaranteed to be zero..
-        if num_locs <= q.num_components or True:  # \todo DISABLE!!
+        if isinstance(q, ds.MultivariateNormal) or num_locs >= q.num_components:
             w2_compr = 0.
         else:
             q.compress(n_max=num_locs)  # \todo create seperate varialbe n_max
