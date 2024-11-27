@@ -1,11 +1,60 @@
 import torch
 import bound_propagation as bp
+import math
 
 __all__ = ['BoundSin']
+
+
+class SinTangentBisectionStrategy(bp.activation.SinTangentBisectionStrategy):
+    def increasing_upper_tangent_inf(self, bound_module, lower, bisection_upper, bisection_lower):
+        lower_act = bound_module(lower)
+
+        def f_lower(d: torch.Tensor) -> torch.Tensor:
+            a_slope = (bound_module(d)- lower_act) / (d - lower)
+            a_derivative = bound_module.derivative(d)
+            return a_derivative - a_slope
+
+        _, d_upper = bp.activation.bisection(bisection_lower, bisection_upper, f_lower, num_iter=100)
+        return d_upper
+
+    def increasing_lower_tangent_inf(self, bound_module, upper, bisection_upper, bisection_lower):
+        upper_act = bound_module(upper)
+
+        def f_lower(d: torch.Tensor) -> torch.Tensor:
+            a_slope = (upper_act - bound_module(d)) / (upper - d)
+            a_derivative = bound_module.derivative(d)
+            return a_slope - a_derivative
+
+        d_lower, _ = bp.activation.bisection(bisection_lower, bisection_upper, f_lower, num_iter=100)
+        return d_lower
+
+    def decreasing_upper_tangent_inf(self, bound_module, upper, bisection_lower, bisection_upper):
+        upper_act = bound_module(upper)
+
+        def f_upper(d: torch.Tensor) -> torch.Tensor:
+            a_slope = (upper_act - bound_module(d)) / (upper - d)
+            a_derivative = bound_module.derivative(d)
+            return a_slope - a_derivative
+
+        _, d_upper = bp.activation.bisection(bisection_lower, bisection_upper, f_upper, num_iter=100)
+        return d_upper
+
+    def decreasing_lower_tangent_inf(self, bound_module, lower, bisection_lower, bisection_upper):
+        lower_act = bound_module(lower)
+
+        def f_upper(d: torch.Tensor) -> torch.Tensor:
+            a_slope = (bound_module(d) - lower_act) / (d - lower)
+            a_derivative = bound_module.derivative(d)
+            return a_derivative - a_slope
+
+        d_lower, _ = bp.activation.bisection(bisection_lower, bisection_upper, f_upper, num_iter=100)
+        return d_lower
+
 
 class BoundSin(bp.BoundSin):
     def __init__(self, *args, **kwargs):
         super(BoundSin, self).__init__(*args, **kwargs)
+        self.tangent_strategy = kwargs.get('sin_tangent_strategy', SinTangentBisectionStrategy())
 
     @bp.activation.assert_bound_order
     def alpha_beta(self, preactivation):
@@ -159,3 +208,146 @@ class BoundSin(bp.BoundSin):
 
             # Slope has to attach to (upper, sigma(upper))
             add_linear(self.alpha_lower, self.beta_lower, mask=implicit, a=self.derivative(d), x=lower, y=lower_act, a_mask=False)
+
+        ##########################
+        # Negative Open regions #
+        ##########################
+        neginf = lower.isneginf() & ~upper.isinf()
+
+        ####  First Quarter (bound > 0 & bound_prime > 0) ####
+        neginf_1st = (upper_act > 0) & (upper_prime > 0) & neginf
+
+        if torch.any(neginf_1st):
+            d = self.tangent_strategy.increasing_lower_tangent_inf(self,
+                                                                   upper[neginf_1st],
+                                                                   torch.full_like(upper[neginf_1st], -0.5*self.period),
+                                                                   torch.full_like(upper[neginf_1st], 0.)
+                                                                   )
+            add_linear(self.alpha_lower, self.beta_lower, mask=neginf_1st, a=self.derivative(d), x=upper, y=upper_act, a_mask=False)
+
+            d = self.tangent_strategy.decreasing_upper_tangent_inf(self,
+                                                                   upper[neginf_1st],
+                                                                   torch.full_like(upper[neginf_1st], -0.75*self.period),
+                                                                   torch.full_like(upper[neginf_1st], -0.5*self.period)
+                                                                   )
+            add_linear(self.alpha_upper, self.beta_upper, mask=neginf_1st, a=self.derivative(d), x=upper, y=upper_act, a_mask=False)
+
+        #### Second Quarter (bound > 0 & bound_prime < 0) ####
+        neginf_2nd = (upper_act > 0) & (upper_prime < 0) & neginf
+
+        if torch.any(neginf_2nd):
+            d = self.tangent_strategy.increasing_lower_tangent_inf(self,
+                                                                   upper[neginf_2nd],
+                                                                   torch.full_like(upper[neginf_2nd], -0.5*self.period),
+                                                                   torch.full_like(upper[neginf_2nd], 0.)
+                                                                   )
+            add_linear(self.alpha_lower, self.beta_lower, mask=neginf_2nd, a=self.derivative(d), x=upper, y=upper_act, a_mask=False)
+
+
+        add_linear(self.alpha_upper, self.beta_upper, mask=neginf_2nd, a=upper_prime, x=upper, y=upper_act)
+
+        #### Third Quarter (bound < 0 & bound_prime < 0) ####
+        neginf_3th = (upper_act < 0) & (upper_prime < 0) & neginf
+
+        if torch.any(neginf_3th):
+            d = self.tangent_strategy.increasing_lower_tangent_inf(self,
+                                                                   upper[neginf_3th],
+                                                                   torch.full_like(upper[neginf_3th], -0.5*self.period),
+                                                                   torch.full_like(upper[neginf_3th], 0.)
+                                                                   )
+            add_linear(self.alpha_lower, self.beta_lower, mask=neginf_3th, a=self.derivative(d), x=upper, y=upper_act, a_mask=False)
+
+            d = self.tangent_strategy.decreasing_upper_tangent_inf(self,
+                                                                   upper[neginf_3th],
+                                                                   torch.full_like(upper[neginf_3th], 0.25 * self.period),
+                                                                   torch.full_like(upper[neginf_3th], 0.5 * self.period)
+                                                                   )
+            add_linear(self.alpha_upper, self.beta_upper, mask=neginf_3th, a=self.derivative(d), x=upper, y=upper_act,
+                       a_mask=False)
+
+        #### Fourth Quarter (bound < 0 & bound_prime > 0) ####
+        neginf_4th = (upper_act < 0) & (upper_prime > 0) & neginf
+        add_linear(self.alpha_lower, self.beta_lower, mask=neginf_4th, a=upper_prime, x=upper, y=upper_act)
+
+        if torch.any(neginf_4th):
+            d = self.tangent_strategy.decreasing_upper_tangent_inf(self,
+                                                                   upper[neginf_4th],
+                                                                   torch.full_like(upper[neginf_4th], 0.25 * self.period),
+                                                                   torch.full_like(upper[neginf_4th], 0.5 * self.period)
+                                                                   )
+            add_linear(self.alpha_upper, self.beta_upper, mask=neginf_4th, a=self.derivative(d), x=upper, y=upper_act,
+                       a_mask=False)
+
+        ##########################
+        # Positive Open regions #
+        ##########################
+        inf = ~lower.isneginf() & upper.isinf()
+
+        ### First Quarter (bound > 0 & bound_prime > 0) ###
+        inf_1st = (lower_act > 0) & (lower_prime > 0) & inf
+        add_linear(self.alpha_upper, self.beta_upper, mask=inf_1st, a=lower_prime, x=lower, y=lower_act)
+
+        if torch.any(inf_1st):
+            d = self.tangent_strategy.decreasing_lower_tangent_inf(self,
+                                                                   lower[inf_1st],
+                                                                   torch.full_like(lower[inf_1st],
+                                                                                   0.5 * self.period),
+                                                                   torch.full_like(lower[inf_1st],
+                                                                                   0.75 * self.period)
+                                                                   )
+            add_linear(self.alpha_lower, self.beta_lower, mask=inf_1st, a=self.derivative(d), x=lower, y=lower_act,
+                       a_mask=False)
+
+        #### Second Quarter (bound > 0 & bound_prime < 0) ###
+        inf_2nd = (lower_act > 0) & (lower_prime < 0) & inf
+
+        if torch.any(inf_2nd):
+            d = self.tangent_strategy.decreasing_lower_tangent_inf(self,
+                                                                   lower[inf_2nd],
+                                                                   torch.full_like(lower[inf_2nd],
+                                                                                   0.5 * self.period),
+                                                                   torch.full_like(lower[inf_2nd],
+                                                                                   0.75 * self.period)
+                                                                   )
+            add_linear(self.alpha_lower, self.beta_lower, mask=inf_2nd, a=self.derivative(d), x=lower, y=lower_act,
+                       a_mask=False)
+
+            d = self.tangent_strategy.increasing_upper_tangent_inf(self,
+                                                                   lower[inf_2nd],
+                                                                   torch.full_like(lower[inf_2nd], 1.0*self.period),
+                                                                   torch.full_like(lower[inf_2nd], 1.25*self.period)
+                                                                   )
+            add_linear(self.alpha_upper, self.beta_upper, mask=inf_2nd, a=self.derivative(d), x=lower, y=lower_act, a_mask=False)
+
+        #### Third Quarter (bound < 0 & bound_prime < 0) ####
+        inf_3th = (lower_act < 0) & (lower_prime < 0) & inf
+        add_linear(self.alpha_lower, self.beta_lower, mask=inf_3th, a=lower_prime, x=lower, y=lower_act)
+
+        if torch.any(inf_3th):
+            d = self.tangent_strategy.increasing_upper_tangent_inf(self,
+                                                                   lower[inf_3th],
+                                                                   torch.full_like(lower[inf_3th], 1.0*self.period),
+                                                                   torch.full_like(lower[inf_3th], 1.25*self.period)
+                                                                   )
+            add_linear(self.alpha_upper, self.beta_upper, mask=inf_3th, a=self.derivative(d), x=lower, y=lower_act, a_mask=False)
+
+        # Fourth Quarter (bound < 0 & bound_prime > 0)
+        inf_4th = (lower_act < 0) & (lower_prime > 0) & inf
+
+        if torch.any(inf_4th):
+            d = self.tangent_strategy.decreasing_lower_tangent_inf(self,
+                                                                   lower[inf_4th],
+                                                                   torch.full_like(lower[inf_4th],
+                                                                                   1.5 * self.period),
+                                                                   torch.full_like(lower[inf_4th],
+                                                                                   1.75 * self.period)
+                                                                   )
+            add_linear(self.alpha_lower, self.beta_lower, mask=inf_4th, a=self.derivative(d), x=lower, y=lower_act,
+                       a_mask=False)
+
+            d = self.tangent_strategy.increasing_upper_tangent_inf(self,
+                                                                   lower[inf_4th],
+                                                                   torch.full_like(lower[inf_4th], 1.0*self.period),
+                                                                   torch.full_like(lower[inf_4th], 1.25*self.period)
+                                                                   )
+            add_linear(self.alpha_upper, self.beta_upper, mask=inf_4th, a=self.derivative(d), x=lower, y=lower_act, a_mask=False)

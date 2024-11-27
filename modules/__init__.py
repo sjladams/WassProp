@@ -11,6 +11,7 @@ linear_factory = bp.BoundModelFactory()
 linear_factory.register(torch.nn.Sigmoid, BoundSigmoid)
 linear_factory.register(Linear, BoundLinear)
 linear_factory.register(bp.Clamp, BoundClamp)
+linear_factory.register(bp.Sin, BoundSin)
 
 __all__ = [
     'ScalarMult',
