@@ -92,7 +92,7 @@ class LinearBoundedDynamics(Dynamics):
         return self._global_lipschitz
 
 
-class BoundedLinearDiagonalDynamics(BoundedLinearDynamics):
+class LinearDiagonalBoundedDynamics(LinearBoundedDynamics):
     def __init__(self,
                  diagonal: Union[torch.Tensor, list],
                  lower_bound: Union[float, torch.Tensor, list],
