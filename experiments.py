@@ -2,7 +2,7 @@ import ot
 import torch
 import matplotlib.pyplot as plt
 from copy import copy
-from typing import Union, List
+from typing import Union, List, Optional
 
 import discretize_distributions as ds
 import GMMWas
@@ -38,7 +38,8 @@ def single_step(
         run_independent_coupling: bool = True,
         run_lagrangian_duality: bool = True,
         run_empirical: bool = False,
-        p_samples: torch.Tensor = None,
+        p_samples: Optional[torch.Tensor] = None,
+        num_locs_after_compr: Optional[int] = None,
         **kwargs):
 
     # Initialize System Dynamics

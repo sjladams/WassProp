@@ -1,5 +1,6 @@
 import json
 import argparse
+from typing import Optional
 
 def load_json(filename: str):
     with open(f"configs/{filename}.json", "r") as read_file:
