@@ -62,7 +62,7 @@ def single_step(
         if isinstance(q, ds.MultivariateNormal) or num_locs >= q.num_components:
             w2_compr = 0.
         else:
-            q.compress(n_max=num_locs)  # \todo create seperate varialbe n_max
+            q.compress(n_max=num_locs if num_locs_after_compr is None else num_locs_after_compr)
             w2_compr = GMMWas.w2(q, q_pre_compression)
 
     # Approximate the state distribution
