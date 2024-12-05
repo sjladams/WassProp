@@ -166,7 +166,7 @@ def get_dynamics(dynamics_type: str, **kwargs):
     elif dynamics_type == 'LinearBoundedDynamics':
         return LinearBoundedDynamics(**kwargs)
     elif dynamics_type == 'BoundedLinearDynamics':
-        return LinearBoundedDynamics(**kwargs)
+        return BoundedLinearDynamics(**kwargs)
     elif dynamics_type == 'LinearDiagonalDynamics':
         return LinearDiagonalDynamics(**kwargs)
     elif dynamics_type == 'LinearDiagonalBoundedDynamics':
@@ -175,7 +175,5 @@ def get_dynamics(dynamics_type: str, **kwargs):
         return SigmoidDynamics(**kwargs)
     elif dynamics_type == 'LinearDiagonalSigmoidDynamics':
         return LinearDiagonalSigmoidDynamics(**kwargs)
-    elif dynamics_type == 'BoundedLinearDynamics':
-        return BoundedLinearDynamics(**kwargs)
     else:
         raise ValueError(f"Unknown dynamics: {dynamics_type}")
