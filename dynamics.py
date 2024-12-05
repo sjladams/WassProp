@@ -126,6 +126,10 @@ class BoundedLinearDynamics(Dynamics):
 
         super(BoundedLinearDynamics, self).__init__(bp.Clamp(lower_bound, upper_bound), Linear(weight, bias))
 
+    @property
+    def global_lipschitz(self):
+        return self._global_lipschitz
+
 
 class SigmoidDynamics(Dynamics):
     def __init__(self, num_dims: int = 1, **kwargs):
