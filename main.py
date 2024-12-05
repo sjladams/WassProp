@@ -11,8 +11,8 @@ if __name__ == '__main__':
     torch.manual_seed(0)
 
     args = parse_arguments(
-        dynamics_type = 'BoundedLinearDiagonalDynamics',
-        num_dims = 1,
+        dynamics_type = "BoundedLinearDynamics",
+        num_dims = 2,
         dynamics_setting = 0,
         num_locs = 10,
         num_locs_after_compr=1,
@@ -36,7 +36,7 @@ if __name__ == '__main__':
             dynamics=dynamics,
             noise_dist=noise_dist,
             q=initial_dist,
-            w2_p__q_options=[0., 0.1, 0.5, 1.0],
+            w2_p__q_options=[0.0, 0.1, 0.5, 1.0, 5.0],
             run_independent_coupling=True,
             run_lagrangian_duality=True,
             **params
@@ -47,7 +47,7 @@ if __name__ == '__main__':
             dynamics=dynamics,
             noise_dist=noise_dist,
             q=initial_dist,
-            num_time_steps=2,
+            num_time_steps=3,
             run_independent_coupling=True,
             run_lagrangian_duality=True,
             run_empirical=False,
