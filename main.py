@@ -20,10 +20,11 @@ if __name__ == '__main__':
         lr = 0.01,
         num_iterations = 1000,
         plot = False,
+        optimize_locs=True
     )
 
-    run_single_step = False
-    run_multi_step = True
+    run_single_step = True
+    run_multi_step = False
 
     params = load_params(args)
 
