@@ -161,7 +161,11 @@ def multi_step(
         noise_dist: ds.MultivariateNormal,
         q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
         num_time_steps: int,
+        optimize_locs: bool = False,
         **kwargs):
+
+    if optimize_locs:
+        raise NotImplementedError("Optimization of the signature locations is not yet implemented for multi_step.")
 
     # Initialize w2_p__q error:
     w2_bounds = {0: {'global_lipschitz': 0., 'independent_coupling': 0., 'lagrangian_duality': 0.}}
