@@ -10,7 +10,6 @@ from bound import local_ibp_sq_norm_fx_fc, get_norm_of_proj_matrix, global_ibp_s
 from optimize import minimize_with_adam
 
 
-@torch.no_grad()
 def compute_w2_wrapper(func):
     def wrapper(
             signature: ds.DiscretizedMultivariateNormal,
@@ -199,15 +198,18 @@ def compute_w2_f_p__f_disc_q_lagrangian_duality(
 
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(signature, f, w2_q__disc_q, w2_p__q)
 
-    locs_shift = torch.zeros_like(signature.locs)
-
     if optimize_locs:
-        optimal_shift, w2_sq = minimize_with_adam(
-            param=locs_shift,
+        locs_shift = torch.randn_like(signature.locs.detach()) * 0.01
+        optimal_shift, losses = minimize_with_adam(
+            param=locs_shift.requires_grad_(True),
             objective=fn_sq_w2_f_p__f_disc_q,
             **kwargs
         )
-        w2 = w2_sq.sqrt()
+        w2 = fn_sq_w2_f_p__f_disc_q(optimal_shift).sqrt()
+        w2_zero_shift = fn_sq_w2_f_p__f_disc_q().sqrt()
+        if w2_zero_shift < w2:
+            w2 = w2_zero_shift
+            print('Optimal shift is zero!')
     else:
         w2 = fn_sq_w2_f_p__f_disc_q().sqrt()
 

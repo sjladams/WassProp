@@ -40,6 +40,7 @@ def single_step(
         run_empirical: bool = False,
         p_samples: Optional[torch.Tensor] = None,
         num_locs_after_compr: Optional[int] = None,
+        optimize_locs: bool = False,
         **kwargs):
 
     # Initialize System Dynamics
@@ -115,7 +116,7 @@ def single_step(
     if run_lagrangian_duality:
         print(f"-- Lagrangian Duality --")
         w2_bounds['lagrangian_duality'] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-            sign_q, dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, lr=lr, num_iterations=num_iterations, **kwargs) # \todo set default lr and num_iterations in function, just pass kwargs
+            sign_q, dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, lr=lr, num_iterations=num_iterations, optimize_locs=optimize_locs) # \todo set default lr and num_iterations in function, just pass kwargs
 
     return w2_bounds, q1, {'q': q1_samples, 'p': p1_samples}
 
