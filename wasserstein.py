@@ -8,6 +8,7 @@ from regions import HyperRectangularVoronoiPartition
 from bound import local_ibp_sq_norm_fx_fc, get_norm_of_proj_matrix, global_ibp_sq_norm_fx_fc, global_lbp_sq_norm_fx_fc
 
 from optimize import minimize_with_adam
+from tensors import check_mat_diag
 
 
 @torch.no_grad()
@@ -53,37 +54,31 @@ def get_fn_sq_w2_f_p__f_disc_p(
 def get_fn_sq_w2_f_q__f_disc_q(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics) -> Callable:
+    if not isinstance(signature.dist, ds.MultivariateNormal):
+        raise NotImplementedError("Only implemented for q being of the class MultivariateNormal")
+
+    if not check_mat_diag(signature.dist.covariance_matrix):
+        # To generalize beyond this, we have to implement non hyper-rectangular voronoi partitions, which as long as q
+        # is a multivariate normal, AND not compression is applied, this is possible, because then the disc_q will be a
+        # grid in the transformed space induced by the whitening transformation of the covariance matrix.
+        raise NotImplementedError("Only implemented for q being of the class MultivariateNormal with diagonal covariance matrix")
+
     voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
-    alphas = global_lbp_sq_norm_fx_fc(f, signature.locs)
-    locs = signature.locs
-    means = signature.dist.mean
-    sigmas = signature.dist._sqrt_diag_covariance_matrix
-    lower = voronoi_partition.lower
-    upper = voronoi_partition.upper
+    alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
+    beta = global_ibp_sq_norm_fx_fc(f, signature.locs).upper.squeeze(-1)
 
-    upper[torch.isposinf(upper)] = 1e4  # large value
-    lower[torch.isneginf(lower)] = -1e4
+    ## Compute integral terms:
+    trunc_mean, trunc_var = ds.utils.calculate_mean_and_var_trunc_normal(
+        loc=signature.dist.loc.unsqueeze(0),
+        scale=signature.dist.covariance_matrix.diagonal(dim1=-1, dim2=-2).sqrt().unsqueeze(0),
+        l=voronoi_partition.lower, u=voronoi_partition.upper)
 
-    scaled_lower = (lower - means) / (2 ** 0.5 * sigmas)
-    scaled_upper = (upper - means) / (2 ** 0.5 * sigmas)
-
-    erf_lower = torch.special.erf(scaled_lower)
-    erf_upper = torch.special.erf(scaled_upper)
-
-    common_factor = 0.5 * ((locs - means) ** 2 + sigmas ** 2)
+    sq_norm_2nd_moment = (trunc_var + (trunc_mean - signature.locs).pow(2)).sum(-1)
 
     def fn_sq_w2_f_p__f_disc_p():
-        factor_exp_upper = (1 / (2 * torch.pi) ** 0.5) * sigmas * (upper - 2 * locs + means) * torch.exp(
-            -scaled_upper ** 2)
-        factor_exp_lower = (1 / (2 * torch.pi) ** 0.5) * sigmas * (lower - 2 * locs + means) * torch.exp(
-            -scaled_lower ** 2)
-
-        #Using Mathematica
-        integral_per_dim = common_factor * (erf_upper - erf_lower) - factor_exp_upper + factor_exp_lower
-        integral = torch.prod(integral_per_dim, dim=1)
-
-        return torch.dot(alphas, integral)
+        w2_alpha_or_beta = torch.min(sq_norm_2nd_moment * alpha, beta)
+        return torch.einsum('...i,...i->...', w2_alpha_or_beta, signature.probs)
 
     return fn_sq_w2_f_p__f_disc_p
 
