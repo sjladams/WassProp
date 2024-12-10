@@ -28,28 +28,7 @@ def compute_w2_wrapper(func):
     return wrapper
 
 
-# ----- W_2(f#p, f#disc#p) -----
-def get_fn_sq_w2_f_p__f_disc_p(
-        signature: ds.DiscretizedMultivariateNormal,
-        f: dynamics.Dynamics,
-        w2_q__disc_q: float,
-        w2_p__q: float) -> Callable:
-
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
-
-    sq_norm_fx_fc = local_ibp_sq_norm_fx_fc(f, voronoi_partition).upper.squeeze(-1).diag()
-
-    sq_norm_proj_matrix = get_norm_of_proj_matrix(voronoi_partition).pow(2)
-
-    w2_p__disc_q = w2_q__disc_q + w2_p__q
-
-    def fn_sq_w2_f_p__f_disc_p(lambd: torch.Tensor):
-        inner_sup = torch.max(sq_norm_fx_fc - lambd * sq_norm_proj_matrix, dim=-1).values
-        return lambd * w2_p__disc_q ** 2 + torch.einsum('m,m->', signature.probs, inner_sup)
-
-    return fn_sq_w2_f_p__f_disc_p
-
-
+# ----- W_2(f#q, f#disc#q) -----
 def get_fn_sq_w2_f_q__f_disc_q(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics) -> Callable:
@@ -75,31 +54,11 @@ def get_fn_sq_w2_f_q__f_disc_q(
 
     sq_norm_2nd_moment = (trunc_var + (trunc_mean - signature.locs).pow(2)).sum(-1)
 
-    def fn_sq_w2_f_p__f_disc_p():
+    def fn_sq_w2_f_q__f_disc_q():
         w2_alpha_or_beta = torch.min(sq_norm_2nd_moment * alpha, beta)
         return torch.einsum('...i,...i->...', w2_alpha_or_beta, signature.probs)
 
-    return fn_sq_w2_f_p__f_disc_p
-
-
-@compute_w2_wrapper
-def compute_w2_f_p__f_disc_p(
-        signature: ds.DiscretizedMultivariateNormal,
-        f: dynamics.Dynamics,
-        w2_q__disc_q: float,
-        w2_p__q: float,
-        **kwargs):
-
-    fn_sq_w2_f_p__f_disc_p = get_fn_sq_w2_f_p__f_disc_p(signature, f, w2_q__disc_q, w2_p__q)
-
-    lambd = torch.tensor(0.1, requires_grad=True)
-    optimized_lambda, losses = minimize_with_adam(
-        param=lambd,
-        objective=fn_sq_w2_f_p__f_disc_p,
-        lower_constraint=0.,
-        **kwargs)
-
-    return fn_sq_w2_f_p__f_disc_p(optimized_lambda).sqrt()
+    return fn_sq_w2_f_q__f_disc_q
 
 
 # ----- W_2(f#p, f#disc#q) for Independent Coupling approach -----
@@ -159,11 +118,22 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
         w2_q__disc_q: float,
         w2_p__q: float)-> Callable:
 
-    w2_p__disc_q = w2_q__disc_q + w2_p__q
-
     def fn_sq_w2_f_p__f_disc_q_lagrangian_duality(locs_shift: Union[torch.Tensor, float] = 0.): # \todo respect batches
+
+        voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
+
         locs = signature.locs + locs_shift
-        w2_shift_locs = (locs - signature.locs).norm(p=2, dim=-1).pow(2).sum(-1)
+
+        ## Compute integral terms:
+        trunc_mean, trunc_var = ds.utils.calculate_mean_and_var_trunc_normal(
+            loc=signature.dist.loc.unsqueeze(0),
+            scale=signature.dist.covariance_matrix.diagonal(dim1=-1, dim2=-2).sqrt().unsqueeze(0),
+            l=voronoi_partition.lower, u=voronoi_partition.upper)
+        sq_norm_2nd_moment = (trunc_var + (trunc_mean - locs).pow(2)).sum(-1)
+
+        w2_disc = torch.sum(sq_norm_2nd_moment * signature.probs).sqrt()
+
+        w2_p__disc_q = w2_p__q + w2_disc
 
         alpha = global_lbp_sq_norm_fx_fc(f, locs)
         beta = global_ibp_sq_norm_fx_fc(f, locs).upper.squeeze(-1)
@@ -177,7 +147,7 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
         alpha_max = alpha_options.max(dim=-1).values
         result_options = alpha_max * w2_p__disc_q ** 2 + torch.einsum('j,ij->i', signature.probs, beta_options)
 
-        return result_options.min(-1).values + w2_shift_locs
+        return result_options.min(-1).values
 
     return fn_sq_w2_f_p__f_disc_q_lagrangian_duality
 
