@@ -11,16 +11,16 @@ if __name__ == '__main__':
     torch.manual_seed(0)
 
     args = parse_arguments(
-        dynamics_type = "BoundedLinearDynamics",
-        num_dims = 2,
+        dynamics_type = "SigmoidDynamics",
+        num_dims = 1,
         dynamics_setting = 0,
         num_locs = 10,
         num_locs_after_compr=1,
         num_samples = 1000,
         lr = 0.01,
-        num_iterations = 100,
+        num_iterations = 1000,
         plot = False,
-        optimize_locs=False
+        optimize_locs=True
     )
 
     run_single_step = True
@@ -38,7 +38,7 @@ if __name__ == '__main__':
             noise_dist=noise_dist,
             q=initial_dist,
             w2_p__q_options=[0.0, 0.1, 0.5, 1.0, 5.0],
-            run_independent_coupling=True,
+            run_independent_coupling=False,
             run_lagrangian_duality=True,
             **params
         )
@@ -49,7 +49,7 @@ if __name__ == '__main__':
             noise_dist=noise_dist,
             q=initial_dist,
             num_time_steps=3,
-            run_independent_coupling=True,
+            run_independent_coupling=False,
             run_lagrangian_duality=True,
             run_empirical=False,
             **params
