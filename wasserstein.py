@@ -75,11 +75,11 @@ def get_fn_sq_w2_f_q__f_disc_q(
 
     sq_norm_2nd_moment = (trunc_var + (trunc_mean - signature.locs).pow(2)).sum(-1)
 
-    def fn_sq_w2_f_p__f_disc_p():
+    def fn_sq_w2_f_q__f_disc_q():
         w2_alpha_or_beta = torch.min(sq_norm_2nd_moment * alpha, beta)
         return torch.einsum('...i,...i->...', w2_alpha_or_beta, signature.probs)
 
-    return fn_sq_w2_f_p__f_disc_p
+    return fn_sq_w2_f_q__f_disc_q
 
 
 @compute_w2_wrapper
