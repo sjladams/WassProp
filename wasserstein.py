@@ -10,6 +10,16 @@ from bound import local_ibp_sq_norm_fx_fc, get_norm_of_proj_matrix, global_ibp_s
 from optimize import minimize_with_adam
 from tensors import check_mat_diag
 
+def compute_sq_norm_2nd_moment(signature: ds.DiscretizedMultivariateNormal, voronoi_partition: HyperRectangularVoronoiPartition, locs: torch.Tensor):
+
+    ## Compute integral terms:
+    trunc_mean, trunc_var = ds.utils.calculate_mean_and_var_trunc_normal(
+        loc=signature.dist.loc.unsqueeze(0),
+        scale=signature.dist.covariance_matrix.diagonal(dim1=-1, dim2=-2).sqrt().unsqueeze(0),
+        l=voronoi_partition.lower, u=voronoi_partition.upper)
+
+    return (trunc_var + (trunc_mean - locs).pow(2)).sum(-1)
+
 
 def compute_w2_wrapper(func):
     def wrapper(
@@ -46,13 +56,7 @@ def get_fn_sq_w2_f_q__f_disc_q(
     alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
     beta = global_ibp_sq_norm_fx_fc(f, signature.locs).upper.squeeze(-1)
 
-    ## Compute integral terms:
-    trunc_mean, trunc_var = ds.utils.calculate_mean_and_var_trunc_normal(
-        loc=signature.dist.loc.unsqueeze(0),
-        scale=signature.dist.covariance_matrix.diagonal(dim1=-1, dim2=-2).sqrt().unsqueeze(0),
-        l=voronoi_partition.lower, u=voronoi_partition.upper)
-
-    sq_norm_2nd_moment = (trunc_var + (trunc_mean - signature.locs).pow(2)).sum(-1)
+    sq_norm_2nd_moment = compute_sq_norm_2nd_moment(signature, voronoi_partition, signature.locs)
 
     def fn_sq_w2_f_q__f_disc_q():
         w2_alpha_or_beta = torch.min(sq_norm_2nd_moment * alpha, beta)
@@ -124,12 +128,7 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
 
         locs = signature.locs + locs_shift
 
-        ## Compute integral terms:
-        trunc_mean, trunc_var = ds.utils.calculate_mean_and_var_trunc_normal(
-            loc=signature.dist.loc.unsqueeze(0),
-            scale=signature.dist.covariance_matrix.diagonal(dim1=-1, dim2=-2).sqrt().unsqueeze(0),
-            l=voronoi_partition.lower, u=voronoi_partition.upper)
-        sq_norm_2nd_moment = (trunc_var + (trunc_mean - locs).pow(2)).sum(-1)
+        sq_norm_2nd_moment = compute_sq_norm_2nd_moment(signature, voronoi_partition, locs) # we use the same partition and probs, only move the locations
 
         w2_disc = torch.sum(sq_norm_2nd_moment * signature.probs).sqrt()
 
