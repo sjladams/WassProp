@@ -120,19 +120,23 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
-        w2_p__q: float)-> Callable:
+        w2_p__q: float,
+        optimize_locs:bool)-> Callable:
+
+    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
     def fn_sq_w2_f_p__f_disc_q_lagrangian_duality(locs_shift: Union[torch.Tensor, float] = 0.): # \todo respect batches
 
-        voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
-
         locs = signature.locs + locs_shift
 
-        sq_norm_2nd_moment = compute_sq_norm_2nd_moment(signature, voronoi_partition, locs) # we use the same partition and probs, only move the locations
+        if optimize_locs:
+            sq_norm_2nd_moment = compute_sq_norm_2nd_moment(signature, voronoi_partition, locs) # we use the same partition and probs, only move the locations
+            w2_disc = torch.sum(sq_norm_2nd_moment * signature.probs).sqrt()
 
-        w2_disc = torch.sum(sq_norm_2nd_moment * signature.probs).sqrt()
+            w2_p__disc_q = w2_p__q + w2_disc
 
-        w2_p__disc_q = w2_p__q + w2_disc
+        else:
+            w2_p__disc_q = w2_p__q + w2_q__disc_q
 
         alpha = global_lbp_sq_norm_fx_fc(f, locs)
         beta = global_ibp_sq_norm_fx_fc(f, locs).upper.squeeze(-1)
@@ -160,7 +164,7 @@ def compute_w2_f_p__f_disc_q_lagrangian_duality(
         optimize_locs: bool = False,
         **kwargs):
 
-    fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(signature, f, w2_q__disc_q, w2_p__q)
+    fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(signature, f, w2_q__disc_q, w2_p__q, optimize_locs)
 
     if optimize_locs:
         locs_shift = torch.randn_like(signature.locs.detach()) * 0.01
