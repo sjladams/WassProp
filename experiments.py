@@ -143,9 +143,9 @@ def single_step_w2_options(
         )
 
         print(
-            f"Bounds on W_2(W_2(f#p, f#disc#q)) for W_2(p,q) = {w2_p__q} and "
+            f"Bounds on W_2(f#p, f#disc#q) for W_2(p,q) = {w2_p__q} and "
             f"W_2(q_0, Delta_C#q_0) = {w2_bounds[w2_p__q]['sign_q']:.4f} via:\n"
-            f"\t Global Lipschits: {w2_bounds[w2_p__q]['global_lipschitz']:.4f}\n")
+            f"\t Global Lipschitz: {w2_bounds[w2_p__q]['global_lipschitz']:.4f}\n")
         print(f"\t Empirical: {w2_bounds[w2_p__q]['empirical']:.4f}\n"
               if 'empirical' in w2_bounds[w2_p__q] else "")
         print(f"\t Independent Coupling: {w2_bounds[w2_p__q]['independent_coupling']:.4f}\n"
@@ -188,8 +188,8 @@ def multi_step(
         )
 
         print(
-            f"Bounds on W_2(W_2(p_{k+1}, q_{k+1})) via:\n"
-            f"\t Global Lipschits: {w2_bounds[k+1]['global_lipschitz']:.4f}\n")
+            f"Bounds on W_2(p_{k+1}, q_{k+1}) via:\n"
+            f"\t Global Lipschitz: {w2_bounds[k+1]['global_lipschitz']:.4f}\n")
         print(f"\t Empirical: {w2_bounds[k+1]['empirical']:.4f}\n"
               if 'empirical' in w2_bounds[k+1] else "")
         print(f"\t Independent Coupling: {w2_bounds[k+1]['independent_coupling']:.4f}\n"
