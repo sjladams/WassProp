@@ -5,7 +5,7 @@ def minimize_with_adam(
         objective: Callable,
         param: torch.Tensor,
         lr=0.01,
-        num_iterations=100,
+        num_iterations=1000,
         tolerance=1e-8,
         print_progress: bool=True,
         lower_constraint: Optional[Union[torch.Tensor, float]]=None,
