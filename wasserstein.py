@@ -169,20 +169,18 @@ def compute_w2_f_p__f_disc_q_lagrangian_duality(
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(signature, f, w2_q__disc_q, w2_p__q, optimize_locs)
 
     if optimize_locs:
-        locs_shift = torch.randn_like(signature.locs.detach()) * 0.01
+        locs_shift = torch.randn_like(signature.locs.detach()) * 1
         optimal_shift, losses = minimize_with_adam(
             param=locs_shift.requires_grad_(True),
             objective=fn_sq_w2_f_p__f_disc_q,
             **kwargs
         )
         w2 = fn_sq_w2_f_p__f_disc_q(optimal_shift).sqrt()
+        print(f'w2 after GD (starting from signatures + gaussian noise): {w2}')
         w2_zero_shift = fn_sq_w2_f_p__f_disc_q().sqrt()
-        if w2_zero_shift < w2:
-            w2 = w2_zero_shift
-            print('Optimal shift is zero!')
-        else:
-            print(f'Initial locs: {signature.locs}')
-            print(f'Locs after optimization: {signature.locs + optimal_shift}')
+        print(f'w2 using locations from the signaturization: {w2_zero_shift}')
+
+        w2 = min(w2, w2_zero_shift)
     else:
         w2 = fn_sq_w2_f_p__f_disc_q().sqrt()
 
