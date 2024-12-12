@@ -129,6 +129,9 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
 
         locs = signature.locs + locs_shift
 
+        alpha = global_lbp_sq_norm_fx_fc(f, locs)
+        beta = global_ibp_sq_norm_fx_fc(f, locs).upper.squeeze(-1)
+
         if optimize_locs:
             sq_norm_2nd_moment = compute_sq_norm_2nd_moment(signature, voronoi_partition, locs) # we use the same partition and probs, only move the locations
             w2_disc = torch.sum(sq_norm_2nd_moment * signature.probs).sqrt()
@@ -138,11 +141,10 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
         else:
             w2_p__disc_q = w2_p__q + w2_q__disc_q
 
-        alpha = global_lbp_sq_norm_fx_fc(f, locs)
-        beta = global_ibp_sq_norm_fx_fc(f, locs).upper.squeeze(-1)
-
-        mask = torch.ones(alpha.size(0), alpha.size(0)).tril()[alpha.sort().indices]
-        mask = torch.cat((mask, torch.zeros(1, locs.shape[-2])), dim=0)
+        sorted_indices = torch.argsort(alpha, descending=True)
+        mask = torch.ones((alpha.size(0) + 1, alpha.size(0)))
+        for i in range(1, alpha.size(0) + 1):
+            mask[i, sorted_indices[:i]] = 0
 
         alpha_options = torch.einsum('ij, j->ij', mask, alpha)
         beta_options = torch.einsum('ij, j->ij', 1 - mask, beta)
@@ -178,6 +180,9 @@ def compute_w2_f_p__f_disc_q_lagrangian_duality(
         if w2_zero_shift < w2:
             w2 = w2_zero_shift
             print('Optimal shift is zero!')
+        else:
+            print(f'Initial locs: {signature.locs}')
+            print(f'Locs after optimization: {signature.locs + optimal_shift}')
     else:
         w2 = fn_sq_w2_f_p__f_disc_q().sqrt()
 
