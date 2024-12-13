@@ -11,9 +11,9 @@ if __name__ == '__main__':
     torch.manual_seed(0)
 
     args = parse_arguments(
-        dynamics_type = "SigmoidDynamics",
-        num_dims = 1,
-        dynamics_setting = 0,
+        dynamics_type = "LinearDiagonalSigmoidDynamics",
+        num_dims = 2,
+        dynamics_setting = 1,
         num_locs = 10,
         num_locs_after_compr=1,
         num_samples = 1000,
@@ -37,7 +37,7 @@ if __name__ == '__main__':
             dynamics=dynamics,
             noise_dist=noise_dist,
             q=initial_dist,
-            w2_p__q_options=[0.0, 0.1, 0.5, 1.0, 5.0],
+            w2_p__q_options=[0.0, 0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 3.0],
             run_independent_coupling=False,
             run_lagrangian_duality=True,
             **params
