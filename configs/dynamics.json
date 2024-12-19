@@ -132,5 +132,19 @@
                 }
             }
         }
+    },
+    "MountainCarDynamics": {
+        "dimensions": {
+            "2": {
+                "options": {
+                    "0": {
+                        "loc_noise_dist": [0.0, 0.0],
+                        "variance_noise_dist": [0.3, 0.3],
+                        "loc_initial_dist": [1.5, 2.5],
+                        "variance_initial_dist": [0.0001, 0.5]
+                    }
+                }
+            }
+        }
     }
 }
