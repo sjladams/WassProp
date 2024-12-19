@@ -180,7 +180,8 @@ class MountainCarDynamics(Dynamics):
                 torch.tensor([0.0, self.acc])
             ), # p + v, v - g cos(3p) + a
             bp.Clamp(
-                torch.tensor([-10.0, -1.0])
+                torch.tensor([-10.0, -1.0]),
+                torch.tensor([10.0, 1.0])
             )
         )
 
