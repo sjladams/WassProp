@@ -174,7 +174,14 @@ class LinearPartForMountainCar(Dynamics):
 class TrigonometricPartForMountainCar(Dynamics):
     def __init__(self, **kwargs):
         super(TrigonometricPartForMountainCar, self).__init__(
-            bp.Sin()
+            bp.Sin(),
+            Linear(
+                torch.tensor([
+                    [0.0, 1.0],
+                    [0.0, 0.0]
+                ]),
+                torch.tensor([0.0, 0.0])
+            )
         )
 
 class MountainCarDynamics(Dynamics):
