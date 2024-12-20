@@ -159,30 +159,36 @@ class LinearDiagonalSigmoidDynamics(Dynamics):
         return self._diagonal.abs().max() * 0.25
 
 
-class MountainCarDynamics(Dynamics):
-    def __init__(self, acc=0.9, g=9.82, **kwargs):
-        self.acc = acc
-        self.g = g
-
-        super(MountainCarDynamics, self).__init__( # Input: p, v
-            bp.Cat(
-                nn.Sequential(
-                    bp.Select([0]),
-                    bp.FixedLinear(torch.tensor([[3.0]])),
-                    bp.Sin()
-                )
-            ), # p, v, cos(3p)
-            bp.FixedLinear(
+class LinearPartForMountainCar(Dynamics):
+    def __init__(self, **kwargs):
+        super(LinearPartForMountainCar, self).__init__(
+            Linear(
                 torch.tensor([
-                    [1.0, 1.0, 0.0], # p_{t+1}
-                    [0.0, 1.0, -self.g]
+                    [1.0, 0.0],
+                    [1.0, 1.0]
                 ]),
-                torch.tensor([0.0, self.acc])
-            ), # p + v, v - g cos(3p) + a
-            bp.Clamp(
-                torch.tensor([-10.0, -1.0]),
-                torch.tensor([10.0, 1.0])
+                torch.tensor([0.0, 0.0])
             )
+        )
+
+class TrigonometricPartForMountainCar(Dynamics):
+    def __init__(self, **kwargs):
+        super(TrigonometricPartForMountainCar, self).__init__(
+            bp.Sin()
+        )
+
+class MountainCarDynamics(Dynamics):
+    def __init__(self,
+                 lower_bound: Optional[Union[float, torch.Tensor, list]] = -torch.inf,
+                 upper_bound: Optional[Union[float, torch.Tensor, list]] = torch.inf,
+                 **kwargs):
+        linear_part = LinearPartForMountainCar()
+        trig_part = TrigonometricPartForMountainCar()
+
+        super(MountainCarDynamics, self).__init__(
+            bp.Parallel(linear_part, trig_part, split_size=linear_part.num_dims),
+            bp.VectorAdd(),
+            #bp.Clamp(lower_bound, upper_bound)
         )
 
     @property
