@@ -186,9 +186,11 @@ class TrigonometricPartForMountainCar(Dynamics):
 
 class MountainCarDynamics(Dynamics):
     def __init__(self,
+                 num_dims:int = 2,
                  lower_bound: Optional[Union[float, torch.Tensor, list]] = -torch.inf,
                  upper_bound: Optional[Union[float, torch.Tensor, list]] = torch.inf,
                  **kwargs):
+        self.num_dims = num_dims
         linear_part = LinearPartForMountainCar()
         trig_part = TrigonometricPartForMountainCar()
 
