@@ -160,44 +160,53 @@ class LinearDiagonalSigmoidDynamics(Dynamics):
 
 
 class LinearPartForMountainCar(Dynamics):
-    def __init__(self, **kwargs):
+    def __init__(self, action, **kwargs):
         super(LinearPartForMountainCar, self).__init__(
+            bp.Clamp(-0.5, 1.2), #TODO: See TODO below, this is a temporary test
             Linear(
                 torch.tensor([
                     [1.0, 0.0],
                     [1.0, 1.0]
                 ]),
-                torch.tensor([0.0, 0.0])
-            )
+                torch.tensor([0.001 * action, 0.0])
+            ),
         )
 
 class TrigonometricPartForMountainCar(Dynamics):
     def __init__(self, **kwargs):
         super(TrigonometricPartForMountainCar, self).__init__(
+            Linear(
+                torch.tensor([
+                    [0.0, 3.0],
+                    [0.0, 0.0]
+                ]),
+                torch.tensor([torch.pi / 2, 0.0])),
             bp.Sin(),
             Linear(
                 torch.tensor([
-                    [0.0, 1.0],
+                    [-0.0025, 0.0],
                     [0.0, 0.0]
                 ]),
-                torch.tensor([0.0, 0.0])
-            )
+                torch.tensor([0.0, 0.0])),
         )
 
 class MountainCarDynamics(Dynamics):
     def __init__(self,
                  num_dims:int = 2,
+                 action:float = 1.0,
                  lower_bound: Optional[Union[float, torch.Tensor, list]] = -torch.inf,
                  upper_bound: Optional[Union[float, torch.Tensor, list]] = torch.inf,
                  **kwargs):
         self.num_dims = num_dims
-        linear_part = LinearPartForMountainCar()
+        self.action = action
+
+        linear_part = LinearPartForMountainCar(self.action)
         trig_part = TrigonometricPartForMountainCar()
 
         super(MountainCarDynamics, self).__init__(
             bp.Parallel(linear_part, trig_part, split_size=linear_part.num_dims),
             bp.VectorAdd(),
-            #bp.Clamp(lower_bound, upper_bound)
+            #bp.Clamp(lower_bound, upper_bound) #TODO: Not working to Clamp here, not working to clamp with tensor
         )
 
     @property
