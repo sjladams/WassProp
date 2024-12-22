@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import torch
 
+from bound import global_lbp_sq_norm_fx_fc, global_ibp_sq_norm_fx_fc
 
 COLORS = ['Blues', 'BuPu', 'PuRd', 'Greens', 'Oranges', 'Reds', 'Greys', 'Purples',
                       'YlOrBr', 'YlOrRd', 'OrRd', 'PuRd', 'RdPu', 'BuPu',
@@ -60,3 +61,31 @@ def plot_multi_step(dynamics, samples: dict):
         plt.show()
     else:
         raise NotImplementedError
+
+@torch.no_grad()
+def plot_norm_overapproximation(dynamics, signature, loc_pos, **kwargs):
+
+    alpha = global_lbp_sq_norm_fx_fc(dynamics, signature.locs)
+    beta = global_ibp_sq_norm_fx_fc(dynamics, signature.locs).upper.squeeze(-1)
+
+    start, end, steps = signature.locs[loc_pos]-2, signature.locs[loc_pos]+2, 1000
+    grid_x, grid_y = torch.meshgrid(torch.linspace(start[0], end[0], steps), torch.linspace(start[1], end[1], steps), indexing='ij')
+    grid = torch.stack([grid_x, grid_y], dim=-1)
+
+    f_grid = dynamics(grid)
+    f_locs = dynamics(signature.locs)
+
+    f_grid_sub_f_c = f_grid - f_locs[loc_pos]
+
+    f_squared_norms = torch.sum(f_grid_sub_f_c ** 2, dim=-1).reshape(-1).numpy()
+    x_squared_norms = torch.sum((grid - signature.locs[loc_pos]) ** 2, dim=-1).reshape(-1).numpy()
+
+    norm_overapprox_alpha = alpha[loc_pos] * x_squared_norms
+    norm_overapprox_beta = 0 * x_squared_norms + beta[loc_pos].item()
+
+    plt.figure(figsize=(8, 6))
+    plt.scatter(x_squared_norms, f_squared_norms, color='blue', s=1)
+    plt.scatter(x_squared_norms, norm_overapprox_alpha, color='red', s=1)
+    plt.scatter(x_squared_norms, norm_overapprox_beta, color='orange', s=1)
+
+    plt.show()
