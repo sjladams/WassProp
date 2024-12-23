@@ -141,7 +141,7 @@
                         "lower_bound": -2.0,
                         "upper_bound": 2.0,
                         "loc_noise_dist": [0.0, 0.0],
-                        "variance_noise_dist": [0.3, 0.3],
+                        "variance_noise_dist": [0.01, 0.01],
                         "loc_initial_dist": [0.3, 0.1],
                         "variance_initial_dist": [0.1, 0.001]
                     }
