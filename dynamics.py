@@ -1,8 +1,10 @@
 import torch
 from typing import Union, Optional
 import bound_propagation as bp
+from bound_propagation import Sin
+from torch.nn import Sigmoid
 
-from modules import ScalarMult, ScalarAdd, Linear
+from modules import ScalarMult, ScalarAdd, Linear, Sum
 
 
 class Dynamics(torch.nn.Sequential):
@@ -158,6 +160,24 @@ class LinearDiagonalSigmoidDynamics(Dynamics):
         return self._diagonal.abs().max() * 0.25
 
 
+class NonAdditiveGaussianNoiseDynamics(Dynamics):
+    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
+        if isinstance(diagonal, list):
+            diagonal = torch.tensor(diagonal)
+        self.num_dims = diagonal.size(0)
+        self._diagonal = diagonal
+
+        super(NonAdditiveGaussianNoiseDynamics, self).__init__(
+            LinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
+            SigmoidDynamics(self.num_dims),
+            Sum(self.num_dims)
+        )
+
+    @property
+    def global_lipschitz(self):
+        return self._diagonal.abs().max() * 0.25 #TODO: CHECK
+
+
 def get_dynamics(dynamics_type: str, **kwargs):
     if dynamics_type == 'LogisticMap':
         return LogisticMap(**kwargs)
@@ -175,5 +195,7 @@ def get_dynamics(dynamics_type: str, **kwargs):
         return SigmoidDynamics(**kwargs)
     elif dynamics_type == 'LinearDiagonalSigmoidDynamics':
         return LinearDiagonalSigmoidDynamics(**kwargs)
+    elif dynamics_type == 'NonAdditiveGaussianNoiseDynamics':
+        return NonAdditiveGaussianNoiseDynamics(**kwargs)
     else:
         raise ValueError(f"Unknown dynamics: {dynamics_type}")
