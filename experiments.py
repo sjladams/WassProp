@@ -26,7 +26,7 @@ def construct_diag_gaussian_dist(loc_dist: Union[list, torch.Tensor], variance_d
 def single_step(
         dynamics: Dynamics,
         noise_dist: ds.MultivariateNormal,
-        q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
+        q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal, ds.CategoricalFloat],
         num_samples: int,
         num_locs: int,
         plot: bool = False,
@@ -40,6 +40,7 @@ def single_step(
         run_empirical: bool = False,
         p_samples: Optional[torch.Tensor] = None,
         num_locs_after_compr: Optional[int] = None,
+        additive_gaussian_noise: bool = True,
         optimize_locs: bool = False,
         **kwargs):
 
@@ -69,20 +70,51 @@ def single_step(
     # Approximate the state distribution
     sign_q = ds.discretization_generator(dist=q, num_locs=num_locs)
 
-    # Propagate the (approximate) state distribution over the dynamics
-    q1 = ds.MixtureMultivariateNormal(
-        mixture_distribution=torch.distributions.Categorical(
-            probs=sign_q.probs),
-        component_distribution=ds.MultivariateNormal(
+    if additive_gaussian_noise:
+        w2_q__disc_q = sign_q.w2
+
+        # Propagate the (approximate) state distribution over the dynamics
+        q1 = ds.MixtureMultivariateNormal(
+            mixture_distribution=torch.distributions.Categorical(
+                probs=sign_q.probs),
+            component_distribution=ds.MultivariateNormal(
             loc=dynamics(sign_q.locs) + noise_dist.loc,
             covariance_matrix=noise_dist.covariance_matrix
-        ))
+            ))
+    else:
+        sign_noise = ds.discretization_generator(dist=noise_dist, num_locs=num_locs)
+
+        if isinstance(sign_q, ds.DiscretizedMultivariateNormal):
+            w2_q__disc_q = sign_q.w2 + sign_noise.w2
+        else:
+            w2_q__disc_q = sign_noise.w2
+
+        #TODO: MOVE TO A FUNCTION? IS THERE A BETTER WAY TO DO IT?
+        n, m = sign_q.locs.size(0), sign_noise.locs.size(0)
+        d = sign_q.locs.shape[-1]
+        locs_state_expanded = sign_q.locs.unsqueeze(1)
+        locs_noise_expanded = sign_noise.locs.unsqueeze(0)
+        combinations = torch.cat((locs_state_expanded.expand(-1, m, -1), locs_noise_expanded.expand(n, -1, -1)), dim=-1)
+        combinations_flat = combinations.view(-1, 2 * d)
+        probs_combined = sign_q.probs.unsqueeze(1) * sign_noise.probs.unsqueeze(0)
+        probs_combined_flat = probs_combined.view(-1)
+
+        #Assuming dynamics takes a 2d-vector as input (x, eps)
+        sign_q = ds.CategoricalFloat(probs=probs_combined_flat, locs=combinations_flat)
+        q1 = ds.CategoricalFloat(probs=probs_combined_flat, locs=dynamics(combinations_flat))
 
     # Empirically approximate the state distribution
     q_samples = q.sample(torch.Size((num_samples,)))
     q1_samples = q1.sample(torch.Size((num_samples,)))
-    p1_samples = (dynamics(p_samples if p_samples is not None else q_samples) +
-                  noise_dist.sample(torch.Size((num_samples,))))
+
+    if additive_gaussian_noise:
+        p1_samples = (dynamics(p_samples if p_samples is not None else q_samples) +
+                    noise_dist.sample(torch.Size((num_samples,))))
+    else:
+        state_samples = p_samples if p_samples is not None else q_samples
+        noise_samples = noise_dist.sample(torch.Size((num_samples,)))
+        samples = torch.cat((state_samples, noise_samples), dim=-1)
+        p1_samples = dynamics(samples)
 
     if dynamics.num_dims == 1 and plot:
         fig_propagation = plt.figure()
@@ -99,24 +131,28 @@ def single_step(
         plt.show()
 
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
-    w2_bounds = {'sign_q': sign_q.w2}
+    w2_bounds = {'sign_q': w2_q__disc_q}
 
     if run_empirical:
         w2_bounds['empirical'] = ot.solve_sample(p1_samples.view(-1, dynamics.num_dims),
                                             q1_samples.view(-1, dynamics.num_dims)
                                             ).value.sqrt()
 
-    w2_bounds['global_lipschitz'] = dynamics.global_lipschitz * (sign_q.w2 + w2_compr + w2_p__q_global_lipschitz)
+    w2_bounds['global_lipschitz'] = dynamics.global_lipschitz * (w2_q__disc_q + w2_compr + w2_p__q_global_lipschitz)
 
     if run_independent_coupling:
         print(f"-- Independent Coupling --")
         w2_bounds['independent_coupling'] = wasserstein.compute_w2_f_p__f_disc_q_independent_coupling(
-            sign_q, dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_independent_coupling + w2_compr, lr=lr, num_iterations=num_iterations) # \todo set default lr and num_iterations in function, just pass kwargs
+            sign_q, dynamics, w2_q__disc_q=w2_q__disc_q, w2_p__q=w2_p__q_independent_coupling + w2_compr, lr=lr, num_iterations=num_iterations) # \todo set default lr and num_iterations in function, just pass kwargs
+    else:
+        w2_bounds['independent_coupling'] = torch.nan
 
     if run_lagrangian_duality:
         print(f"-- Lagrangian Duality --")
         w2_bounds['lagrangian_duality'] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-            sign_q, dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, lr=lr, num_iterations=num_iterations, optimize_locs=optimize_locs) # \todo set default lr and num_iterations in function, just pass kwargs
+            sign_q, dynamics, w2_q__disc_q=w2_q__disc_q, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, lr=lr, num_iterations=num_iterations, optimize_locs=optimize_locs) # \todo set default lr and num_iterations in function, just pass kwargs
+    else:
+        w2_bounds['lagrangian_duality'] = torch.nan
 
     return w2_bounds, q1, {'q': q1_samples, 'p': p1_samples}
 
@@ -161,6 +197,7 @@ def multi_step(
         noise_dist: ds.MultivariateNormal,
         q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
         num_time_steps: int,
+        additive_gaussian_noise: bool = True,
         optimize_locs: bool = False,
         **kwargs):
 
@@ -184,6 +221,7 @@ def multi_step(
             w2_p__q_global_lipschitz=w2_bounds[k]['global_lipschitz'],
             w2_p__q_independent_coupling=w2_bounds[k]['independent_coupling'],
             w2_p__q_lagrangian_duality=w2_bounds[k]['lagrangian_duality'],
+            additive_gaussian_noise=additive_gaussian_noise,
             **kwargs
         )
 
