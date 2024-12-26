@@ -26,6 +26,7 @@ def parse_arguments(
         num_iterations: int = 1000,
         plot: bool = False,
         optimize_locs: bool = False,
+        additive_gaussian_noise: bool = True,
         num_locs_after_compr: Optional[int] = None,
 ):
     parser = argparse.ArgumentParser(description='Setup experiments for dynamics.')
@@ -50,6 +51,10 @@ def parse_arguments(
                         type=int,
                         default=num_locs if num_locs_after_compr is None else num_locs_after_compr,
                         help='Size of discretization grid after compression operation')
+    parser.add_argument('--additive_gaussian_noise',
+                        type=bool,
+                        default=additive_gaussian_noise,
+                        help='Assume dynamics has additive Gaussian noise, i.e. g(x, eps) = f(x) + eps, eps Gaussian')
     parser.add_argument('--optimize_locs',
                         type=bool,
                         default=optimize_locs,
@@ -88,6 +93,7 @@ def load_params(args):
             "num_locs_after_compr": args.num_locs_after_compr,
             "lr": args.lr,
             "num_iterations": args.num_iterations,
+            "additive_gaussian_noise": args.additive_gaussian_noise,
             "optimize_locs": args.optimize_locs,
             "plot": args.plot,
             **dynamics_params}
