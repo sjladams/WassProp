@@ -5,7 +5,7 @@ def minimize_with_adam(
         objective: Callable,
         param: torch.Tensor,
         lr=0.01,
-        num_iterations=100,
+        num_iterations=1000,
         tolerance=1e-8,
         print_progress: bool=True,
         lower_constraint: Optional[Union[torch.Tensor, float]]=None,
@@ -51,7 +51,7 @@ def minimize_with_adam(
 
         # Optional: Print progress
         if (iteration % 500 == 0 or iteration == num_iterations - 1) and print_progress:
-            print(f"Iteration {iteration}/{num_iterations}, Bound: {loss.item()}")
+            print(f"Iteration {iteration}/{num_iterations}, Bound: {loss.sqrt().item()}")
 
         # Check for convergence (early stopping)
         if len(loss_history) > 1 and abs(loss_history[-1] - loss_history[-2]) < tolerance and print_progress:
