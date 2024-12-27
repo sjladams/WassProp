@@ -86,22 +86,12 @@ def single_step(
 
         if isinstance(sign_q, ds.DiscretizedMultivariateNormal):
             w2_q__disc_q = sign_q.w2 + sign_noise.w2
+            sign_q = ds.CategoricalFloat(probs=sign_q.probs, locs=sign_q.locs)
         else:
             w2_q__disc_q = sign_noise.w2
 
-        #TODO: MOVE TO A FUNCTION? IS THERE A BETTER WAY TO DO IT?
-        n, m = sign_q.locs.size(0), sign_noise.locs.size(0)
-        d = sign_q.locs.shape[-1]
-        locs_state_expanded = sign_q.locs.unsqueeze(1)
-        locs_noise_expanded = sign_noise.locs.unsqueeze(0)
-        combinations = torch.cat((locs_state_expanded.expand(-1, m, -1), locs_noise_expanded.expand(n, -1, -1)), dim=-1)
-        combinations_flat = combinations.view(-1, 2 * d)
-        probs_combined = sign_q.probs.unsqueeze(1) * sign_noise.probs.unsqueeze(0)
-        probs_combined_flat = probs_combined.view(-1)
-
-        #Assuming dynamics takes a 2d-vector as input (x, eps)
-        sign_q = ds.CategoricalFloat(probs=probs_combined_flat, locs=combinations_flat)
-        q1 = ds.CategoricalFloat(probs=probs_combined_flat, locs=dynamics(combinations_flat))
+        sign_q.cross_product(sign_noise)
+        q1 = ds.CategoricalFloat(probs=sign_q.probs, locs=dynamics(sign_q.locs))
 
     # Empirically approximate the state distribution
     q_samples = q.sample(torch.Size((num_samples,)))
