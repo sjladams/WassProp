@@ -159,11 +159,21 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
         w2_q__disc_q: float,
         w2_p__q: float)-> Callable:
 
-    w2_p__disc_q = w2_q__disc_q + w2_p__q
 
     def fn_sq_w2_f_p__f_disc_q_lagrangian_duality(locs_shift: Union[torch.Tensor, float] = 0.): # \todo respect batches
+        voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
         locs = signature.locs + locs_shift
-        w2_shift_locs = (locs - signature.locs).norm(p=2, dim=-1).pow(2).sum(-1)
+
+        ## Compute integral terms:
+        trunc_mean, trunc_var = ds.utils.calculate_mean_and_var_trunc_normal(
+            loc=signature.dist.loc.unsqueeze(0),
+            scale=signature.dist.covariance_matrix.diagonal(dim1=-1, dim2=-2).sqrt().unsqueeze(0),
+            l=voronoi_partition.lower, u=voronoi_partition.upper)
+        sq_norm_2nd_moment = (trunc_var + (trunc_mean - locs).pow(2)).sum(-1)
+
+        w2_disc = torch.sum(sq_norm_2nd_moment * signature.probs).sqrt()
+
+        w2_p__disc_q = w2_p__q + w2_disc
 
         alpha = global_lbp_sq_norm_fx_fc(f, locs)
         beta = global_ibp_sq_norm_fx_fc(f, locs).upper.squeeze(-1)
@@ -177,7 +187,7 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
         alpha_max = alpha_options.max(dim=-1).values
         result_options = alpha_max * w2_p__disc_q ** 2 + torch.einsum('j,ij->i', signature.probs, beta_options)
 
-        return result_options.min(-1).values + w2_shift_locs
+        return result_options.min(-1).values
 
     return fn_sq_w2_f_p__f_disc_q_lagrangian_duality
 
