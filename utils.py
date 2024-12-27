@@ -25,6 +25,7 @@ def parse_arguments(
         lr: float = 0.01,
         num_iterations: int = 1000,
         plot: bool = False,
+        optimize_locs: bool = False,
         num_locs_after_compr: Optional[int] = None,
 ):
     parser = argparse.ArgumentParser(description='Setup experiments for dynamics.')
@@ -49,6 +50,10 @@ def parse_arguments(
                         type=int,
                         default=num_locs if num_locs_after_compr is None else num_locs_after_compr,
                         help='Size of discretization grid after compression operation')
+    parser.add_argument('--optimize_locs',
+                        type=bool,
+                        default=optimize_locs,
+                        help='Allow to optimize the signature locations w.r.t. W2(p,q) using gradient descent')
     parser.add_argument('--num_samples',
                         type=int,
                         default=num_samples,
@@ -77,10 +82,12 @@ def load_params(args):
         setting_tag=args.dynamics_setting
     )
 
-    return {"dynamics_type": args.dynamics_type,
+    return {"dynamics_type": args.dynamics_type,  # \todo just transform args to dict and merge with dynamics_params, current implementation requires to include every argument in the argument parser explicitly in here
             "num_samples": args.num_samples,
             "num_locs": args.num_locs,
             "num_locs_after_compr": args.num_locs_after_compr,
             "lr": args.lr,
             "num_iterations": args.num_iterations,
+            "optimize_locs": args.optimize_locs,
+            "plot": args.plot,
             **dynamics_params}
