@@ -175,7 +175,7 @@ class NonAdditiveGaussianNoiseDynamics(Dynamics):
 
     @property
     def global_lipschitz(self):
-        return self._diagonal.abs().max() * 0.25 #TODO: CHECK
+        return self._diagonal.abs().max() * 0.25 * 2 #TODO: CHECK
 
 
 def get_dynamics(dynamics_type: str, **kwargs):
