@@ -6,6 +6,17 @@ COLORS = ['Blues', 'BuPu', 'PuRd', 'Greens', 'Oranges', 'Reds', 'Greys', 'Purple
                       'YlOrBr', 'YlOrRd', 'OrRd', 'PuRd', 'RdPu', 'BuPu',
                       'GnBu', 'PuBu', 'YlGnBu', 'PuBuGn', 'BuGn', 'YlGn']
 
+def plot_dynamics(dynamics):
+
+    if dynamics.num_dims == 1:
+        # Plot dynamics
+        x = torch.linspace(start=-5, end=5, steps=500).view(-1, 1)
+        y = dynamics(x)
+
+        fig_dynamics = plt.figure()
+        plt.plot(x, y)
+        plt.title("Dynamics f(x)")
+        plt.show()
 
 @torch.no_grad()
 def plot_single_step(dynamics, w2_bounds: dict, **kwargs):

@@ -47,16 +47,6 @@ def single_step(
     # Initialize System Dynamics
     print(f"Global Lipschitz constant of f: {dynamics.global_lipschitz}")
 
-    if dynamics.num_dims == 1 and plot:
-        # Plot dynamics
-        x = torch.linspace(start=-5, end=5, steps=500).view(-1, 1)
-        y = dynamics(x)
-
-        fig_dynamics = plt.figure()
-        plt.plot(x, y)
-        plt.title("Dynamics f(x)")
-        plt.show()
-
     # Compress the mixture distribution
     with torch.no_grad():
         q_pre_compression = copy(q)
@@ -105,20 +95,6 @@ def single_step(
         noise_samples = noise_dist.sample(torch.Size((num_samples,)))
         samples = torch.cat((state_samples, noise_samples), dim=-1)
         p1_samples = dynamics(samples)
-
-    if dynamics.num_dims == 1 and plot:
-        fig_propagation = plt.figure()
-        plt.hist(q_samples.squeeze(), alpha=0.5, label='q', bins=100, density=True)
-        plt.hist(p1_samples.squeeze(), alpha=0.5, label='f#q', bins=100, density=True)
-        plt.legend()
-        plt.title(f"Histograms of q and f#q")
-        plt.show()
-
-        fig_signature = plt.figure()
-        plt.bar(sign_q.locs.squeeze(), sign_q.probs, width=0.1)
-        plt.hist(q_samples, alpha=0.5, label='q', bins=100, density=True)
-        plt.title(f"Signature of q and Histogram of q")
-        plt.show()
 
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
     w2_bounds = {'sign_q': w2_q__disc_q}
