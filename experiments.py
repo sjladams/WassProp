@@ -109,14 +109,26 @@ def single_step(
     if run_independent_coupling:
         print(f"-- Independent Coupling --")
         w2_bounds['independent_coupling'] = wasserstein.compute_w2_f_p__f_disc_q_independent_coupling(
-            sign_q, dynamics, w2_q__disc_q=w2_q__disc_q, w2_p__q=w2_p__q_independent_coupling + w2_compr, lr=lr, num_iterations=num_iterations) # \todo set default lr and num_iterations in function, just pass kwargs
+            sign_q,
+            dynamics,
+            w2_q__disc_q=w2_q__disc_q,
+            w2_p__q=w2_p__q_independent_coupling + w2_compr,
+            lr=lr,
+            num_iterations=num_iterations) # \todo set default lr and num_iterations in function, just pass kwargs
     else:
         w2_bounds['independent_coupling'] = torch.nan
 
     if run_lagrangian_duality:
         print(f"-- Lagrangian Duality --")
         w2_bounds['lagrangian_duality'] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-            sign_q, dynamics, w2_q__disc_q=w2_q__disc_q, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, lr=lr, num_iterations=num_iterations, optimize_locs=optimize_locs) # \todo set default lr and num_iterations in function, just pass kwargs
+            sign_q,
+            dynamics,
+            w2_q__disc_q=w2_q__disc_q,
+            w2_p__q=w2_p__q_lagrangian_duality + w2_compr,
+            lr=lr,
+            num_iterations=num_iterations,
+            additive_gaussian_noise=additive_gaussian_noise,
+            optimize_locs=optimize_locs) # \todo set default lr and num_iterations in function, just pass kwargs
     else:
         w2_bounds['lagrangian_duality'] = torch.nan
 
