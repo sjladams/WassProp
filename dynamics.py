@@ -5,7 +5,7 @@ from bound_propagation import Sin
 from torch.nn import Sigmoid
 from torch import nn
 
-from modules import ScalarMult, ScalarAdd, Linear
+from modules import ScalarMult, ScalarAdd, Linear, Sum
 
 
 class Dynamics(torch.nn.Sequential):
