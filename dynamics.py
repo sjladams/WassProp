@@ -3,8 +3,9 @@ from typing import Union, Optional
 import bound_propagation as bp
 from bound_propagation import Sin
 from torch.nn import Sigmoid
+from torch import nn
 
-from modules import ScalarMult, ScalarAdd, Linear, Sum
+from modules import ScalarMult, ScalarAdd, Linear
 
 
 class Dynamics(torch.nn.Sequential):
@@ -178,6 +179,61 @@ class NonAdditiveGaussianNoiseDynamics(Dynamics):
         return self._diagonal.abs().max() * 0.25 * 2 #TODO: CHECK
 
 
+class LinearPartForMountainCar(Dynamics):
+    def __init__(self, action, **kwargs):
+        super(LinearPartForMountainCar, self).__init__(
+            bp.Clamp(-0.5, 1.2), #TODO: See TODO below, this is a temporary test
+            Linear(
+                torch.tensor([
+                    [1.0, 0.0],
+                    [1.0, 1.0]
+                ]),
+                torch.tensor([0.001 * action, 0.0])
+            ),
+        )
+
+class TrigonometricPartForMountainCar(Dynamics):
+    def __init__(self, **kwargs):
+        super(TrigonometricPartForMountainCar, self).__init__(
+            Linear(
+                torch.tensor([
+                    [0.0, 3.0],
+                    [0.0, 0.0]
+                ]),
+                torch.tensor([torch.pi / 2, 0.0])),
+            bp.Sin(),
+            Linear(
+                torch.tensor([
+                    [-0.0025, 0.0],
+                    [0.0, 0.0]
+                ]),
+                torch.tensor([0.0, 0.0])),
+        )
+
+class MountainCarDynamics(Dynamics):
+    def __init__(self,
+                 num_dims:int = 2,
+                 action:float = 1.0,
+                 lower_bound: Optional[Union[float, torch.Tensor, list]] = -torch.inf,
+                 upper_bound: Optional[Union[float, torch.Tensor, list]] = torch.inf,
+                 **kwargs):
+        self.num_dims = num_dims
+        self.action = action
+
+        linear_part = LinearPartForMountainCar(self.action)
+        trig_part = TrigonometricPartForMountainCar()
+
+        super(MountainCarDynamics, self).__init__(
+            bp.Parallel(linear_part, trig_part, split_size=linear_part.num_dims),
+            bp.VectorAdd(),
+            #bp.Clamp(lower_bound, upper_bound) #TODO: Not working to Clamp here, not working to clamp with tensor
+        )
+
+    @property
+    def global_lipschitz(self):
+        return 2
+
+
 def get_dynamics(dynamics_type: str, **kwargs):
     if dynamics_type == 'LogisticMap':
         return LogisticMap(**kwargs)
@@ -197,5 +253,7 @@ def get_dynamics(dynamics_type: str, **kwargs):
         return LinearDiagonalSigmoidDynamics(**kwargs)
     elif dynamics_type == 'NonAdditiveGaussianNoiseDynamics':
         return NonAdditiveGaussianNoiseDynamics(**kwargs)
+    elif dynamics_type == 'MountainCarDynamics':
+        return MountainCarDynamics(**kwargs)
     else:
         raise ValueError(f"Unknown dynamics: {dynamics_type}")
