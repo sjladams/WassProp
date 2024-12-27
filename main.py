@@ -22,8 +22,8 @@ if __name__ == '__main__':
         plot = False,
     )
 
-    run_single_step = False
-    run_multi_step = True
+    run_single_step = True
+    run_multi_step = False
 
     params = load_params(args)
 
