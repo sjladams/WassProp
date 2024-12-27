@@ -40,6 +40,7 @@ def single_step(
         run_empirical: bool = False,
         p_samples: Optional[torch.Tensor] = None,
         num_locs_after_compr: Optional[int] = None,
+        optimize_locs: bool = False,
         **kwargs):
 
     # Initialize System Dynamics
@@ -110,12 +111,12 @@ def single_step(
     if run_independent_coupling:
         print(f"-- Independent Coupling --")
         w2_bounds['independent_coupling'] = wasserstein.compute_w2_f_p__f_disc_q_independent_coupling(
-            sign_q, dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_independent_coupling + w2_compr, lr=lr, num_iterations=num_iterations)
+            sign_q, dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_independent_coupling + w2_compr, lr=lr, num_iterations=num_iterations) # \todo set default lr and num_iterations in function, just pass kwargs
 
     if run_lagrangian_duality:
         print(f"-- Lagrangian Duality --")
         w2_bounds['lagrangian_duality'] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-            sign_q, dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, lr=lr, num_iterations=num_iterations)
+            sign_q, dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, lr=lr, num_iterations=num_iterations, optimize_locs=optimize_locs) # \todo set default lr and num_iterations in function, just pass kwargs
 
     return w2_bounds, q1, {'q': q1_samples, 'p': p1_samples}
 
@@ -160,7 +161,11 @@ def multi_step(
         noise_dist: ds.MultivariateNormal,
         q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
         num_time_steps: int,
+        optimize_locs: bool = False,
         **kwargs):
+
+    if optimize_locs:
+        raise NotImplementedError("Optimization of the signature locations is not yet implemented for multi_step.")
 
     # Initialize w2_p__q error:
     w2_bounds = {0: {'global_lipschitz': 0., 'independent_coupling': 0., 'lagrangian_duality': 0.}}

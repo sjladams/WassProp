@@ -18,8 +18,9 @@ if __name__ == '__main__':
         num_locs_after_compr=1,
         num_samples = 1000,
         lr = 0.01,
-        num_iterations = 1000,
+        num_iterations = 100,
         plot = False,
+        optimize_locs=False
     )
 
     run_single_step = True

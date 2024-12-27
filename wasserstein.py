@@ -1,5 +1,5 @@
 import torch
-from typing import Callable
+from typing import Callable, Union
 
 import dynamics
 import discretize_distributions as ds
@@ -11,7 +11,6 @@ from optimize import minimize_with_adam
 from tensors import check_mat_diag
 
 
-@torch.no_grad()
 def compute_w2_wrapper(func):
     def wrapper(
             signature: ds.DiscretizedMultivariateNormal,
@@ -114,7 +113,7 @@ def get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
 
     alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
 
-    def fn_sq_w2_f_p__f_disc_q_independent_coupling(lambd: torch.Tensor):
+    def fn_sq_w2_f_p__f_disc_q_independent_coupling(lambd: torch.Tensor): # \todo: respect batches
         v = lambd * signature.locs - ((signature.probs * alpha).unsqueeze(1) * signature.locs).sum(dim=0, keepdim=True)
         coeff_v = 1 / (lambd - torch.dot(signature.probs, alpha))
 
@@ -162,20 +161,23 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
 
     w2_p__disc_q = w2_q__disc_q + w2_p__q
 
-    alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
-    beta  = global_ibp_sq_norm_fx_fc(f, signature.locs).upper.squeeze(-1)
+    def fn_sq_w2_f_p__f_disc_q_lagrangian_duality(locs_shift: Union[torch.Tensor, float] = 0.): # \todo respect batches
+        locs = signature.locs + locs_shift
+        w2_shift_locs = (locs - signature.locs).norm(p=2, dim=-1).pow(2).sum(-1)
 
-    mask = torch.ones(alpha.size(0), alpha.size(0)).tril()[alpha.sort().indices]
-    mask = torch.cat((mask, torch.zeros(1, signature.locs.shape[-2])), dim=0)
+        alpha = global_lbp_sq_norm_fx_fc(f, locs)
+        beta = global_ibp_sq_norm_fx_fc(f, locs).upper.squeeze(-1)
 
-    alpha_options = torch.einsum('ij, j->ij', mask, alpha)
-    beta_options = torch.einsum('ij, j->ij', 1 - mask, beta)
+        mask = torch.ones(alpha.size(0), alpha.size(0)).tril()[alpha.sort().indices]
+        mask = torch.cat((mask, torch.zeros(1, locs.shape[-2])), dim=0)
 
-    def fn_sq_w2_f_p__f_disc_q_lagrangian_duality():
+        alpha_options = torch.einsum('ij, j->ij', mask, alpha)
+        beta_options = torch.einsum('ij, j->ij', 1 - mask, beta)
+
         alpha_max = alpha_options.max(dim=-1).values
         result_options = alpha_max * w2_p__disc_q ** 2 + torch.einsum('j,ij->i', signature.probs, beta_options)
 
-        return result_options.min()
+        return result_options.min(-1).values + w2_shift_locs
 
     return fn_sq_w2_f_p__f_disc_q_lagrangian_duality
 
@@ -186,8 +188,24 @@ def compute_w2_f_p__f_disc_q_lagrangian_duality(
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
         w2_p__q: float,
+        optimize_locs: bool = False,
         **kwargs):
 
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(signature, f, w2_q__disc_q, w2_p__q)
 
-    return fn_sq_w2_f_p__f_disc_q().sqrt()
+    if optimize_locs:
+        locs_shift = torch.randn_like(signature.locs.detach()) * 0.01
+        optimal_shift, losses = minimize_with_adam(
+            param=locs_shift.requires_grad_(True),
+            objective=fn_sq_w2_f_p__f_disc_q,
+            **kwargs
+        )
+        w2 = fn_sq_w2_f_p__f_disc_q(optimal_shift).sqrt()
+        w2_zero_shift = fn_sq_w2_f_p__f_disc_q().sqrt()
+        if w2_zero_shift < w2:
+            w2 = w2_zero_shift
+            print('Optimal shift is zero!')
+    else:
+        w2 = fn_sq_w2_f_p__f_disc_q().sqrt()
+
+    return w2

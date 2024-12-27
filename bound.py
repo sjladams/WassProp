@@ -101,7 +101,6 @@ def replace_neginf_with(tensor, value=-1e6):
     return tensor.masked_fill(torch.isneginf(tensor), value)
 
 
-@torch.no_grad()
 def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, locs: torch.Tensor) -> bp.IntervalBounds:
     """
     find vector b such that ||f(x) - f(c_i)||^2 leq b_i for all x  and c_i the loc of region R_i
@@ -163,7 +162,7 @@ def _global_lbp_sq_norm_fx_fc_quadrant(
 
     return alpha
 
-# @torch.no_grad()
+
 def global_lbp_sq_norm_fx_fc(
         f: torch.nn.Sequential,
         locs: torch.Tensor,
