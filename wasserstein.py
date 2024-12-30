@@ -165,16 +165,16 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
         w2_q__disc_q: float,
         w2_p__q: float)-> Callable:
 
-
     def fn_sq_w2_f_p__f_disc_q_lagrangian_duality(locs_shift: Union[torch.Tensor, float] = 0.): # \todo respect batches
-        voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
-        locs = signature.locs + locs_shift
+        if locs_shift is not 0.:
+            locs = signature.locs + locs_shift
+            voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
-        sq_norm_2nd_moment = compute_sq_norm_2nd_moment(signature, voronoi_partition, locs) # we use the same partition and probs, only move the locations
-
-        w2_disc = torch.sum(sq_norm_2nd_moment * signature.probs).sqrt()
-
-        w2_p__disc_q = w2_p__q + w2_disc
+            sq_norm_2nd_moment = compute_sq_norm_2nd_moment(signature, voronoi_partition, locs) # we use the same partition and probs, only move the locations
+            w2_disc = torch.sum(sq_norm_2nd_moment * signature.probs).sqrt()
+            w2_p__disc_q = w2_p__q + w2_disc
+        else:
+            w2_p__disc_q = w2_p__q + w2_q__disc_q
 
         alpha = global_lbp_sq_norm_fx_fc(f, locs)
         beta = global_ibp_sq_norm_fx_fc(f, locs).upper.squeeze(-1)
