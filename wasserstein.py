@@ -179,7 +179,7 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
         alpha = global_lbp_sq_norm_fx_fc(f, locs)
         beta = global_ibp_sq_norm_fx_fc(f, locs).upper.squeeze(-1)
 
-        mask = torch.ones(alpha.size(0), alpha.size(0)).tril()[alpha.sort().indices]
+        mask = torch.ones(alpha.size(0), alpha.size(0)).tril()[:, alpha.sort().indices]
         mask = torch.cat((mask, torch.zeros(1, locs.shape[-2])), dim=0)
 
         alpha_options = torch.einsum('ij, j->ij', mask, alpha)
