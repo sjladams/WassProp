@@ -23,6 +23,20 @@ def construct_diag_gaussian_dist(loc_dist: Union[list, torch.Tensor], variance_d
     return ds.MultivariateNormal(loc=loc_dist, covariance_matrix=covariance_dist)
 
 
+def propagate_state_dist_over_dynamics(
+        dynamics: Dynamics,
+        noise_dist: ds.MultivariateNormal,
+        state_dist: ds.CategoricalFloat
+):
+    return ds.MixtureMultivariateNormal(
+            mixture_distribution=torch.distributions.Categorical(
+                probs=state_dist.probs),
+            component_distribution=ds.MultivariateNormal(
+                loc=dynamics(state_dist.locs) + noise_dist.loc,
+                covariance_matrix=noise_dist.covariance_matrix
+            ))
+
+
 def single_step(
         dynamics: Dynamics,
         noise_dist: ds.MultivariateNormal,
@@ -60,13 +74,7 @@ def single_step(
     sign_q = ds.discretization_generator(dist=q, num_locs=num_locs)
 
     # Propagate the (approximate) state distribution over the dynamics
-    q1 = ds.MixtureMultivariateNormal(
-        mixture_distribution=torch.distributions.Categorical(
-            probs=sign_q.probs),
-        component_distribution=ds.MultivariateNormal(
-            loc=dynamics(sign_q.locs) + noise_dist.loc,
-            covariance_matrix=noise_dist.covariance_matrix
-        ))
+    q1 = propagate_state_dist_over_dynamics(dynamics, noise_dist, sign_q)
 
     # Empirically approximate the state distribution
     q_samples = q.sample(torch.Size((num_samples,)))
