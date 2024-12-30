@@ -11,20 +11,20 @@ if __name__ == '__main__':
     torch.manual_seed(0)
 
     args = parse_arguments(
-        dynamics_type = "LinearDiagonalSigmoidDynamics",
+        dynamics_type = "MountainCarDynamics",
         num_dims = 2,
-        dynamics_setting = 1,
+        dynamics_setting = 0,
         num_locs = 10,
         num_locs_after_compr=1,
         num_samples = 1000,
         lr = 0.01,
         num_iterations = 1000,
         plot = False,
-        optimize_locs=True
+        optimize_locs=False
     )
 
-    run_single_step = True
-    run_multi_step = False
+    run_single_step = False
+    run_multi_step = True
 
     params = load_params(args)
 
