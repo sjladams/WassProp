@@ -11,7 +11,7 @@ if __name__ == '__main__':
     torch.manual_seed(0)
 
     args = parse_arguments(
-        dynamics_type = "BoundedLinearDynamics",
+        dynamics_type = "MountainCarDynamics",
         num_dims = 2,
         dynamics_setting = 0,
         num_locs = 10,
@@ -20,6 +20,7 @@ if __name__ == '__main__':
         lr = 0.01,
         num_iterations = 1000,
         plot = False,
+        optimize_locs=False
     )
 
     run_single_step = False
@@ -36,8 +37,8 @@ if __name__ == '__main__':
             dynamics=dynamics,
             noise_dist=noise_dist,
             q=initial_dist,
-            w2_p__q_options=[0.0, 0.1, 0.5, 1.0, 5.0],
-            run_independent_coupling=True,
+            w2_p__q_options=[0.0, 0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 3.0],
+            run_independent_coupling=False,
             run_lagrangian_duality=True,
             **params
         )
@@ -48,7 +49,7 @@ if __name__ == '__main__':
             noise_dist=noise_dist,
             q=initial_dist,
             num_time_steps=3,
-            run_independent_coupling=True,
+            run_independent_coupling=False,
             run_lagrangian_duality=True,
             run_empirical=False,
             **params

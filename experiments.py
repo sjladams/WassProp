@@ -40,6 +40,7 @@ def single_step(
         run_empirical: bool = False,
         p_samples: Optional[torch.Tensor] = None,
         num_locs_after_compr: Optional[int] = None,
+        optimize_locs: bool = False,
         **kwargs):
 
     # Initialize System Dynamics
@@ -98,7 +99,11 @@ def single_step(
         plt.show()
 
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
-    w2_bounds = {'sign_q': sign_q.w2}
+    w2_bounds = {'sign_q': sign_q.w2,
+                 'empirical': torch.nan,
+                 'independent_coupling': torch.nan,
+                 'lagrangian_duality': torch.nan
+                 }
 
     if run_empirical:
         w2_bounds['empirical'] = ot.solve_sample(p1_samples.view(-1, dynamics.num_dims),
@@ -110,12 +115,12 @@ def single_step(
     if run_independent_coupling:
         print(f"-- Independent Coupling --")
         w2_bounds['independent_coupling'] = wasserstein.compute_w2_f_p__f_disc_q_independent_coupling(
-            sign_q, dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_independent_coupling + w2_compr, lr=lr, num_iterations=num_iterations)
+            sign_q, dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_independent_coupling + w2_compr, lr=lr, num_iterations=num_iterations) # \todo set default lr and num_iterations in function, just pass kwargs
 
     if run_lagrangian_duality:
         print(f"-- Lagrangian Duality --")
         w2_bounds['lagrangian_duality'] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-            sign_q, dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, lr=lr, num_iterations=num_iterations)
+            sign_q, dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, lr=lr, num_iterations=num_iterations, optimize_locs=optimize_locs) # \todo set default lr and num_iterations in function, just pass kwargs
 
     return w2_bounds, q1, {'q': q1_samples, 'p': p1_samples}
 
@@ -142,9 +147,9 @@ def single_step_w2_options(
         )
 
         print(
-            f"Bounds on W_2(W_2(f#p, f#disc#q)) for W_2(p,q) = {w2_p__q} and "
+            f"Bounds on W_2(f#p, f#disc#q) for W_2(p,q) = {w2_p__q} and "
             f"W_2(q_0, Delta_C#q_0) = {w2_bounds[w2_p__q]['sign_q']:.4f} via:\n"
-            f"\t Global Lipschits: {w2_bounds[w2_p__q]['global_lipschitz']:.4f}\n")
+            f"\t Global Lipschitz: {w2_bounds[w2_p__q]['global_lipschitz']:.4f}\n")
         print(f"\t Empirical: {w2_bounds[w2_p__q]['empirical']:.4f}\n"
               if 'empirical' in w2_bounds[w2_p__q] else "")
         print(f"\t Independent Coupling: {w2_bounds[w2_p__q]['independent_coupling']:.4f}\n"
@@ -160,7 +165,11 @@ def multi_step(
         noise_dist: ds.MultivariateNormal,
         q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
         num_time_steps: int,
+        optimize_locs: bool = False,
         **kwargs):
+
+    if optimize_locs:
+        raise NotImplementedError("Optimization of the signature locations is not yet implemented for multi_step.")
 
     # Initialize w2_p__q error:
     w2_bounds = {0: {'global_lipschitz': 0., 'independent_coupling': 0., 'lagrangian_duality': 0.}}
@@ -183,8 +192,8 @@ def multi_step(
         )
 
         print(
-            f"Bounds on W_2(W_2(p_{k+1}, q_{k+1})) via:\n"
-            f"\t Global Lipschits: {w2_bounds[k+1]['global_lipschitz']:.4f}\n")
+            f"Bounds on W_2(p_{k+1}, q_{k+1}) via:\n"
+            f"\t Global Lipschitz: {w2_bounds[k+1]['global_lipschitz']:.4f}\n")
         print(f"\t Empirical: {w2_bounds[k+1]['empirical']:.4f}\n"
               if 'empirical' in w2_bounds[k+1] else "")
         print(f"\t Independent Coupling: {w2_bounds[k+1]['independent_coupling']:.4f}\n"
