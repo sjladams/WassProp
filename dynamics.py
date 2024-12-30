@@ -176,10 +176,11 @@ class MountainCarDynamics(Dynamics):
                     [1.0, 1.0, 0.0], # p_{t+1}
                     [0.0, 1.0, -self.g]
                 ]),
-                torch.tensor([0.0, self.acc])
+                bias=torch.tensor([0.0, self.acc])
             ), # p + v, v - g cos(3p) + a
             bp.Clamp(
-                torch.tensor([-10.0, -1.0])
+                min=torch.tensor([-10.0, -1.0]),
+                max=torch.tensor([10.0, 1.0])
             )
         )
 
