@@ -159,29 +159,41 @@ class LinearDiagonalSigmoidDynamics(Dynamics):
 
 
 class MountainCarDynamics(Dynamics):
-    def __init__(self, acc=0.9, g=9.82, **kwargs):
-        self.acc = acc
-        self.g = g
+    def __init__(self, action: float = 1.0, **kwargs):
+        self.num_dims = 2
 
-        super(MountainCarDynamics, self).__init__( # Input: p, v
-            bp.Cat(
-                torch.nn.Sequential(
-                    bp.Select([0]),
-                    bp.FixedLinear(torch.tensor([[3.0]])),
-                    bp.Sin()
-                )
-            ), # p, v, cos(3p)
-            bp.FixedLinear(
+        linear_part = torch.nn.Sequential(
+            bp.Clamp(-0.5, 1.2),
+            Linear(
                 torch.tensor([
-                    [1.0, 1.0, 0.0], # p_{t+1}
-                    [0.0, 1.0, -self.g]
+                    [1.0, 0.0],
+                    [1.0, 1.0]
                 ]),
-                bias=torch.tensor([0.0, self.acc])
-            ), # p + v, v - g cos(3p) + a
-            bp.Clamp(
-                min=torch.tensor([-10.0, -1.0]),
-                max=torch.tensor([10.0, 1.0])
+                torch.tensor([0.001 * action, 0.0])
             )
+        )
+
+        trig_part = torch.nn.Sequential(
+            Linear(
+                torch.tensor([
+                    [0.0, 3.0],
+                    [0.0, 0.0]
+                ]),
+                torch.tensor([torch.pi / 2, 0.0])
+                ),
+            bp.Sin(),
+            Linear(
+                torch.tensor([
+                    [-0.0025, 0.0],
+                    [0.0, 0.0]
+                ]),
+                torch.tensor([0.0, 0.0])
+            ),
+        )
+
+        super(MountainCarDynamics, self).__init__(
+            bp.Parallel(linear_part, trig_part),
+            bp.VectorAdd(),
         )
 
     @property
