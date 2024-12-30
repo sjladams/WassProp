@@ -99,7 +99,11 @@ def single_step(
         plt.show()
 
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
-    w2_bounds = {'sign_q': sign_q.w2}
+    w2_bounds = {'sign_q': sign_q.w2,
+                 'empirical': torch.nan,
+                 'independent_coupling': torch.nan,
+                 'lagrangian_duality': torch.nan
+                 }
 
     if run_empirical:
         w2_bounds['empirical'] = ot.solve_sample(p1_samples.view(-1, dynamics.num_dims),
