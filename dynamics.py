@@ -158,6 +158,36 @@ class LinearDiagonalSigmoidDynamics(Dynamics):
         return self._diagonal.abs().max() * 0.25
 
 
+class MountainCarDynamics(Dynamics):
+    def __init__(self, acc=0.9, g=9.82, **kwargs):
+        self.acc = acc
+        self.g = g
+
+        super(MountainCarDynamics, self).__init__( # Input: p, v
+            bp.Cat(
+                torch.nn.Sequential(
+                    bp.Select([0]),
+                    bp.FixedLinear(torch.tensor([[3.0]])),
+                    bp.Sin()
+                )
+            ), # p, v, cos(3p)
+            bp.FixedLinear(
+                torch.tensor([
+                    [1.0, 1.0, 0.0], # p_{t+1}
+                    [0.0, 1.0, -self.g]
+                ]),
+                torch.tensor([0.0, self.acc])
+            ), # p + v, v - g cos(3p) + a
+            bp.Clamp(
+                torch.tensor([-10.0, -1.0])
+            )
+        )
+
+    @property
+    def global_lipschitz(self):
+        return 2
+
+
 def get_dynamics(dynamics_type: str, **kwargs):
     if dynamics_type == 'LogisticMap':
         return LogisticMap(**kwargs)
@@ -175,5 +205,7 @@ def get_dynamics(dynamics_type: str, **kwargs):
         return SigmoidDynamics(**kwargs)
     elif dynamics_type == 'LinearDiagonalSigmoidDynamics':
         return LinearDiagonalSigmoidDynamics(**kwargs)
+    elif dynamics_type == 'MountainCarDynamics':
+        return MountainCarDynamics(**kwargs)
     else:
         raise ValueError(f"Unknown dynamics: {dynamics_type}")
