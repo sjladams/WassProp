@@ -42,21 +42,21 @@ def plot_multi_step(dynamics, samples: dict):
             # cb = plt.colorbar(label='Point Density')
             # plt.legend(loc='lower right')
 
-            ax[0].set_title('p')
-            ax[1].set_title('q')
-            ax[0].set_xlabel('State[0]')
-            ax[1].set_xlabel('State[0]')
-            ax[0].set_ylabel('State[1]')
-            ax[0].grid(True)
-            ax[1].grid(True)
-            ax[0].set_xlim(min(ax[0].get_xlim()[0], ax[1].get_xlim()[0]),
-                           max(ax[0].get_xlim()[1], ax[1].get_xlim()[1]))
-            ax[1].set_xlim(ax[0].get_xlim()[0], ax[0].get_xlim()[1])
-            ax[0].set_ylim(min(ax[0].get_ylim()[0], ax[1].get_ylim()[0]),
-                           max(ax[0].get_ylim()[1], ax[1].get_ylim()[1]))
-            ax[1].set_ylim(ax[0].get_ylim()[0], ax[0].get_ylim()[1])
-            ax[0].axis('equal')
-            ax[1].axis('equal')
-            plt.show()
+        ax[0].set_title('p')
+        ax[1].set_title('q')
+        ax[0].set_xlabel('State[0]')
+        ax[1].set_xlabel('State[0]')
+        ax[0].set_ylabel('State[1]')
+        ax[0].grid(True)
+        ax[1].grid(True)
+        ax[0].set_xlim(min(ax[0].get_xlim()[0], ax[1].get_xlim()[0]),
+                       max(ax[0].get_xlim()[1], ax[1].get_xlim()[1]))
+        ax[1].set_xlim(ax[0].get_xlim()[0], ax[0].get_xlim()[1])
+        ax[0].set_ylim(min(ax[0].get_ylim()[0], ax[1].get_ylim()[0]),
+                       max(ax[0].get_ylim()[1], ax[1].get_ylim()[1]))
+        ax[1].set_ylim(ax[0].get_ylim()[0], ax[0].get_ylim()[1])
+        ax[0].axis('equal')
+        ax[1].axis('equal')
+        plt.show()
     else:
         raise NotImplementedError
