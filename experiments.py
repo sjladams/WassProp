@@ -105,7 +105,7 @@ def single_step(
         print(f"-- Independent Coupling --")
         if isinstance(dynamics, AdditiveGaussianDynamics):
             w2_bounds['independent_coupling'] = wasserstein.compute_w2_f_p__f_disc_q_independent_coupling(
-                sign_q, dynamics.state_dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_independent_coupling + w2_compr, lr=lr, num_iterations=num_iterations) # \todo set default lr and num_iterations in function, just pass kwargs
+                sign_q, dynamics.state_dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_independent_coupling + w2_compr, **kwargs)
         else:
             raise NotImplementedError
 
@@ -113,7 +113,7 @@ def single_step(
         print(f"-- Lagrangian Duality --")
         if isinstance(dynamics, AdditiveGaussianDynamics):
             w2_bounds['lagrangian_duality'] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-                sign_q, dynamics.state_dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, lr=lr, num_iterations=num_iterations, optimize_locs=optimize_locs) # \todo set default lr and num_iterations in function, just pass kwargs
+                sign_q, dynamics.state_dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
         else:
             raise NotImplementedError
 
