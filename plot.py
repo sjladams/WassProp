@@ -17,7 +17,7 @@ def plot_single_step(dynamics, w2_bounds: dict, **kwargs):
             plt.plot(w2_p__q_options, [w2_bounds[w2_p__q][key] for w2_p__q in w2_p__q_options], label=key)
 
     plt.legend()
-    plt.title(f"{dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f})")
+    plt.title(f"{dynamics.state_dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f})")
     plt.xlabel('$W_2(p,q)$')
     plt.xticks(w2_p__q_options)
     plt.ylabel(r'$W_2(f p, f \Delta q)$')
@@ -27,9 +27,9 @@ def plot_single_step(dynamics, w2_bounds: dict, **kwargs):
 
 @torch.no_grad()
 def plot_multi_step(dynamics, samples: dict):
-    if dynamics.num_dims == 1:
+    if dynamics.num_state_dims == 1:
         raise NotImplementedError
-    elif dynamics.num_dims == 2:
+    elif dynamics.num_state_dims == 2:
         p_samples = torch.stack([samples[k]['p'] for k in samples.keys()])
         q_samples = torch.stack([samples[k]['q'] for k in samples.keys()])
 

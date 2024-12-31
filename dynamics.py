@@ -5,11 +5,20 @@ import bound_propagation as bp
 from modules import ScalarMult, ScalarAdd, Linear
 
 
-class Dynamics(torch.nn.Sequential):
-    num_dims = None
+class StochasticDynamics(torch.nn.Sequential):
+    def __init__(self, num_state_dims: int, num_noise_dims: int, modules: list):
+        self.num_state_dims = num_state_dims
+        self.num_noise_dims = num_noise_dims
+        super().__init__(*modules)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def forward(self, input):
+        """
+        input = (x, noise)
+        """
+        assert input.size(-1) == self.num_state_dims + self.num_noise_dims
+
+        return super().forward(input)
+
 
     @property
     def global_lipschitz(self):
@@ -18,6 +27,35 @@ class Dynamics(torch.nn.Sequential):
         :return:
         """
         return None
+
+
+class Dynamics(torch.nn.Sequential):
+    num_dims = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class AdditiveGaussianDynamics(StochasticDynamics):
+    def __init__(self, state_dynamics: Dynamics):
+        super().__init__(state_dynamics.num_dims, num_noise_dims=state_dynamics.num_dims,
+                         modules=[
+                             bp.Parallel(
+                                 state_dynamics,
+                                 torch.nn.Identity(),
+                                 split_size=state_dynamics.num_dims),
+                             bp.VectorAdd()
+                         ])
+
+        self._global_lipschitz = state_dynamics.global_lipschitz
+
+    @property
+    def global_lipschitz(self):
+        return self._global_lipschitz
+
+    @property
+    def state_dynamics(self):
+        return self[0].subnetworks[0]
 
 
 class LogisticMap(Dynamics):
@@ -201,24 +239,24 @@ class MountainCarDynamics(Dynamics):
         return 2
 
 
-def get_dynamics(dynamics_type: str, **kwargs):
-    if dynamics_type == 'LogisticMap':
-        return LogisticMap(**kwargs)
-    elif dynamics_type == 'LinearDynamics':
-        return LinearDynamics(**kwargs)
-    elif dynamics_type == 'LinearBoundedDynamics':
-        return LinearBoundedDynamics(**kwargs)
-    elif dynamics_type == 'BoundedLinearDynamics':
-        return BoundedLinearDynamics(**kwargs)
-    elif dynamics_type == 'LinearDiagonalDynamics':
-        return LinearDiagonalDynamics(**kwargs)
-    elif dynamics_type == 'LinearDiagonalBoundedDynamics':
-        return LinearDiagonalBoundedDynamics(**kwargs)
-    elif dynamics_type == 'SigmoidDynamics':
-        return SigmoidDynamics(**kwargs)
-    elif dynamics_type == 'LinearDiagonalSigmoidDynamics':
-        return LinearDiagonalSigmoidDynamics(**kwargs)
-    elif dynamics_type == 'MountainCarDynamics':
-        return MountainCarDynamics(**kwargs)
+def get_dynamics(dynamics_type: str, additive_gaussian_noise: bool = True, **kwargs):
+    if dynamics_type == 'LogisticMap' and additive_gaussian_noise:
+        return AdditiveGaussianDynamics(LogisticMap(**kwargs))
+    elif dynamics_type == 'LinearDynamics' and additive_gaussian_noise:
+        return AdditiveGaussianDynamics(LinearDynamics(**kwargs))
+    elif dynamics_type == 'LinearBoundedDynamics' and additive_gaussian_noise:
+        return AdditiveGaussianDynamics(LinearBoundedDynamics(**kwargs))
+    elif dynamics_type == 'BoundedLinearDynamics' and additive_gaussian_noise:
+        return AdditiveGaussianDynamics(BoundedLinearDynamics(**kwargs))
+    elif dynamics_type == 'LinearDiagonalDynamics' and additive_gaussian_noise:
+        return AdditiveGaussianDynamics(LinearDiagonalDynamics(**kwargs))
+    elif dynamics_type == 'LinearDiagonalBoundedDynamics' and additive_gaussian_noise:
+        return AdditiveGaussianDynamics(LinearDiagonalBoundedDynamics(**kwargs))
+    elif dynamics_type == 'SigmoidDynamics' and additive_gaussian_noise:
+        return AdditiveGaussianDynamics(SigmoidDynamics(**kwargs))
+    elif dynamics_type == 'LinearDiagonalSigmoidDynamics' and additive_gaussian_noise:
+        return AdditiveGaussianDynamics(LinearDiagonalSigmoidDynamics(**kwargs))
+    elif dynamics_type == 'MountainCarDynamics' and additive_gaussian_noise:
+        return AdditiveGaussianDynamics(MountainCarDynamics(**kwargs))
     else:
         raise ValueError(f"Unknown dynamics: {dynamics_type}")
