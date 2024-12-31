@@ -31,7 +31,7 @@ def compute_w2_wrapper(func):
             w2_p__q: float,
             **kwargs):
 
-        if w2_p__q == 0:
+        if w2_p__q == 0 and isinstance(signature, ds.DiscretizedMultivariateNormal):
             fn_sq_w2_f_q__f_disc_q = get_fn_sq_w2_f_q__f_disc_q(signature, f)
 
             return fn_sq_w2_f_q__f_disc_q().sqrt()
@@ -169,11 +169,14 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
         locs = signature.locs + locs_shift
 
         if locs_shift != 0.:
-            voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
+            if isinstance(f, dynamics.AdditiveGaussianDynamics):
+                voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
-            sq_norm_2nd_moment = compute_sq_norm_2nd_moment(signature, voronoi_partition, locs) # we use the same partition and probs, only move the locations
-            w2_disc = torch.sum(sq_norm_2nd_moment * signature.probs).sqrt()
-            w2_p__disc_q = w2_p__q + w2_disc
+                sq_norm_2nd_moment = compute_sq_norm_2nd_moment(signature, voronoi_partition, locs) # we use the same partition and probs, only move the locations
+                w2_disc = torch.sum(sq_norm_2nd_moment * signature.probs).sqrt()
+                w2_p__disc_q = w2_p__q + w2_disc
+            else:
+                raise NotImplementedError
         else:
             w2_p__disc_q = w2_p__q + w2_q__disc_q
 
