@@ -169,7 +169,7 @@ def global_lbp_sq_norm_fx_fc(
         use_lbp: bool = True,
         beta: Optional[torch.Tensor] = None) -> torch.Tensor:
     """
-    find vector a such that ||f(x) - f(c_i)||^2 leq a_i||x-c_i|| for all x and c_i the loc of region R_i
+    find vector a such that ||f(x) - f(c_i)||^2 leq a_i||x-c_i||^2 for all x and c_i the loc of region R_i
 
     :param f: dynamics
     :param locs: batch of c's with shape (num_locs, num_dims)
