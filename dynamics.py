@@ -2,13 +2,14 @@ import torch
 from typing import Union, Optional
 import bound_propagation as bp
 
-from modules import ScalarMult, ScalarAdd, Linear
+from modules import ScalarMult, ScalarAdd, Linear, Sum
 
 
 class StochasticDynamics(torch.nn.Sequential):
     def __init__(self, num_state_dims: int, num_noise_dims: int, modules: list):
         self.num_state_dims = num_state_dims
         self.num_noise_dims = num_noise_dims
+        self.num_dims = num_state_dims + num_noise_dims
         super().__init__(*modules)
 
     def forward(self, input):
@@ -27,6 +28,26 @@ class StochasticDynamics(torch.nn.Sequential):
         :return:
         """
         return None
+
+
+class NonAdditiveGaussianNoiseDynamics(StochasticDynamics):
+    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
+        num_state_dims=1
+        num_noise_dims=1
+
+        super(NonAdditiveGaussianNoiseDynamics, self).__init__(
+            num_state_dims=num_state_dims,
+            num_noise_dims=num_noise_dims,
+            modules=[
+                LinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
+                SigmoidDynamics(num_state_dims+num_noise_dims),
+                Sum(num_state_dims+num_noise_dims)
+            ]
+        )
+
+    @property
+    def global_lipschitz(self):
+        return self[0].global_lipschitz * 0.25 #TODO: CHECK
 
 
 class Dynamics(torch.nn.Sequential):
@@ -258,5 +279,7 @@ def get_dynamics(dynamics_type: str, additive_gaussian_noise: bool = True, **kwa
         return AdditiveGaussianDynamics(LinearDiagonalSigmoidDynamics(**kwargs))
     elif dynamics_type == 'MountainCarDynamics' and additive_gaussian_noise:
         return AdditiveGaussianDynamics(MountainCarDynamics(**kwargs))
+    elif dynamics_type == 'NonAdditiveGaussianNoiseDynamics':
+        return NonAdditiveGaussianNoiseDynamics(**kwargs)
     else:
         raise ValueError(f"Unknown dynamics: {dynamics_type}")
