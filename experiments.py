@@ -29,10 +29,9 @@ def propagate_state_dist_over_dynamics(
         noise_dist: Union[ds.MultivariateNormal, ds.DiscretizedMultivariateNormal],
         sign_state_dist: Union[ds.DiscretizedMultivariateNormal, ds.CategoricalFloat]
 ):
-    if isinstance(dynamics, AdditiveGaussianDynamics):
-        sign_q = sign_state_dist
     if isinstance(dynamics, AdditiveGaussianDynamics): # \todo add check on noise
         assert isinstance(noise_dist, ds.MultivariateNormal)
+        sign_q = sign_state_dist # \todo make diff between sign_Q and signature of noise and state more clear
         q1 = ds.MixtureMultivariateNormal(
                 mixture_distribution=torch.distributions.Categorical(
                     probs=sign_state_dist.probs),
