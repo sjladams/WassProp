@@ -31,6 +31,8 @@ def propagate_state_dist_over_dynamics(
 ):
     if isinstance(dynamics, AdditiveGaussianDynamics):
         sign_q = sign_state_dist
+    if isinstance(dynamics, AdditiveGaussianDynamics): # \todo add check on noise
+        assert isinstance(noise_dist, ds.MultivariateNormal)
         q1 = ds.MixtureMultivariateNormal(
                 mixture_distribution=torch.distributions.Categorical(
                     probs=sign_state_dist.probs),
@@ -39,6 +41,7 @@ def propagate_state_dist_over_dynamics(
                     covariance_matrix=noise_dist.covariance_matrix
                 ))
     else:
+        assert isinstance(noise_dist, ds.DiscretizedMultivariateNormal)
         n, m = sign_state_dist.locs.size(0), noise_dist.locs.size(0)
         d = sign_state_dist.locs.shape[-1]
         locs_state_expanded = sign_state_dist.locs.unsqueeze(1)
