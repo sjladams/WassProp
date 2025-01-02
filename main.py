@@ -11,8 +11,8 @@ if __name__ == '__main__':
     torch.manual_seed(0)
 
     args = parse_arguments(
-        dynamics_type = "MountainCarDynamics",
-        num_dims = 2,
+        dynamics_type = "NonAdditiveGaussianNoiseDynamics",
+        num_dims = 1,
         dynamics_setting = 0,
         num_locs = 10,
         num_locs_after_compr=1,
@@ -23,8 +23,8 @@ if __name__ == '__main__':
         optimize_locs=False
     )
 
-    run_single_step = False
-    run_multi_step = True
+    run_single_step = True
+    run_multi_step = False
 
     params = load_params(args)
 
@@ -37,7 +37,7 @@ if __name__ == '__main__':
             dynamics=dynamics,
             noise_dist=noise_dist,
             q=initial_dist,
-            w2_p__q_options=[0.0, 0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 3.0],
+            w2_p__q_options=[0., 0.1],
             run_independent_coupling=False,
             run_lagrangian_duality=True,
             **params
