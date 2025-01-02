@@ -83,9 +83,9 @@ def single_step(
     with torch.no_grad():
         q_pre_compression = copy(q)
         # \todo make the unique(), i.e., the filtering in .compress() optional. Currently, it is always applied. This is problematic because GMMWas.w2 is an over-approximation, such that the w2 between the true and filtered are not guaranteed to be zero..
-        if isinstance(q, ds.MultivariateNormal) or num_locs >= q.num_components:
+        if isinstance(q, ds.MultivariateNormal) or (num_locs if num_locs_after_compr is None else num_locs_after_compr) >= q.num_components:
             w2_compr = 0.
-        elif isinstance(q, ds.MixtureMultivariateNormal):
+        else:
             q.compress(n_max=num_locs if num_locs_after_compr is None else num_locs_after_compr)
             w2_compr = GMMWas.w2(q, q_pre_compression)
 
