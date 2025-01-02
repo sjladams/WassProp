@@ -27,7 +27,7 @@ def construct_diag_gaussian_dist(loc_dist: Union[list, torch.Tensor], variance_d
 def propagate_state_dist_over_dynamics(
         dynamics: Dynamics,
         noise_dist: Union[ds.MultivariateNormal, ds.DiscretizedMultivariateNormal],
-        sign_state_dist: ds.DiscretizedMultivariateNormal
+        sign_state_dist: Union[ds.DiscretizedMultivariateNormal, ds.CategoricalFloat]
 ):
     if isinstance(dynamics, AdditiveGaussianDynamics):
         sign_q = sign_state_dist
@@ -51,7 +51,7 @@ def propagate_state_dist_over_dynamics(
         sign_q = ds.CategoricalFloat(probs=probs_combined_flat, locs=combinations_flat)
         # sign q is the cross-product of the signature of the states and the noise, hence the approximation error of
         # sign_q is the sum of the errors of the two signatures:
-        sign_q.w2 = sign_state_dist.w2 + noise_dist.w2
+        sign_q.w2 = noise_dist.w2 + sign_state_dist.w2 if isinstance(sign_state_dist, ds.DiscretizedMultivariateNormal) else 0.
         q1 = ds.CategoricalFloat(probs=probs_combined_flat, locs=dynamics(combinations_flat))
 
     return sign_q, q1
