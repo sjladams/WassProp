@@ -168,7 +168,7 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
     def fn_sq_w2_f_p__f_disc_q_lagrangian_duality(locs_shift: Union[torch.Tensor, float] = 0., **kwargs): # \todo respect batches
         locs = signature.locs + locs_shift
 
-        if not isinstance(locs_shift, float):
+        if (torch.as_tensor(locs_shift) != 0.).any():
             if not isinstance(f, dynamics.NonAdditiveGaussianNoiseDynamics):
                 voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
