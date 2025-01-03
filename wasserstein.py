@@ -119,7 +119,7 @@ def get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
 
     alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
 
-    def fn_sq_w2_f_p__f_disc_q_independent_coupling(lambd: torch.Tensor): # \todo: respect batches
+    def fn_sq_w2_f_p__f_disc_q_independent_coupling(lambd: torch.Tensor, **kwargs): # \todo: respect batches
         v = lambd * signature.locs - ((signature.probs * alpha).unsqueeze(1) * signature.locs).sum(dim=0, keepdim=True)
         coeff_v = 1 / (lambd - torch.dot(signature.probs, alpha))
 
@@ -165,11 +165,11 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
         w2_q__disc_q: float,
         w2_p__q: float)-> Callable:
 
-    def fn_sq_w2_f_p__f_disc_q_lagrangian_duality(locs_shift: Union[torch.Tensor, float] = 0.): # \todo respect batches
+    def fn_sq_w2_f_p__f_disc_q_lagrangian_duality(locs_shift: Union[torch.Tensor, float] = 0., **kwargs): # \todo respect batches
         locs = signature.locs + locs_shift
 
-        if locs_shift != 0.:
-            if isinstance(f, dynamics.AdditiveGaussianDynamics):
+        if not isinstance(locs_shift, float):
+            if not isinstance(f, dynamics.NonAdditiveGaussianNoiseDynamics):
                 voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
                 sq_norm_2nd_moment = compute_sq_norm_2nd_moment(signature, voronoi_partition, locs) # we use the same partition and probs, only move the locations
@@ -209,7 +209,7 @@ def compute_w2_f_p__f_disc_q_lagrangian_duality(
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(signature, f, w2_q__disc_q, w2_p__q)
 
     if optimize_locs:
-        locs_shift = torch.randn_like(signature.locs.detach()) * 0.1
+        locs_shift = torch.randn_like(signature.locs.detach()) * 5.0
         optimal_shift, losses = minimize_with_adam(
             param=locs_shift.requires_grad_(True),
             objective=fn_sq_w2_f_p__f_disc_q,
