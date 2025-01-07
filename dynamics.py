@@ -259,6 +259,28 @@ class MountainCarDynamics(Dynamics):
     def global_lipschitz(self):
         return 2
 
+class DiscreteMountainCarDynamics(StochasticDynamics):
+    def __init__(self, action: float = 1.0, **kwargs):
+        num_state_dims=2
+        num_noise_dims=2
+
+        mountain_car = MountainCarDynamics(action, **kwargs)
+
+        super(DiscreteMountainCarDynamics, self).__init__(
+            num_state_dims=num_state_dims,
+            num_noise_dims=num_noise_dims,
+            modules=[
+                bp.Parallel(
+                    mountain_car,
+                    torch.nn.Identity(),
+                    split_size=num_state_dims),
+                bp.VectorAdd()
+            ]
+        )
+
+    @property
+    def global_lipschitz(self):
+        return 2
 
 def get_dynamics(dynamics_type: str, additive_gaussian_noise: bool = True, **kwargs):
     if dynamics_type == 'LogisticMap' and additive_gaussian_noise:
@@ -279,6 +301,8 @@ def get_dynamics(dynamics_type: str, additive_gaussian_noise: bool = True, **kwa
         return AdditiveGaussianDynamics(LinearDiagonalSigmoidDynamics(**kwargs))
     elif dynamics_type == 'MountainCarDynamics' and additive_gaussian_noise:
         return AdditiveGaussianDynamics(MountainCarDynamics(**kwargs))
+    elif dynamics_type == 'DiscreteMountainCarDynamics':
+        return DiscreteMountainCarDynamics(**kwargs)
     elif dynamics_type == 'NonAdditiveGaussianNoiseDynamics':
         return NonAdditiveGaussianNoiseDynamics(**kwargs)
     else:
