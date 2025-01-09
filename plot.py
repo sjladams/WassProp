@@ -47,14 +47,14 @@ def plot_multi_step(dynamics, samples: dict):
         p_samples = torch.stack([samples[k]['p'] for k in samples.keys()])
         q_samples = torch.stack([samples[k]['q'] for k in samples.keys()])
 
-        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(14, 8))
+        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(24, 12))
         for k in list(samples.keys()):
 
-            ax[0].hist(p_samples[k, :, 0], color=colors[k], bins=20, density=True)
-            ax[1].hist(q_samples[k, :, 0], color=colors[k], bins=20, density=True)
+            ax[0].hist(p_samples[k, :, 0], color=colors[k], bins=20, density=True, label=rf'$t={k+1}$')
+            ax[1].hist(q_samples[k, :, 0], color=colors[k], bins=20, density=True, label=rf'$t={k+1}$')
 
-        ax[0].set_title(r'$\mathbb{P}_{x_t}$')
-        ax[1].set_title(r'$\hat{\mathbb{P}}_{x_t}$')
+        ax[0].set_title(r'$\mathbb{P}_{x_t}$ (actual distr.)')
+        ax[1].set_title(r'$\hat{\mathbb{P}}_{x_t}$ (our approx.)')
 
         ax[0].set_xlabel(r'$x_t$')
         ax[1].set_xlabel(r'$x_t$')
@@ -73,7 +73,12 @@ def plot_multi_step(dynamics, samples: dict):
         ax[1].set_ylim(ax[0].get_ylim()[0], ax[0].get_ylim()[1])
         #ax[0].axis('equal')
         #ax[1].axis('equal')
+        ax[0].legend(loc='upper left')
+        ax[1].legend(loc='upper left')
+
+        plt.savefig(r'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\comparison_approx_sigmoid.pdf', format='pdf')
         plt.show()
+
     elif dynamics.num_state_dims == 2:
         p_samples = torch.stack([samples[k]['p'] for k in samples.keys()])
         q_samples = torch.stack([samples[k]['q'] for k in samples.keys()])
