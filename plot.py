@@ -76,26 +76,27 @@ def plot_multi_step(dynamics, samples: dict):
         ax[0].legend(loc='upper left')
         ax[1].legend(loc='upper left')
 
-        plt.savefig(r'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\comparison_approx_sigmoid.pdf', format='pdf')
+        plt.savefig(r'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\multistep_nongaussian_t10.pdf', format='pdf')
         plt.show()
 
     elif dynamics.num_state_dims == 2:
         p_samples = torch.stack([samples[k]['p'] for k in samples.keys()])
         q_samples = torch.stack([samples[k]['q'] for k in samples.keys()])
 
-        fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(14, 14))
+        fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(24, 36), sharex='row', sharey='row')
         for k in list(samples.keys()):
+
             # Plot using hist2d with color intensity indicating the density
             ax[0][0].hist2d(p_samples[k,:,0], p_samples[k,:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
             ax[0][1].hist2d(q_samples[k,:,0], q_samples[k,:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
 
             # Plot only first dimension
-            ax[1][0].hist(p_samples[k,:,0], color=colors[k], bins=100, density=True, label=rf'$t={k+1}$')
-            ax[1][1].hist(q_samples[k, :, 0], color=colors[k], bins=100, density=True, label=rf'$t={k+1}$')
+            ax[1][0].hist(p_samples[k,:,0], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
+            ax[1][1].hist(q_samples[k, :, 0], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
 
             # Plot only second dimension
-            ax[2][0].hist(p_samples[k, :, 1], color=colors[k], bins=100, density=True, label=rf'$t={k+1}$')
-            ax[2][1].hist(q_samples[k, :, 1], color=colors[k], bins=100, density=True, label=rf'$t={k+1}$')
+            ax[2][0].hist(p_samples[k, :, 1], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
+            ax[2][1].hist(q_samples[k, :, 1], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
 
             # cb = plt.colorbar(label='Point Density')
             # plt.legend(loc='lower right')
@@ -124,8 +125,17 @@ def plot_multi_step(dynamics, samples: dict):
         ax[0][0].set_ylim(min(ax[0][0].get_ylim()[0], ax[0][1].get_ylim()[0]),
                        max(ax[0][0].get_ylim()[1], ax[0][1].get_ylim()[1]))
         ax[0][1].set_ylim(ax[0][0].get_ylim()[0], ax[0][0].get_ylim()[1])
-        ax[0][0].axis('equal')
-        ax[0][1].axis('equal')
+        #ax[0][0].axis('equal')
+        #ax[0][1].axis('equal')
+
+        ax[0][0].legend(loc='upper left')
+        ax[0][1].legend(loc='upper left')
+        ax[1][0].legend(loc='upper left')
+        ax[1][1].legend(loc='upper left')
+        ax[2][0].legend(loc='upper left')
+        ax[2][1].legend(loc='upper left')
+
+        plt.savefig(r'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\multistep_mountain-car.pdf', format='pdf')
         plt.show()
     else:
         raise NotImplementedError
@@ -134,14 +144,14 @@ def plot_multi_step(dynamics, samples: dict):
 def plot_dict(dict,
               axis_x,
               label_names,
-              x_label : str = "Number of locations",
+              x_label : str = r"Number of locations ($|\mathcal{C}|$)",
               y_label : str = r"$\mathbb{W}_{\rho}(f \# \mathbb{P}, f \# \Delta_{\mathcal{R}, \mathcal{C}} \# \mathbb{P})$",
               log_scale : bool = True):
 
     colors = plt.cm.tab10(np.linspace(0, 1, len(dict)))
 
     # Create the scatter plot
-    plt.figure(figsize=(12, 8))
+    plt.figure(figsize=(24, 12))
     for i, (key, values) in enumerate(dict.items()):
         plt.scatter(axis_x, values, color=colors[i], label=label_names[i])
         plt.plot(axis_x, values, color=colors[i], linestyle='--', linewidth=1)
@@ -158,5 +168,5 @@ def plot_dict(dict,
 
     # Show the plot
     plt.tight_layout()
-    #plt.savefig('comparison_approx_sigmoid.pdf', format='pdf')
+    plt.savefig(r'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\effect_adding_locs.pdf', format='pdf')
     plt.show()
