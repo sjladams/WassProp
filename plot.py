@@ -86,22 +86,22 @@ def plot_multi_step(dynamics, samples: dict):
         fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(14, 14))
         for k in list(samples.keys()):
             # Plot using hist2d with color intensity indicating the density
-            ax[0][0].hist2d(p_samples[k,:,0], p_samples[k,:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1)
-            ax[0][1].hist2d(q_samples[k,:,0], q_samples[k,:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1)
+            ax[0][0].hist2d(p_samples[k,:,0], p_samples[k,:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
+            ax[0][1].hist2d(q_samples[k,:,0], q_samples[k,:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
 
             # Plot only first dimension
-            ax[1][0].hist(p_samples[k,:,0], color=COLORS_HIST[k], bins=100, density=True)
-            ax[1][1].hist(q_samples[k, :, 0], color=COLORS_HIST[k], bins=100, density=True)
+            ax[1][0].hist(p_samples[k,:,0], color=colors[k], bins=100, density=True, label=rf'$t={k+1}$')
+            ax[1][1].hist(q_samples[k, :, 0], color=colors[k], bins=100, density=True, label=rf'$t={k+1}$')
 
             # Plot only second dimension
-            ax[2][0].hist(p_samples[k, :, 1], color=COLORS_HIST[k], bins=100, density=True)
-            ax[2][1].hist(q_samples[k, :, 1], color=COLORS_HIST[k], bins=100, density=True)
+            ax[2][0].hist(p_samples[k, :, 1], color=colors[k], bins=100, density=True, label=rf'$t={k+1}$')
+            ax[2][1].hist(q_samples[k, :, 1], color=colors[k], bins=100, density=True, label=rf'$t={k+1}$')
 
             # cb = plt.colorbar(label='Point Density')
             # plt.legend(loc='lower right')
 
-        ax[0][0].set_title(r'$\mathbb{P}_{x_t}$')
-        ax[0][1].set_title(r'$\hat{\mathbb{P}}_{x_t}$')
+        ax[0][0].set_title(r'$\mathbb{P}_{x_t}$ (actual distr.)')
+        ax[0][1].set_title(r'$\hat{\mathbb{P}}_{x_t}$ (our approx.)')
 
         ax[0][0].set_xlabel(r'$x^{(0)}$')
         ax[0][1].set_xlabel(r'$x^{(0)}$')
