@@ -46,7 +46,7 @@ if __name__ == '__main__':
 
     dynamics_type = 'DiscreteMountainCarDynamics'
     num_dims = 2
-    num_locs = 10
+    num_locs = 100
     dyn_setting = 0
 
     multistep_approximation(dynamics_type, num_dims, dyn_setting, num_locs)
