@@ -1,9 +1,13 @@
 import json
 import argparse
 from typing import Optional
+import os
+
+dir = os.path.dirname(os.path.abspath(__file__))
 
 def load_json(filename: str):
-    with open(f"configs/{filename}.json", "r") as read_file:
+    file_path = os.path.join(dir, "configs", f"{filename}.json")
+    with open(file_path, "r") as read_file:
         data = json.load(read_file)
     return data
 
