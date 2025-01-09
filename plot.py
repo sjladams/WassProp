@@ -5,7 +5,7 @@ import torch
 plt.style.use('seaborn-v0_8-bright')
 
 plt.rcParams.update({
-    'font.size': 20,
+    'font.size': 30,
     'text.usetex': True,
     'text.latex.preamble': r'\usepackage{amsfonts}'
 })
@@ -40,8 +40,40 @@ def plot_single_step(dynamics, w2_bounds: dict, **kwargs):
 
 @torch.no_grad()
 def plot_multi_step(dynamics, samples: dict):
+
+    colors = plt.cm.tab10(np.linspace(0, 1, len(samples.keys())))
+
     if dynamics.num_state_dims == 1:
-        raise NotImplementedError
+        p_samples = torch.stack([samples[k]['p'] for k in samples.keys()])
+        q_samples = torch.stack([samples[k]['q'] for k in samples.keys()])
+
+        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(14, 8))
+        for k in list(samples.keys()):
+
+            ax[0].hist(p_samples[k, :, 0], color=colors[k], bins=20, density=True)
+            ax[1].hist(q_samples[k, :, 0], color=colors[k], bins=20, density=True)
+
+        ax[0].set_title(r'$\mathbb{P}_{x_t}$')
+        ax[1].set_title(r'$\hat{\mathbb{P}}_{x_t}$')
+
+        ax[0].set_xlabel(r'$x_t$')
+        ax[1].set_xlabel(r'$x_t$')
+        ax[0].set_ylabel('Frequency')
+
+        ax[0].grid(True)
+        ax[1].grid(True)
+
+        ax[0].set_xlim(0, 2)
+        ax[1].set_xlim(0, 2)
+        ax[0].set_xlim(min(ax[0].get_xlim()[0], ax[1].get_xlim()[0]),
+                         max(ax[0].get_xlim()[1], ax[1].get_xlim()[1]))
+        ax[1].set_xlim(ax[0].get_xlim()[0], ax[0].get_xlim()[1])
+        ax[0].set_ylim(min(ax[0].get_ylim()[0], ax[1].get_ylim()[0]),
+                         max(ax[0].get_ylim()[1], ax[1].get_ylim()[1]))
+        ax[1].set_ylim(ax[0].get_ylim()[0], ax[0].get_ylim()[1])
+        #ax[0].axis('equal')
+        #ax[1].axis('equal')
+        plt.show()
     elif dynamics.num_state_dims == 2:
         p_samples = torch.stack([samples[k]['p'] for k in samples.keys()])
         q_samples = torch.stack([samples[k]['q'] for k in samples.keys()])
