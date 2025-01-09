@@ -1,5 +1,14 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
+
+plt.style.use('seaborn-v0_8-bright')
+
+plt.rcParams.update({
+    'font.size': 20,
+    'text.usetex': True,
+    'text.latex.preamble': r'\usepackage{amsfonts}'
+})
 
 
 COLORS = ['Blues', 'BuPu', 'PuRd', 'Greens', 'Oranges', 'Reds', 'Greys', 'Purples',
@@ -54,12 +63,20 @@ def plot_multi_step(dynamics, samples: dict):
             # cb = plt.colorbar(label='Point Density')
             # plt.legend(loc='lower right')
 
-        ax[0][0].set_title('p')
-        ax[0][1].set_title('q')
+        ax[0][0].set_title(r'$\mathbb{P}_{x_t}$')
+        ax[0][1].set_title(r'$\hat{\mathbb{P}}_{x_t}$')
 
-        ax[0][0].set_xlabel('State[0]')
-        ax[1][0].set_xlabel('State[0]')
-        ax[0][0].set_ylabel('State[1]')
+        ax[0][0].set_xlabel(r'$x^{(0)}$')
+        ax[0][1].set_xlabel(r'$x^{(0)}$')
+        ax[0][0].set_ylabel(r'$x^{(1)}$')
+
+        ax[1][0].set_xlabel(r'$x^{(0)}$')
+        ax[1][1].set_xlabel(r'$x^{(0)}$')
+        ax[1][0].set_ylabel('Frequency')
+
+        ax[2][0].set_xlabel(r'$x^{(1)}$')
+        ax[2][1].set_xlabel(r'$x^{(1)}$')
+        ax[2][0].set_ylabel('Frequency')
 
         ax[0][0].grid(True)
         ax[0][1].grid(True)
@@ -75,3 +92,34 @@ def plot_multi_step(dynamics, samples: dict):
         plt.show()
     else:
         raise NotImplementedError
+
+@torch.no_grad()
+def plot_dict(dict,
+              axis_x,
+              label_names,
+              x_label : str = "Number of locations",
+              y_label : str = r"$\mathbb{W}_{\rho}(f \# \mathbb{P}, f \# \Delta_{\mathcal{R}, \mathcal{C}} \# \mathbb{P})$",
+              log_scale : bool = True):
+
+    colors = plt.cm.tab10(np.linspace(0, 1, len(dict)))
+
+    # Create the scatter plot
+    plt.figure(figsize=(12, 8))
+    for i, (key, values) in enumerate(dict.items()):
+        plt.scatter(axis_x, values, color=colors[i], label=label_names[i])
+        plt.plot(axis_x, values, color=colors[i], linestyle='--', linewidth=1)
+
+    if log_scale:
+        plt.xscale('log')
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+
+    plt.legend(
+        loc='center left', bbox_to_anchor=(1, 0.5), frameon=False
+    )
+    plt.grid(True)
+
+    # Show the plot
+    plt.tight_layout()
+    #plt.savefig('comparison_approx_sigmoid.pdf', format='pdf')
+    plt.show()
