@@ -48,23 +48,27 @@ if __name__ == '__main__':
 
     all_dynamics_names = ['Sigmoid (1D)',
                           'Bounded Linear (2D)',
-                          'Linear (5D)',
-                          'Toy NN Layer (10D)',
-                          'Mountain Car (2D)'
+                          'Quadruple-Tank (4D)',
+                          'NN Layer (10D)',
+                          'Mountain Car (2D)',
+                          'Dubins car (3D)'
                          ]
     all_dynamic_types = ['SigmoidDynamics',
                          'BoundedLinearDynamics',
                          'LinearDynamics',
                          'LinearDiagonalSigmoidDynamics',
                          'MountainCarDynamics',
+                         'DubinsCarDynamics'
                          ]
     all_num_dims = [1,
                     2,
-                    5,
+                    4,
                     10,
-                    2
+                    2,
+                    3
                     ]
     all_dyn_settings = [1,
+                        0,
                         0,
                         0,
                         0,
