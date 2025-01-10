@@ -282,6 +282,51 @@ class DiscreteMountainCarDynamics(StochasticDynamics):
     def global_lipschitz(self):
         return 2
 
+class DubinsCarDynamics(Dynamics):
+    def __init__(self, velocity: float = 1.0, u: float = 0.5, h: float = 0.3, **kwargs):
+        self.num_dims = 3
+        self.velocity = velocity
+        self.u = u
+        self.h = h
+
+        linear_part = Linear(
+                torch.tensor([
+                    [1.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                    [0.0, 0.0, 1.0]
+                ]),
+                torch.tensor([0.0, 0.0, h * u])
+            )
+
+        trig_part = torch.nn.Sequential(
+            Linear(
+                torch.tensor([
+                    [0.0, 0.0, 1.0],
+                    [0.0, 0.0, 1.0],
+                    [0.0, 0.0, 0.0]
+                ]),
+                torch.tensor([torch.pi / 2, 0.0, 0.0])
+                ),
+            bp.Sin(),
+            Linear(
+                torch.tensor([
+                    [h * velocity, 0.0, 0.0],
+                    [0.0, h * velocity, 0.0],
+                    [0.0, 0.0, 0.0]
+                ]),
+                torch.tensor([0.0, 0.0, 0.0])
+            ),
+        )
+
+        super(DubinsCarDynamics, self).__init__(
+            bp.Parallel(linear_part, trig_part),
+            bp.VectorAdd(),
+        )
+
+    @property
+    def global_lipschitz(self):
+        return 1 + self.h * self.velocity
+
 def get_dynamics(dynamics_type: str, additive_gaussian_noise: bool = True, **kwargs):
     if dynamics_type == 'LogisticMap' and additive_gaussian_noise:
         return AdditiveGaussianDynamics(LogisticMap(**kwargs))
@@ -301,6 +346,8 @@ def get_dynamics(dynamics_type: str, additive_gaussian_noise: bool = True, **kwa
         return AdditiveGaussianDynamics(LinearDiagonalSigmoidDynamics(**kwargs))
     elif dynamics_type == 'MountainCarDynamics' and additive_gaussian_noise:
         return AdditiveGaussianDynamics(MountainCarDynamics(**kwargs))
+    elif dynamics_type == 'DubinsCarDynamics' and additive_gaussian_noise:
+        return AdditiveGaussianDynamics(DubinsCarDynamics(**kwargs))
     elif dynamics_type == 'DiscreteMountainCarDynamics':
         return DiscreteMountainCarDynamics(**kwargs)
     elif dynamics_type == 'NonAdditiveGaussianNoiseDynamics':
