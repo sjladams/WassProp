@@ -170,3 +170,40 @@ def plot_dict(dict,
     plt.tight_layout()
     plt.savefig(r'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\effect_adding_locs.pdf', format='pdf')
     plt.show()
+
+@torch.no_grad()
+def plot_optimize_locs(dict_lipschitz,
+                       dict_duality,
+                       dict_optimize,
+                       axis_x,
+                       label_names,
+                       x_label : str = r"Number of locations ($|\mathcal{C}|$)",
+                       y_label : str = r"$\mathbb{W}_{\rho}(f \# \mathbb{P}, f \# \Delta_{\mathcal{R}, \mathcal{C}} \# \mathbb{P})$",
+                       log_scale : bool = True):
+
+    colors = plt.cm.tab10(np.linspace(0, 1, len(dict_lipschitz)))
+
+    # Create the scatter plot
+    plt.figure(figsize=(24, 12))
+    for i, (key, values) in enumerate(dict_lipschitz.items()):
+        plt.scatter(axis_x, values, color='red', label='Global Lipschitz')
+        plt.plot(axis_x, values, color='red', linestyle='--', linewidth=1)
+
+        plt.scatter(axis_x, dict_duality[key], color='green', label='Lagrangian duality (no locs optim.)')
+        plt.plot(axis_x, dict_duality[key], color='green', linestyle='--', linewidth=1)
+
+        plt.scatter(axis_x, dict_optimize[key], color='blue', label='Lagrangian duality (locs optim.)')
+        plt.plot(axis_x, dict_optimize[key], color='blue', linestyle='--', linewidth=1)
+
+    if log_scale:
+        plt.xscale('log')
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+
+    plt.legend()
+    plt.grid(True)
+
+    # Show the plot
+    plt.tight_layout()
+    plt.savefig(r'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\solve_problem_2_linear-sigmoid.pdf', format='pdf')
+    plt.show()
