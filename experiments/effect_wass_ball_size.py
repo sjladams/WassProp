@@ -82,7 +82,7 @@ if __name__ == '__main__':
     for (dynamics_type, num_dims, dyn_setting, num_locs) in zip(all_dynamic_types, all_num_dims, all_dyn_settings, all_num_locs):
         w2_bounds = effect_wass_ball_size(dynamics_type, num_dims, dyn_setting, num_locs, w_p__q)
 
-        bounds_duality, bounds_lipschitz,  = [], []
+        bounds_duality, bounds_lipschitz  = [], []
         for w in w_p__q:
             bounds_duality.append(w2_bounds[w]['lagrangian_duality'].item())
             bounds_lipschitz.append(w2_bounds[w]['global_lipschitz'].item())
