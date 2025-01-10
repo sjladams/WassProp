@@ -179,6 +179,20 @@
             }
         }
     },
+    "DiscreteDubinsCarDynamics": {
+        "dimensions": {
+            "3": {
+                "options": {
+                    "0": {
+                        "loc_noise_dist": [0.0, 0.0, 0.0],
+                        "variance_noise_dist": [0.001, 0.001, 0.0001],
+                        "loc_initial_dist": [0.5, 0.5, 0.01],
+                        "variance_initial_dist": [0.01, 0.01, 0.001]
+                    }
+                }
+            }
+        }
+    },
     "NonAdditiveGaussianNoiseDynamics": {
         "dimensions": {
             "1": {
