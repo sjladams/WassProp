@@ -145,13 +145,13 @@ def plot_dict(dict,
               axis_x,
               label_names,
               x_label : str = r"Number of locations ($|\mathcal{C}|$)",
-              y_label : str = r"$\mathbb{W}_{\rho}(f \# \mathbb{P}, f \# \Delta_{\mathcal{R}, \mathcal{C}} \# \mathbb{P})$",
+              y_label : str = r"Bound for $\theta=0.0$",
               log_scale : bool = True):
 
     colors = plt.cm.tab10(np.linspace(0, 1, len(dict)))
 
     # Create the scatter plot
-    plt.figure(figsize=(24, 12))
+    plt.figure(figsize=(12, 9))
     for i, (key, values) in enumerate(dict.items()):
         plt.scatter(axis_x, values, color=colors[i], label=label_names[i])
         plt.plot(axis_x, values, color=colors[i], linestyle='--', linewidth=1)
@@ -161,10 +161,11 @@ def plot_dict(dict,
     plt.xlabel(x_label)
     plt.ylabel(y_label)
 
-    plt.legend(
-        loc='center left', bbox_to_anchor=(1, 0.5), frameon=False
+    legend = plt.legend(ncol=1
+        #loc='center left', bbox_to_anchor=(1, 0.5), frameon=False
+        #loc='upper center', bbox_to_anchor=(0.5, -0.25), ncol=2
     )
-    plt.grid(True)
+    plt.grid(True, alpha=0.7)
 
     # Show the plot
     plt.tight_layout()
