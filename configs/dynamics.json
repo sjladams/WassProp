@@ -149,6 +149,20 @@
             }
         }
     },
+    "DubinsCarDynamics": {
+        "dimensions": {
+            "3": {
+                "options": {
+                    "0": {
+                        "loc_noise_dist": [0.0, 0.0, 0.0],
+                        "variance_noise_dist": [0.01, 0.01, 0.01],
+                        "loc_initial_dist": [0.3, 0.2, 0.01],
+                        "variance_initial_dist": [0.1, 0.001, 0.01]
+                    }
+                }
+            }
+        }
+    },
     "DiscreteMountainCarDynamics": {
         "dimensions": {
             "2": {
@@ -160,6 +174,20 @@
                         "variance_noise_dist": [0.01, 0.01],
                         "loc_initial_dist": [0.3, 0.2],
                         "variance_initial_dist": [0.1, 0.001]
+                    }
+                }
+            }
+        }
+    },
+    "DiscreteDubinsCarDynamics": {
+        "dimensions": {
+            "3": {
+                "options": {
+                    "0": {
+                        "loc_noise_dist": [0.0, 0.0, 0.0],
+                        "variance_noise_dist": [0.001, 0.001, 0.0001],
+                        "loc_initial_dist": [0.5, 0.5, 0.01],
+                        "variance_initial_dist": [0.01, 0.01, 0.001]
                     }
                 }
             }
