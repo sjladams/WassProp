@@ -121,13 +121,14 @@
             "2": {
                 "options": {
                     "0": {
-                        "weight": [[1.0, 0.1],[0.1, 1.0]],
+                        "weight": [[0.0, 0.4],
+                                   [0.3, 0.8]],
                         "lower_bound": -2.0,
                         "upper_bound": 2.0,
                         "loc_noise_dist": [0.0, 0.0],
                         "variance_noise_dist": [0.3, 0.3],
                         "loc_initial_dist": [1.5, 2.5],
-                        "variance_initial_dist": [0.0001, 0.5]
+                        "variance_initial_dist": [0.4, 0.5]
                     }
                 }
             }
