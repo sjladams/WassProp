@@ -4,6 +4,9 @@ from experiments import multi_step, get_noise_dist, get_initial_dist, single_ste
 from dynamics import get_dynamics
 import plot
 
+import json
+import os
+
 from utils import load_params, parse_arguments
 
 def effect_adding_locs(dynamics_type, num_dims, dyn_setting, num_locs, w_p__q):
@@ -43,46 +46,36 @@ def effect_adding_locs(dynamics_type, num_dims, dyn_setting, num_locs, w_p__q):
 if __name__ == '__main__':
     torch.manual_seed(0)
 
-    num_locs_experiment = [10, 100, 1000, 10000]
+    # Set parameters
+    num_locs_experiment = [10, 100]
     w_p__q = 0.0
 
-    all_dynamics_names = ['Sigmoid (1D)',
-                          'Bounded Linear (2D)',
-                          'Quadruple-Tank (4D)',
-                          'NN Layer (10D)',
-                          'Mountain Car (2D)',
-                          'Dubins car (3D)'
-                         ]
-    all_dynamic_types = ['SigmoidDynamics',
-                         'BoundedLinearDynamics',
-                         'LinearDynamics',
-                         'LinearDiagonalSigmoidDynamics',
-                         'MountainCarDynamics',
-                         'DubinsCarDynamics'
-                         ]
-    all_num_dims = [1,
-                    2,
-                    4,
-                    10,
-                    2,
-                    3
-                    ]
-    all_dyn_settings = [1,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0
-                        ]
+    run_inputs = { # [dynamics_type, num_dims, dynamics_setting]
+        'Sigmoid (1D)' : ('SigmoidDynamics', 1, 1),
+        'Bounded Linear (2D)' : ('BoundedLinearDynamics', 2, 0),
+        'Quadruple-Tank (4D)' : ('LinearDynamics', 4, 0),
+        #'NN Layer (10D)' : ('LinearDiagonalSigmoidDynamics', 10, 0),
+        'Mountain Car (2D)' : ('MountainCarDynamics', 2, 0),
+        'Dubins car (3D)' : ('DubinsCarDynamics', 3, 0)
+    }
 
     experiment_dict = {}
-    for (dynamics_type, num_dims, dyn_setting) in zip(all_dynamic_types, all_num_dims, all_dyn_settings):
+    for dynamics_name in run_inputs.keys():
+
+        dynamics_type = run_inputs[dynamics_name][0]
+        num_dims = run_inputs[dynamics_name][1]
+        dynamics_setting = run_inputs[dynamics_name][2]
+
         bounds = []
         for num_locs in num_locs_experiment:
-            w2_bounds = effect_adding_locs(dynamics_type, num_dims, dyn_setting, num_locs, w_p__q)
+            w2_bounds = effect_adding_locs(dynamics_type, num_dims, dynamics_setting, num_locs, w_p__q)
             bounds.append(w2_bounds[w_p__q]['lagrangian_duality'].item())
 
         experiment_dict[dynamics_type] = bounds
 
-    plot.plot_dict(experiment_dict, num_locs_experiment, all_dynamics_names)
+    folder = r"C:\Users\efigueiredomot\Desktop\Papers\Wasserstein"
+    os.makedirs(folder, exist_ok=True)  # Create the folder if it doesn't exist
+    file_path = os.path.join(folder, f"adding_locs_{w_p__q}.json")
 
+    with open(file_path, "w") as file:
+        json.dump(experiment_dict, file)
