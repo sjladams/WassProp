@@ -1,11 +1,14 @@
+import os
+import json
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from analysis.configs import FOLDER
 
 plt.style.use('seaborn-v0_8-bright')
 
 plt.rcParams.update({
-    'font.size': 30,
+    'font.size': 40,
     'text.usetex': True,
     'text.latex.preamble': r'\usepackage{amsfonts}'
 })
@@ -141,35 +144,52 @@ def plot_multi_step(dynamics, samples: dict):
         raise NotImplementedError
 
 @torch.no_grad()
-def plot_dict(dict,
-              axis_x,
-              label_names,
-              x_label : str = r"Number of locations ($|\mathcal{C}|$)",
-              y_label : str = r"Bound for $\theta=0.0$",
-              log_scale : bool = True):
+def plot_analysis(
+        figure_name : str,
+        dict_locs_1 : dict,
+        dict_locs_2 : dict,
+        axis_x : list,
+        x_label : str = r"Number of locations ($|\mathcal{C}|$)",
+        y_label : str = r"$\rho$-Wasserstein bound",
+        log_scale : bool = True,
+        different_y_axis : bool = False
+    ):
 
-    colors = plt.cm.tab10(np.linspace(0, 1, len(dict)))
+    colors = plt.cm.tab10(np.linspace(0, 1, len(dict_locs_1)))
+
+    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(28, 12), sharex='row', sharey='row')
 
     # Create the scatter plot
-    plt.figure(figsize=(12, 9))
-    for i, (key, values) in enumerate(dict.items()):
-        plt.scatter(axis_x, values, color=colors[i], label=label_names[i])
-        plt.plot(axis_x, values, color=colors[i], linestyle='--', linewidth=1)
+    for i, dynamics in enumerate(dict_locs_1.keys()):
+        values_1 = dict_locs_1[dynamics]
+        ax[0].scatter(axis_x, values_1, color=colors[i], label=dynamics)
+        ax[0].plot(axis_x, values_1, color=colors[i], linestyle='--', linewidth=1)
+
+        values_2 = dict_locs_2[dynamics]
+        ax[1].scatter(axis_x, values_2, color=colors[i], label=dynamics)
+        ax[1].plot(axis_x, values_2, color=colors[i], linestyle='--', linewidth=1)
 
     if log_scale:
         plt.xscale('log')
-    plt.xlabel(x_label)
-    plt.ylabel(y_label)
+    ax[0].set_xlabel(x_label)
+    ax[1].set_xlabel(x_label)
+    ax[0].set_ylabel(y_label)
+    if different_y_axis :
+        ax[1].set_ylabel('Diff. betw. global Lipschitz bound and ours')
 
-    legend = plt.legend(ncol=1
-        #loc='center left', bbox_to_anchor=(1, 0.5), frameon=False
-        #loc='upper center', bbox_to_anchor=(0.5, -0.25), ncol=2
+    legend = ax[1].legend(
+        loc="center left",
+        bbox_to_anchor=(1.05, 0.5),
+        ncol=1,
+        frameon=True
     )
-    plt.grid(True, alpha=0.7)
+    ax[0].grid(True, alpha=0.7)
+    ax[1].grid(True, alpha=0.7)
 
     # Show the plot
     plt.tight_layout()
-    plt.savefig(r'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\effect_adding_locs.pdf', format='pdf')
+    file = os.path.join(FOLDER, figure_name)
+    plt.savefig(file, format='pdf')
     plt.show()
 
 @torch.no_grad()
@@ -185,7 +205,7 @@ def plot_optimize_locs(dict_lipschitz,
     colors = plt.cm.tab10(np.linspace(0, 1, len(dict_lipschitz)))
 
     # Create the scatter plot
-    plt.figure(figsize=(24, 12))
+    plt.figure(figsize=(48, 12))
     for i, (key, values) in enumerate(dict_lipschitz.items()):
         plt.scatter(axis_x, values, color='red', label='Global Lipschitz')
         plt.plot(axis_x, values, color='red', linestyle='--', linewidth=1)
