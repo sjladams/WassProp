@@ -1,15 +1,12 @@
-import torch
-
 from experiments import multi_step, get_noise_dist, get_initial_dist, single_step_w2_options
 from dynamics import get_dynamics
-import plot
-
+from utils import load_params, parse_arguments
+import torch
 import json
 import os
+from configs import FOLDER, NUM_LOCS_CHOICES
 
-from utils import load_params, parse_arguments
-
-def effect_adding_locs(dynamics_type, num_dims, dyn_setting, num_locs, w_p__q):
+def increase_num_locs_analysis(dynamics_type, num_dims, dyn_setting, num_locs, w_p__q):
     args = parse_arguments(
         dynamics_type=dynamics_type,
         num_dims=num_dims,
@@ -47,8 +44,8 @@ if __name__ == '__main__':
     torch.manual_seed(0)
 
     # Set parameters
-    num_locs_experiment = [10, 100]
-    w_p__q = 0.0
+    num_locs_experiment = NUM_LOCS_CHOICES
+    w_p__q = 0.1
 
     run_inputs = { # [dynamics_type, num_dims, dynamics_setting]
         'Sigmoid (1D)' : ('SigmoidDynamics', 1, 1),
@@ -68,14 +65,15 @@ if __name__ == '__main__':
 
         bounds = []
         for num_locs in num_locs_experiment:
-            w2_bounds = effect_adding_locs(dynamics_type, num_dims, dynamics_setting, num_locs, w_p__q)
+            w2_bounds = increase_num_locs_analysis(dynamics_type, num_dims, dynamics_setting, num_locs, w_p__q)
             bounds.append(w2_bounds[w_p__q]['lagrangian_duality'].item())
 
-        experiment_dict[dynamics_type] = bounds
+        experiment_dict[dynamics_name] = bounds
 
-    folder = r"C:\Users\efigueiredomot\Desktop\Papers\Wasserstein"
+    # Create dictionary with results
+    folder = FOLDER
     os.makedirs(folder, exist_ok=True)  # Create the folder if it doesn't exist
-    file_path = os.path.join(folder, f"adding_locs_{w_p__q}.json")
+    file_path = os.path.join(folder, f"increase_num_locs_analysis_{w_p__q}.json")
 
     with open(file_path, "w") as file:
         json.dump(experiment_dict, file)
