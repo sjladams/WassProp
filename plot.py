@@ -193,19 +193,22 @@ def plot_analysis(
     plt.show()
 
 @torch.no_grad()
-def plot_optimize_locs(dict_lipschitz,
-                       dict_duality,
-                       dict_optimize,
-                       axis_x,
-                       label_names,
-                       x_label : str = r"Number of locations ($|\mathcal{C}|$)",
-                       y_label : str = r"$\mathbb{W}_{\rho}(f \# \mathbb{P}, f \# \Delta_{\mathcal{R}, \mathcal{C}} \# \mathbb{P})$",
-                       log_scale : bool = True):
+def plot_optimize_locs(
+        figure_name : str,
+        dict_lipschitz : dict,
+        dict_duality : dict,
+        dict_optimize : dict,
+        axis_x : list,
+        label_names : list,
+        x_label : str = r'$\rho$-Wasserstein ball radius $\theta$',
+        y_label : str = r"$\mathbb{W}_{\rho}(f \# \mathbb{P}, f \# \Delta_{\mathcal{R}, \mathcal{C}} \# \mathbb{P})$",
+        log_scale : bool = True
+    ):
 
     colors = plt.cm.tab10(np.linspace(0, 1, len(dict_lipschitz)))
 
     # Create the scatter plot
-    plt.figure(figsize=(48, 12))
+    plt.figure(figsize=(18, 12))
     for i, (key, values) in enumerate(dict_lipschitz.items()):
         plt.scatter(axis_x, values, color='red', label='Global Lipschitz')
         plt.plot(axis_x, values, color='red', linestyle='--', linewidth=1)
@@ -226,5 +229,6 @@ def plot_optimize_locs(dict_lipschitz,
 
     # Show the plot
     plt.tight_layout()
-    plt.savefig(r'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\solve_problem_2_linear-sigmoid.pdf', format='pdf')
+    file = os.path.join(FOLDER, figure_name)
+    plt.savefig(file, format='pdf')
     plt.show()
