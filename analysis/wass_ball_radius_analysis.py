@@ -1,15 +1,12 @@
-import torch
-
 from experiments import multi_step, get_noise_dist, get_initial_dist, single_step_w2_options
 from dynamics import get_dynamics
-import plot
-
-import os
-import json
-
 from utils import load_params, parse_arguments
+import torch
+import json
+import os
+from configs import FOLDER, W_P__Q_CHOICES
 
-def effect_wass_ball_size(dynamics_type, num_dims, dyn_setting, num_locs, w_p__q):
+def wass_ball_radius_analysis(dynamics_type, num_dims, dyn_setting, num_locs, w_p__q):
     args = parse_arguments(
         dynamics_type=dynamics_type,
         num_dims=num_dims,
@@ -46,7 +43,7 @@ def effect_wass_ball_size(dynamics_type, num_dims, dyn_setting, num_locs, w_p__q
 if __name__ == '__main__':
     torch.manual_seed(0)
 
-    w_p__q = [0.0, 0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0]
+    w_p__q = W_P__Q_CHOICES
 
     run_inputs = { # [dynamics_type, num_dims, dynamics_setting, num_locs]
         'Sigmoid (1D)' : ('SigmoidDynamics', 1, 1, 100),
@@ -57,7 +54,7 @@ if __name__ == '__main__':
         'Dubins car (3D)' : ('DubinsCarDynamics', 3, 0, 100)
     }
 
-    experiment_duality_dict, experiment_lipschitz_dict = {}, {}
+    experiment_duality_dict, experiment_lipschitz_dict, experiment_diff_dict = {}, {}, {}
     for dynamics_name in run_inputs.keys():
 
         dynamics_type = run_inputs[dynamics_name][0]
@@ -65,24 +62,30 @@ if __name__ == '__main__':
         dynamics_setting = run_inputs[dynamics_name][2]
         num_locs = run_inputs[dynamics_name][3]
 
-        w2_bounds = effect_wass_ball_size(dynamics_type, num_dims, dynamics_setting, num_locs, w_p__q)
+        w2_bounds = wass_ball_radius_analysis(dynamics_type, num_dims, dynamics_setting, num_locs, w_p__q)
 
         bounds_duality, bounds_lipschitz  = [], []
         for w in w_p__q:
             bounds_duality.append(w2_bounds[w]['lagrangian_duality'].item())
             bounds_lipschitz.append(w2_bounds[w]['global_lipschitz'].item())
 
-        experiment_duality_dict[dynamics_type] = bounds_duality
-        experiment_lipschitz_dict[dynamics_type] = bounds_lipschitz
+        experiment_duality_dict[dynamics_name] = bounds_duality
+        experiment_lipschitz_dict[dynamics_name] = bounds_lipschitz
+        experiment_diff_dict[dynamics_name] = [a - b for a, b in zip(bounds_lipschitz, bounds_duality)]
 
 
-    folder = r"C:\Users\efigueiredomot\Desktop\Papers\Wasserstein"
+    # Create dictionary with results
+    folder = FOLDER
     os.makedirs(folder, exist_ok=True)  # Create the folder if it doesn't exist
 
-    file_path = os.path.join(folder, f"wass_ball_lipschitz.json")
+    file_path = os.path.join(folder, f"wass_ball_radius_analysis_lipschitz.json")
     with open(file_path, "w") as file:
         json.dump(experiment_lipschitz_dict, file)
 
-    file_path = os.path.join(folder, f"wass_ball_lagrangian.json")
+    file_path = os.path.join(folder, f"wass_ball_radius_analysis_lagrangian.json")
     with open(file_path, "w") as file:
         json.dump(experiment_duality_dict, file)
+
+    file_path = os.path.join(folder, f"wass_ball_radius_analysis_difference.json")
+    with open(file_path, "w") as file:
+        json.dump(experiment_diff_dict, file)
