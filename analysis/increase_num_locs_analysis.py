@@ -73,7 +73,7 @@ if __name__ == '__main__':
     # Create dictionary with results
     folder = FOLDER
     os.makedirs(folder, exist_ok=True)  # Create the folder if it doesn't exist
-    file_path = os.path.join(folder, f"increase_num_locs_analysis_{w_p__q}.json")
 
+    file_path = os.path.join(folder, f"increase_num_locs_analysis_{w_p__q}.json")
     with open(file_path, "w") as file:
         json.dump(experiment_dict, file)
