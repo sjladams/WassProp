@@ -58,11 +58,16 @@ def optimize_locs_analysis():
     with open(file_path, 'r') as file:
         dict_duality_optimize = json.load(file)
 
+    file_path = os.path.join(folder, f"optimize_locs_random.json")
+    with open(file_path, 'r') as file:
+        dict_random = json.load(file)
+
         plot.plot_optimize_locs(
             "optimize_locs_analysis.pdf",
             dict_lipschitz,
             dict_duality,
             dict_duality_optimize,
+            dict_random,
             W_P__Q_CHOICES_OPTIMIZE_LOCS,
             dict_lipschitz.keys(),
             x_label=r"$\theta$",
