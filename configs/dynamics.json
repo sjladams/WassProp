@@ -103,6 +103,17 @@
                     }
                 }
             },
+            "4": {
+                "options": {
+                    "0": {
+                        "diagonal": [3.0, 0.8, 0.005, 0.03],
+                        "loc_noise_dist": [0.0, 0.0, 0.0, 0.0],
+                        "variance_noise_dist": [0.3, 0.3, 0.3, 0.3],
+                        "loc_initial_dist": [0.5, 1.0, 0.5, -0.7],
+                        "variance_initial_dist": [0.0001, 0.5, 0.7, 0.2]
+                    }
+                }
+            },
             "10": {
                 "options": {
                     "0": {
