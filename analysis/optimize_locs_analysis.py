@@ -15,7 +15,7 @@ def locs_optimization_analysis(dynamics_type, num_dims, dyn_setting, num_locs, w
         num_locs_after_compr=1,
         num_samples=1000,
         lr=0.01,
-        num_iterations=10,
+        num_iterations=5000,
         plot=False,
         optimize_locs=optimize
     )
@@ -47,7 +47,7 @@ if __name__ == '__main__':
         #'Sigmoid (1D)' : ('SigmoidDynamics', 1, 1, 100),
         #'Bounded Linear (2D)' : ('BoundedLinearDynamics', 2, 0, 100),
         #'Quadruple-Tank (4D)' : ('LinearDynamics', 4, 0, 100),
-        #'NN Layer (10D)' : ('LinearDiagonalSigmoidDynamics', 10, 0, 100),
+        #'NN Layer (10D)' : ('LinearDiagonalSigmoidDynamics', 10, 0, 1000),
         'Mountain Car (2D)' : ('MountainCarDynamics', 2, 0, 100),
         #'Dubins car (3D)' : ('DubinsCarDynamics', 3, 0, 100)
     }

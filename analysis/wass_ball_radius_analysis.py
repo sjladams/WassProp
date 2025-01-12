@@ -48,10 +48,10 @@ if __name__ == '__main__':
     run_inputs = { # [dynamics_type, num_dims, dynamics_setting, num_locs]
         'Sigmoid (1D)' : ('SigmoidDynamics', 1, 1, 100),
         'Bounded Linear (2D)' : ('BoundedLinearDynamics', 2, 0, 100),
-        'Quadruple-Tank (4D)' : ('LinearDynamics', 4, 0, 100),
-        #'NN Layer (10D)' : ('LinearDiagonalSigmoidDynamics', 10, 0, 100),
+        'Quadruple-Tank (4D)' : ('LinearDynamics', 4, 0, 1000),
+        'NN Layer (10D)' : ('LinearDiagonalSigmoidDynamics', 10, 0, 1000),
         'Mountain Car (2D)' : ('MountainCarDynamics', 2, 0, 100),
-        'Dubins car (3D)' : ('DubinsCarDynamics', 3, 0, 100)
+        'Dubins car (3D)' : ('DubinsCarDynamics', 3, 0, 1000)
     }
 
     experiment_duality_dict, experiment_lipschitz_dict, experiment_diff_dict = {}, {}, {}

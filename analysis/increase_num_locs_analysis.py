@@ -45,13 +45,13 @@ if __name__ == '__main__':
 
     # Set parameters
     num_locs_experiment = NUM_LOCS_CHOICES
-    w_p__q = 0.1
+    w_p__q = 0.5
 
     run_inputs = { # [dynamics_type, num_dims, dynamics_setting]
         'Sigmoid (1D)' : ('SigmoidDynamics', 1, 1),
         'Bounded Linear (2D)' : ('BoundedLinearDynamics', 2, 0),
         'Quadruple-Tank (4D)' : ('LinearDynamics', 4, 0),
-        #'NN Layer (10D)' : ('LinearDiagonalSigmoidDynamics', 10, 0),
+        'NN Layer (10D)' : ('LinearDiagonalSigmoidDynamics', 10, 0),
         'Mountain Car (2D)' : ('MountainCarDynamics', 2, 0),
         'Dubins car (3D)' : ('DubinsCarDynamics', 3, 0)
     }
