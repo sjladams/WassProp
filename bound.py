@@ -2,7 +2,7 @@ from typing import Optional
 import torch
 import bound_propagation as bp
 
-from dynamics import LinearDiagonalDynamics, LinearDiagonalBoundedDynamics, NonAdditiveGaussianNoiseDynamics
+from dynamics import LinearDiagonalDynamics, LinearDiagonalBoundedDynamics, DiscreteNeuralNetLayerDynamics
 from regions import HyperRectangularVoronoiPartition
 from modules import SqNorm, linear_factory
 from optimize import minimize_with_adam
@@ -69,7 +69,7 @@ class SqNormFxSubFz(torch.nn.Sequential):
         super().__init__(
             bp.Parallel(f, f, split_size=f.num_dims),
             bp.VectorSub(),
-            SqNorm(f.num_state_dims if isinstance(f, NonAdditiveGaussianNoiseDynamics) else f.num_dims)
+            SqNorm(f.num_state_dims if isinstance(f, DiscreteNeuralNetLayerDynamics) else f.num_dims)
         )
 
 
