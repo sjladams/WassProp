@@ -30,24 +30,33 @@ class StochasticDynamics(torch.nn.Sequential):
         return None
 
 
-class NonAdditiveGaussianNoiseDynamics(StochasticDynamics):
-    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
-        num_state_dims=1
-        num_noise_dims=1
+class DiscreteNeuralNetLayerDynamics(StochasticDynamics):
+    def __init__(self, diagonal_state: Union[torch.Tensor, list], diagonal_noise: Union[torch.Tensor, list], **kwargs):
+        num_state_dims=3
+        num_noise_dims=3
 
-        super(NonAdditiveGaussianNoiseDynamics, self).__init__(
+        subnet_state = LinearDiagonalDynamics(diagonal_state, min=-torch.inf, max=torch.inf)
+        subnet_noise = LinearDiagonalDynamics(diagonal_noise, min=-torch.inf, max=torch.inf)
+
+        super(DiscreteNeuralNetLayerDynamics, self).__init__(
             num_state_dims=num_state_dims,
             num_noise_dims=num_noise_dims,
             modules=[
-                LinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
-                SigmoidDynamics(num_state_dims+num_noise_dims),
-                Sum(num_state_dims+num_noise_dims)
+                bp.Parallel(
+                    subnet_state,
+                    subnet_noise,
+                    split_size=num_state_dims),
+                bp.VectorAdd(),
+                SigmoidDynamics(num_state_dims)
             ]
         )
 
+        self._lipschitz_state = subnet_state.global_lipschitz
+        self._lipschitz_noise = subnet_noise.global_lipschitz
+
     @property
     def global_lipschitz(self):
-        return self[0].global_lipschitz * 0.25 #TODO: CHECK
+        return 0.25 * max(self._lipschitz_state, self._lipschitz_noise)
 
 
 class Dynamics(torch.nn.Sequential):
@@ -379,7 +388,7 @@ def get_dynamics(dynamics_type: str, additive_gaussian_noise: bool = True, **kwa
         return DiscreteMountainCarDynamics(**kwargs)
     elif dynamics_type == 'DiscreteDubinsCarDynamics':
         return DiscreteDubinsCarDynamics(**kwargs)
-    elif dynamics_type == 'NonAdditiveGaussianNoiseDynamics':
-        return NonAdditiveGaussianNoiseDynamics(**kwargs)
+    elif dynamics_type == 'DiscreteNeuralNetLayerDynamics':
+        return DiscreteNeuralNetLayerDynamics(**kwargs)
     else:
         raise ValueError(f"Unknown dynamics: {dynamics_type}")
