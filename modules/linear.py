@@ -13,7 +13,7 @@ def nan_matmul(mat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
 
 class Linear(torch.nn.Linear):
     def __init__(self, weight: torch.Tensor, bias: Optional[torch.Tensor] = None, **kwargs):
-        super(Linear, self).__init__(weight.size(-2), weight.size(-1), bias=bias is not None)
+        super(Linear, self).__init__(weight.size(-1), weight.size(-2), bias=bias is not None)
         with torch.no_grad():
             self.weight.copy_(weight)
             if bias is not None:
