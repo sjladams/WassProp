@@ -143,7 +143,7 @@ def _global_lbp_sq_norm_fx_fc_quadrant(
     input_bound = bp.HyperRectangle(lower, upper)
     lb = linear_factory.build(f).crown_ibp(input_bound)
 
-    assert not independent_dims or check_mat_diag(lb.lower[0]) and check_mat_diag(lb.upper[0]), \
+    assert independent_dims or check_mat_diag(lb.lower[0]) and check_mat_diag(lb.upper[0]), \
         "Currently global_lbp_sq_norm_fc only works for independent dimensions"
 
     # From linear bounds to bounds on the norms:
@@ -153,7 +153,7 @@ def _global_lbp_sq_norm_fx_fc_quadrant(
     ).pow(2)
 
     y_locs = f(locs)
-    msg_tmpl = "{} bound in {}-{} quadrant is not linear. Check BoundModule for dynamics or use Gradient Descent"
+    msg_tmpl = "{} bound in {}-{} \n QUADRANT IS NOT LINEAR. Check BoundModule for dynamics or use Gradient Descent"
     if not check_if_affine_bound_is_linear_at_locs(lb.lower[0], lb.lower[1], locs, y_locs):
         check_if_affine_bound_is_linear_at_locs(lb.lower[0], lb.lower[1], locs, y_locs)
         print(msg_tmpl.format("Lower", lower, upper))
@@ -183,7 +183,7 @@ def global_lbp_sq_norm_fx_fc(
 
     if use_lbp:
         # quadrants of shape (nr_quadrants, 2, num_locs, num_dims)
-        if isinstance(f, (LinearDiagonalDynamics, LinearDiagonalBoundedDynamics)):
+        if isinstance(f, (LinearDiagonalDynamics, LinearDiagonalBoundedDynamics, )):
             # If the dynamics is separable, then we only have to the positive and negative quadrants
             quadrants = torch.stack((
                 torch.stack((torch.ones(num_locs, num_dims).fill_(-torch.inf), locs)),
