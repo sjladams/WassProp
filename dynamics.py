@@ -50,6 +50,58 @@ class NonAdditiveGaussianNoiseDynamics(StochasticDynamics):
         return self[0].global_lipschitz * 0.25 #TODO: CHECK
 
 
+class DiscreteMountainCarDynamics(StochasticDynamics):
+    def __init__(self, action: float = 1.0, **kwargs):
+        num_state_dims=2
+        num_noise_dims=2
+
+        mountain_car = MountainCarDynamics(action, **kwargs)
+
+        super(DiscreteMountainCarDynamics, self).__init__(
+            num_state_dims=num_state_dims,
+            num_noise_dims=num_noise_dims,
+            modules=[
+                bp.Parallel(
+                    mountain_car,
+                    torch.nn.Identity(),
+                    split_size=num_state_dims),
+                bp.VectorAdd()
+            ]
+        )
+
+    @property
+    def global_lipschitz(self):
+        return 2
+
+
+class DiscreteDubinsCarDynamics(StochasticDynamics):
+    def __init__(self,  velocity: float = 5.0, u: float = 2.0, h: float = 0.3, **kwargs):
+        num_state_dims=3
+        num_noise_dims=3
+
+        self.velocity = velocity
+        self.u = u
+        self.h = h
+
+        dubins_car = DubinsCarDynamics(velocity, u, h, **kwargs)
+
+        super(DiscreteDubinsCarDynamics, self).__init__(
+            num_state_dims=num_state_dims,
+            num_noise_dims=num_noise_dims,
+            modules=[
+                bp.Parallel(
+                    dubins_car,
+                    torch.nn.Identity(),
+                    split_size=num_state_dims),
+                bp.VectorAdd()
+            ]
+        )
+
+    @property
+    def global_lipschitz(self):
+        return 1 + self.h * self.velocity
+
+
 class Dynamics(torch.nn.Sequential):
     num_dims = None
 
