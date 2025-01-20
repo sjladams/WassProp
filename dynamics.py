@@ -104,32 +104,24 @@ class DiscreteDubinsCarDynamics(StochasticDynamics):
 
 class DiscreteNeuralNetLayerDynamics(StochasticDynamics):
     def __init__(self, diagonal_state: Union[torch.Tensor, list], diagonal_noise: Union[torch.Tensor, list], **kwargs):
-        num_state_dims=3
-        num_noise_dims=3
+        diagonal_state, diagonal_noise = torch.as_tensor(diagonal_state), torch.as_tensor(diagonal_noise)
+        num_state_dims, num_noise_dims = len(diagonal_state), len(diagonal_noise)
 
-        subnet_state = LinearDiagonalDynamics(diagonal_state, min=-torch.inf, max=torch.inf)
-        subnet_noise = LinearDiagonalDynamics(diagonal_noise, min=-torch.inf, max=torch.inf)
+        self._global_lipschitz  = max(diagonal_state.max(), diagonal_noise.max())
 
         super(DiscreteNeuralNetLayerDynamics, self).__init__(
             num_state_dims=num_state_dims,
             num_noise_dims=num_noise_dims,
             modules=
             [
-                bp.Parallel(
-                    subnet_state,
-                    subnet_noise,
-                    split_size=num_state_dims),
-                bp.VectorAdd(),
-                SigmoidDynamics(num_state_dims)
+                Linear(torch.cat((torch.diag(diagonal_state), torch.diag(diagonal_noise)), dim=1)),
+                # torch.nn.Sigmoid()
             ]
         )
 
-        self._lipschitz_state = subnet_state.global_lipschitz
-        self._lipschitz_noise = subnet_noise.global_lipschitz
-
     @property
     def global_lipschitz(self):
-        return 0.25 * max(self._lipschitz_state, self._lipschitz_noise)
+        return self._global_lipschitz
 
 
 class Dynamics(torch.nn.Sequential):
