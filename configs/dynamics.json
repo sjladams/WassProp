@@ -215,12 +215,12 @@
             "3": {
                 "options": {
                     "0": {
-                        "diagonal_state": [3.0, 1.5, 0.5],
-                        "diagonal_noise": [1.0, 0.7, 1.2],
+                        "diagonal_state": [3.0, 1.5, 0.3],
+                        "diagonal_noise": [1.2, 1.5, 0.4],
                         "loc_noise_dist": [0.0, 0.0, 0.0],
-                        "variance_noise_dist": [0.1, 0.2, 0.4],
-                        "loc_initial_dist": [1.5, 2.0, 0.3],
-                        "variance_initial_dist": [0.1, 0.2, 0.7]
+                        "variance_noise_dist": [0.1, 0.1, 0.1],
+                        "loc_initial_dist": [1.5, 2.0, -0.4],
+                        "variance_initial_dist": [0.1, 0.2, 0.1]
                     }
                 }
             },
