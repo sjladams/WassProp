@@ -1,6 +1,7 @@
 import torch
 from typing import Union, Optional
 import bound_propagation as bp
+from bound_propagation import VectorAdd
 
 from modules import ScalarMult, ScalarAdd, Linear, Sum
 
@@ -109,19 +110,30 @@ class DiscreteNeuralNetLayerDynamics(StochasticDynamics):
 
         self._global_lipschitz  = max(diagonal_state.max(), diagonal_noise.max())
 
+        state_transformation = torch.nn.Sequential(
+            LinearDiagonalDynamics(diagonal_state),
+            torch.nn.Sigmoid()
+        )
+        noise_transformation = torch.nn.Sequential(
+            LinearDiagonalDynamics(diagonal_noise),
+            torch.nn.Sigmoid()
+        )
+
         super(DiscreteNeuralNetLayerDynamics, self).__init__(
             num_state_dims=num_state_dims,
             num_noise_dims=num_noise_dims,
-            modules=
-            [
-                Linear(torch.cat((torch.diag(diagonal_state), torch.diag(diagonal_noise)), dim=1)),
-                # torch.nn.Sigmoid()
+            modules=[
+                bp.Parallel(
+                    state_transformation,
+                    noise_transformation,
+                    split_size=num_state_dims),
+                bp.VectorAdd(),
             ]
         )
 
     @property
     def global_lipschitz(self):
-        return self._global_lipschitz
+        return self._global_lipschitz * 0.25
 
 
 class Dynamics(torch.nn.Sequential):
