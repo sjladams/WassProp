@@ -168,7 +168,22 @@ def plot_analysis(
     ax[1].set_xlabel(x_label)
     ax[0].set_ylabel(y_label)
     if different_y_axis :
-        ax[1].set_ylabel('Diff. betw. global Lipschitz bound and ours')
+        ax[1].set_ylabel('Diff. betw. Rmk 1 and Thm 4')
+
+    theta = [0, 0.1]
+    # for i, a in enumerate(ax):
+    #     a.text(
+    #         0.95, 0.95,
+    #         rf'$\theta = {theta[i]}$',
+    #         horizontalalignment='right',
+    #         verticalalignment='top',
+    #         transform=a.transAxes,
+    #         bbox = dict(
+    #             facecolor='white',
+    #             edgecolor='black',
+    #             boxstyle='round,pad=0.3'
+    #         )
+    #     )
 
     legend = ax[1].legend(
         loc="center left",
