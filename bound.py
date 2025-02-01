@@ -5,8 +5,8 @@ import bound_propagation as bp
 from dynamics import LinearDiagonalDynamics, LinearDiagonalBoundedDynamics, AdditiveGaussianDynamics
 from regions import HyperRectangularVoronoiPartition
 from modules import SqNorm, linear_factory
-from optimize import minimize_with_adam
 from tensors import check_mat_diag
+import warnings
 
 factory = bp.BoundModelFactory()
 
@@ -91,6 +91,8 @@ def _global_lbp_sq_norm_fx_fc_quadrant(
 
     #assert independent_dims or check_mat_diag(lb.lower[0]) and check_mat_diag(lb.upper[0]), \
     #    "Currently global_lbp_sq_norm_fc only works for independent dimensions"
+    warnings.warn("CHECK TESTS",
+                  UserWarning) #TODO: Check
 
     # From linear bounds to bounds on the norms:
     alpha = torch.max(
@@ -156,5 +158,5 @@ def global_lbp_sq_norm_fx_fc(
             alphas[idx] = _global_lbp_sq_norm_fx_fc_quadrant(f, locs, quadrant[0], quadrant[1], independent_dims )
 
         alpha = alphas.max(dim=0).values.clamp(min=0., max=f.global_lipschitz**2)
-        
+
     return alpha

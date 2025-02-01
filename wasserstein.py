@@ -4,7 +4,7 @@ import warnings
 import dynamics
 import discretize_distributions as ds
 from regions import HyperRectangularVoronoiPartition
-from bound import local_ibp_sq_norm_fx_fc, get_norm_of_proj_matrix, global_ibp_sq_norm_fx_fc, global_lbp_sq_norm_fx_fc
+from bound import local_ibp_sq_norm_fx_fc, global_ibp_sq_norm_fx_fc, global_lbp_sq_norm_fx_fc
 from tensors import check_mat_diag
 
 def compute_sq_norm_2nd_moment(signature: ds.DiscretizedMultivariateNormal, voronoi_partition: HyperRectangularVoronoiPartition, locs: torch.Tensor):
