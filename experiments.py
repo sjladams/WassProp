@@ -8,7 +8,7 @@ import GMMWas
 import wasserstein
 from dynamics import Dynamics, AdditiveGaussianDynamics
 from plot import plot_multi_step
-from utils_distributions import cross_product, sum_discrete_distributions
+from utils_distributions import cross_product, sum_discrete_distributions, quantize
 
 
 def get_initial_dist(loc_initial_dist, variance_initial_dist, **kwargs):
@@ -24,45 +24,64 @@ def construct_diag_gaussian_dist(loc_dist: Union[list, torch.Tensor], variance_d
     covariance_dist = torch.diag(torch.as_tensor(variance_dist))
     return ds.MultivariateNormal(loc=loc_dist, covariance_matrix=covariance_dist)
 
+def _propagate_via_gmms(
+        dynamics: Dynamics,
+        noise_dist: ds.MultivariateNormal,
+        sign_state_dist: Union[ds.DiscretizedMultivariateNormal, ds.CategoricalFloat]
+):
+    if isinstance(dynamics, AdditiveGaussianDynamics):
+        assert isinstance(noise_dist, ds.MultivariateNormal)
+        sign_q = sign_state_dist  # \todo make diff between sign_Q and signature of noise and state more clear
+        q1 = ds.MixtureMultivariateNormal(
+            mixture_distribution=torch.distributions.Categorical(
+                probs=sign_state_dist.probs),
+            component_distribution=ds.MultivariateNormal(
+                loc=dynamics.state_dynamics(sign_state_dist.locs) + noise_dist.loc,
+                covariance_matrix=noise_dist.covariance_matrix
+            ))
+        return sign_q, q1
+    else:
+        raise ValueError('Propagation via GMM not possible for non additive Gaussian noise.')
+
+
+def _propagate_state_noise_discrete_additive(
+        dynamics: Dynamics,
+        noise_dist: Union[ds.DiscretizedMultivariateNormal, ds.CategoricalFloat],
+        sign_state_dist: Union[ds.DiscretizedMultivariateNormal, ds.CategoricalFloat]
+):
+    sign_q = sign_state_dist
+    propagated_states = ds.CategoricalFloat(probs=sign_state_dist.probs,
+                                            locs=dynamics.state_dynamics(sign_state_dist.locs))
+    sum_probs, sum_locs = sum_discrete_distributions(propagated_states, noise_dist)
+    q1 = ds.CategoricalFloat(probs=sum_probs, locs=sum_locs)
+
+    return sign_q, q1
+
+def _propagate_state_noise_discrete(
+        dynamics: Dynamics,
+        noise_dist: Union[ds.DiscretizedMultivariateNormal, ds.CategoricalFloat],
+        sign_state_dist: Union[ds.DiscretizedMultivariateNormal, ds.CategoricalFloat]
+):
+    cross_probs, cross_locs = cross_product(sign_state_dist, noise_dist)
+    sign_q = ds.CategoricalFloat(probs=cross_probs, locs=cross_locs)
+    q1 = ds.CategoricalFloat(probs=cross_probs, locs=dynamics(cross_locs))
+
+    return sign_q, q1
 
 def propagate_state_dist_over_dynamics(
         dynamics: Dynamics,
-        noise_dist: Union[ds.MultivariateNormal, ds.DiscretizedMultivariateNormal],
+        noise_dist: Union[ds.MultivariateNormal, ds.DiscretizedMultivariateNormal, ds.CategoricalFloat],
         sign_state_dist: Union[ds.DiscretizedMultivariateNormal, ds.CategoricalFloat],
         propagate_via_gmm: bool = False
 ):
     if propagate_via_gmm:
-        if isinstance(dynamics, AdditiveGaussianDynamics): # \todo add check on noise
-            assert isinstance(noise_dist, ds.MultivariateNormal)
-            sign_q = sign_state_dist # \todo make diff between sign_Q and signature of noise and state more clear
-            q1 = ds.MixtureMultivariateNormal(
-                    mixture_distribution=torch.distributions.Categorical(
-                        probs=sign_state_dist.probs),
-                    component_distribution=ds.MultivariateNormal(
-                        loc=dynamics.state_dynamics(sign_state_dist.locs) + noise_dist.loc,
-                        covariance_matrix=noise_dist.covariance_matrix
-                    ))
-        else:
-            raise ValueError('Propagation via GMM not possible for non additive Gaussian noise.')
+        sign_q, q1 = _propagate_via_gmms(dynamics, noise_dist, sign_state_dist)
     else:
         if isinstance(dynamics, AdditiveGaussianDynamics):
-            sign_q = sign_state_dist
-            sign_q.w2 = sign_state_dist.w2 if isinstance(sign_state_dist, ds.DiscretizedMultivariateNormal) else 0.
-
-            propagated_states = ds.CategoricalFloat(probs=sign_state_dist.probs, locs=dynamics.state_dynamics(sign_state_dist.locs))
-            sum_probs, sum_locs = sum_discrete_distributions(propagated_states, noise_dist)
-            q1 = ds.CategoricalFloat(probs=sum_probs, locs=sum_locs)
+            sign_q, q1 = _propagate_state_noise_discrete_additive(dynamics, noise_dist, sign_state_dist)
 
         else:
-            assert isinstance(noise_dist, ds.DiscretizedMultivariateNormal)
-
-            cross_probs, cross_locs = cross_product(sign_state_dist, noise_dist)
-
-            sign_q = ds.CategoricalFloat(probs=cross_probs, locs=cross_locs)
-            # sign q is the cross-product of the signature of the states and the noise, hence the approximation error of
-            # sign_q is the sum of the errors of the two signatures:
-            sign_q.w2 = noise_dist.w2 + sign_state_dist.w2 if isinstance(sign_state_dist, ds.DiscretizedMultivariateNormal) else 0.
-            q1 = ds.CategoricalFloat(probs=cross_probs, locs=dynamics(cross_locs))
+            sign_q, q1 = _propagate_state_noise_discrete(dynamics, noise_dist, sign_state_dist)
 
     return sign_q, q1
 
@@ -87,23 +106,24 @@ def single_step(
 
     # Compress the mixture distribution
     with torch.no_grad():
-        q_pre_compression = copy(q)
         # \todo make the unique(), i.e., the filtering in .compress() optional. Currently, it is always applied. This is problematic because GMMWas.w2 is an over-approximation, such that the w2 between the true and filtered are not guaranteed to be zero..
         if isinstance(q, ds.MultivariateNormal) or (num_locs if num_locs_after_compr is None else num_locs_after_compr) >= q.num_components:
             w2_compr = 0.
         else:
+            q_pre_compression = copy(q)
             q.compress(n_max=num_locs if num_locs_after_compr is None else num_locs_after_compr)
             w2_compr = GMMWas.w2(q, q_pre_compression)
 
     # Approximate the state distribution
-    sign_q = ds.discretization_generator(dist=q, num_locs=num_locs)
+    sign_q, theta_d = quantize(q, num_locs)
 
     # Approximate the noise distribution
     if not propagate_via_gmm:
-        noise_dist = ds.discretization_generator(dist=noise_dist, num_locs=num_locs)
-
-    # Propagate the (approximate) state distribution over the dynamics
-    sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, noise_dist, sign_q)
+        sign_noise_dist, w2_noise_quantization = quantize(noise_dist, num_locs)
+        sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, sign_noise_dist, sign_q)
+    else:
+        # Propagate the (approximate) state distribution over the dynamics
+        sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, noise_dist, sign_q)
 
     # Empirically approximate the state distribution
     q_samples = q.sample(torch.Size((num_samples,)))
@@ -113,7 +133,7 @@ def single_step(
     p1_samples = dynamics(torch.cat((p_samples if p_samples is not None else q_samples, noise_samples), dim=-1))
 
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
-    w2_bounds = {'sign_q': sign_q.w2,
+    w2_bounds = {'sign_q': theta_d,
                  'empirical': torch.nan,
                  'lagrangian_duality': torch.nan
                  }
@@ -123,21 +143,22 @@ def single_step(
                                             q1_samples.view(-1, q1_samples.shape[-1])
                                             ).value.sqrt()
 
-    w2_bounds['global_lipschitz'] = dynamics.global_lipschitz * (sign_q.w2 + w2_compr + w2_p__q_global_lipschitz)
-
     if isinstance(dynamics, AdditiveGaussianDynamics):
         f = dynamics.state_dynamics
     else:
         f = dynamics
+        theta_d += w2_noise_quantization
+
+    w2_bounds['global_lipschitz'] = dynamics.global_lipschitz * (theta_d + w2_compr + w2_p__q_global_lipschitz)
 
     if run_lagrangian_duality:
         print(f"-- Lagrangian Duality --")
         w2_bounds['lagrangian_duality'] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-            signature=sign_q, f=f, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
+            signature=sign_q, f=f, w2_q__disc_q=theta_d, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
 
     if isinstance(dynamics, AdditiveGaussianDynamics) and not propagate_via_gmm:
-        w2_bounds['global_lipschitz'] += noise_dist.w2
-        w2_bounds['lagrangian_duality'] += noise_dist.w2
+        w2_bounds['global_lipschitz'] += w2_noise_quantization
+        w2_bounds['lagrangian_duality'] += w2_noise_quantization
 
     return w2_bounds, q1, {'q': q1_samples, 'p': p1_samples}
 
