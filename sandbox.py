@@ -23,7 +23,7 @@ def plot_batch(ax, x, y, *args, **kwargs):
         ax.plot(x[idx], y[idx], *args, **kwargs)
 
 
-@torch.no_grad
+@torch.no_grad()
 def find_alpha(f, locs, l, u, l_plot, u_plot):
     lb_neg = f.crown_ibp(bp.HyperRectangle(torch.ones_like(locs).fill_(l), locs))
     lb_pos = f.crown_ibp(bp.HyperRectangle(locs, torch.ones_like(locs).fill_(u)))
