@@ -29,15 +29,8 @@ def compute_w2_wrapper(func):
             **kwargs):
 
         if w2_p__q == 0:
-            if isinstance(signature, ds.DiscretizedMultivariateNormal):
-                fn_sq_w2_f_q__f_disc_q = get_fn_sq_w2_f_q__f_disc_q(signature, f)
-                return fn_sq_w2_f_q__f_disc_q().sqrt()
-            elif isinstance(signature, ds.CategoricalFloat):
-                warnings.warn("Currently considering supports are equal so that quantization error is zero",
-                              UserWarning)
-                return 0.0
-            else:
-                raise NotImplementedError("Only implemented for DiscretizedMultivariateNormal and CategoricalFloat.")
+            fn_sq_w2_f_q__f_disc_q = get_fn_sq_w2_f_q__f_disc_q(signature, f)
+            return fn_sq_w2_f_q__f_disc_q().sqrt()
         else:
             return func(signature, f, w2_q__disc_q, w2_p__q, **kwargs)
     return wrapper
@@ -67,10 +60,14 @@ def get_fn_sq_w2_f_q__f_disc_q(
             return torch.einsum('...i,...i->...', w2_alpha_or_beta, signature.probs)
 
     elif isinstance(signature, ds.CategoricalFloat):
-        raise NotImplementedError("Only implemented for q being of the class MultivariateNormal")
+        warnings.warn("Currently considering supports are equal so that quantization error is zero",
+                      UserWarning)
+
+        def fn_sq_w2_f_q__f_disc_q():
+            return 0.0
 
     else:
-        raise NotImplementedError("Only implemented for q being of the class MultivariateNormal")
+        raise NotImplementedError("Not implemented for q class.")
 
     return fn_sq_w2_f_q__f_disc_q
 
