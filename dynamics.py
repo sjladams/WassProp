@@ -10,6 +10,7 @@ class StochasticDynamics(torch.nn.Sequential):
         self.num_state_dims = num_state_dims
         self.num_noise_dims = num_noise_dims
         self.num_dims = num_state_dims + num_noise_dims
+        self.independent_dims = False
         super().__init__(*modules)
 
     def forward(self, input):
@@ -44,6 +45,7 @@ class NonAdditiveGaussianNoiseDynamics(StochasticDynamics):
                 Sum(num_state_dims+num_noise_dims)
             ]
         )
+        self.independent_dims = True
 
     @property
     def global_lipschitz(self):
@@ -118,6 +120,7 @@ class DiscreteNeuralNetLayerDynamics(StochasticDynamics):
                 # torch.nn.Sigmoid()
             ]
         )
+        self.independent_dims = True
 
     @property
     def global_lipschitz(self):
@@ -199,6 +202,7 @@ class LinearDiagonalDynamics(LinearDynamics):
             diagonal = torch.tensor(diagonal)
 
         super(LinearDiagonalDynamics, self).__init__(torch.diag(diagonal))
+        self.independent_dims = True
 
 
 class LinearBoundedDynamics(Dynamics):
@@ -238,6 +242,7 @@ class LinearDiagonalBoundedDynamics(LinearBoundedDynamics):
                                                             bias=None,
                                                             lower_bound=lower_bound,
                                                             upper_bound=upper_bound)
+        self.independent_dims = True
 
 
 class BoundedLinearDynamics(Dynamics):
@@ -268,6 +273,7 @@ class SigmoidDynamics(Dynamics):
     def __init__(self, num_dims: int = 1, **kwargs):
         super(SigmoidDynamics, self).__init__(torch.nn.Sigmoid())
         self.num_dims = num_dims
+        self.independent_dims = True
 
     @property
     def global_lipschitz(self):
@@ -285,6 +291,7 @@ class LinearDiagonalSigmoidDynamics(Dynamics):
             LinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
             SigmoidDynamics(self.num_dims)
         )
+        self.independent_dims = True
 
     @property
     def global_lipschitz(self):

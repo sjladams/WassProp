@@ -131,7 +131,7 @@ def global_lbp_sq_norm_fx_fc(
 
     if use_lbp:
         # quadrants of shape (nr_quadrants, 2, num_locs, num_dims)
-        if isinstance(f, (LinearDiagonalDynamics, LinearDiagonalBoundedDynamics, )):
+        if f.independent_dims:
             # If the dynamics is separable, then we only have to the positive and negative quadrants
             quadrants = torch.stack((
                 torch.stack((torch.ones(num_locs, num_dims).fill_(-torch.inf), locs)),
