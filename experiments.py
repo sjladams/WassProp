@@ -120,10 +120,9 @@ def single_step(
     # Approximate the noise distribution
     if not propagate_via_gmm:
         sign_noise_dist, w2_noise_quantization = quantize(noise_dist, num_locs)
-        sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, sign_noise_dist, sign_q)
-    else:
-        # Propagate the (approximate) state distribution over the dynamics
-        sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, noise_dist, sign_q)
+        
+    # Propagate the (approximate) state distribution over the dynamics
+    sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, noise_dist, sign_q)
 
     # Empirically approximate the state distribution
     q_samples = q.sample(torch.Size((num_samples,)))
