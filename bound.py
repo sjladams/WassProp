@@ -158,5 +158,14 @@ def global_lbp_sq_norm_fx_fc(
             alphas[idx] = _global_lbp_sq_norm_fx_fc_quadrant(f, locs, quadrant[0], quadrant[1], independent_dims )
 
         alpha = alphas.max(dim=0).values.clamp(min=0., max=f.global_lipschitz**2)
-
     return alpha
+
+
+def local_lbp_sq_norm_fx_fc(
+        f: torch.nn.Sequential,
+        locs: torch.Tensor,
+        lower: torch.Tensor,
+        upper: torch.Tensor,
+        independent_dims: bool = False) -> torch.Tensor:
+
+    raise NotImplementedError("Local alpha not implemented.")
