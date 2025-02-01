@@ -155,7 +155,7 @@ def global_lbp_sq_norm_fx_fc(
 
         alphas = torch.zeros(len(quadrants), num_locs).fill_(torch.nan)
         for idx, quadrant in enumerate(quadrants):
-            alphas[idx] = _global_lbp_sq_norm_fx_fc_quadrant(f, locs, quadrant[0], quadrant[1], independent_dims )
+            alphas[idx] = _global_lbp_sq_norm_fx_fc_quadrant(f, locs, quadrant[0], quadrant[1], independent_dims)
 
         alpha = alphas.max(dim=0).values.clamp(min=0., max=f.global_lipschitz**2)
     return alpha
