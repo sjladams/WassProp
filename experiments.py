@@ -67,9 +67,7 @@ def single_step(
         num_locs: int,
         plot: bool = False,
         w2_p__q_global_lipschitz: float = 0.,
-        w2_p__q_independent_coupling: float = 0.,
         w2_p__q_lagrangian_duality: float = 0.,
-        run_independent_coupling: bool = True,
         run_lagrangian_duality: bool = True,
         run_empirical: bool = False,
         p_samples: Optional[torch.Tensor] = None,
@@ -109,7 +107,6 @@ def single_step(
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
     w2_bounds = {'sign_q': sign_q.w2,
                  'empirical': torch.nan,
-                 'independent_coupling': torch.nan,
                  'lagrangian_duality': torch.nan
                  }
 
@@ -124,11 +121,6 @@ def single_step(
         f = dynamics.state_dynamics
     else:
         f = dynamics
-
-    if run_independent_coupling:
-        print(f"-- Independent Coupling --")
-        w2_bounds['independent_coupling'] = wasserstein.compute_w2_f_p__f_disc_q_independent_coupling(
-            signature=sign_q, f=f, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_independent_coupling + w2_compr, **kwargs)
 
     if run_lagrangian_duality:
         print(f"-- Lagrangian Duality --")
@@ -154,7 +146,6 @@ def single_step_w2_options(
 
         w2_bounds[w2_p__q], q, samples = single_step(
             w2_p__q_global_lipschitz=w2_p__q,
-            w2_p__q_independent_coupling=w2_p__q,
             w2_p__q_lagrangian_duality=w2_p__q,
             **kwargs
         )
@@ -165,8 +156,6 @@ def single_step_w2_options(
             f"\t Global Lipschitz: {w2_bounds[w2_p__q]['global_lipschitz']:.4f}\n")
         print(f"\t Empirical: {w2_bounds[w2_p__q]['empirical']:.4f}\n"
               if 'empirical' in w2_bounds[w2_p__q] else "")
-        print(f"\t Independent Coupling: {w2_bounds[w2_p__q]['independent_coupling']:.4f}\n"
-              if 'independent_coupling' in w2_bounds[w2_p__q] else "")
         print(f"\t Lagrangian Duality: {w2_bounds[w2_p__q]['lagrangian_duality']:.4f}\n"
               if 'lagrangian_duality' in w2_bounds[w2_p__q] else "")
 
@@ -185,7 +174,7 @@ def multi_step(
         raise NotImplementedError("Optimization of the signature locations is not yet implemented for multi_step.")
 
     # Initialize w2_p__q error:
-    w2_bounds = {0: {'global_lipschitz': 0., 'independent_coupling': 0., 'lagrangian_duality': 0.}}
+    w2_bounds = {0: {'global_lipschitz': 0., 'lagrangian_duality': 0.}}
 
     # store trajectories
     samples = dict()
@@ -199,7 +188,6 @@ def multi_step(
             q=q,
             p_samples=None if k==0 else samples[k-1]['p'],
             w2_p__q_global_lipschitz=w2_bounds[k]['global_lipschitz'],
-            w2_p__q_independent_coupling=w2_bounds[k]['independent_coupling'],
             w2_p__q_lagrangian_duality=w2_bounds[k]['lagrangian_duality'],
             **kwargs
         )
@@ -209,8 +197,6 @@ def multi_step(
             f"\t Global Lipschitz: {w2_bounds[k+1]['global_lipschitz']:.4f}\n")
         print(f"\t Empirical: {w2_bounds[k+1]['empirical']:.4f}\n"
               if 'empirical' in w2_bounds[k+1] else "")
-        print(f"\t Independent Coupling: {w2_bounds[k+1]['independent_coupling']:.4f}\n"
-              if 'independent_coupling' in w2_bounds[k+1] else "")
         print(f"\t Lagrangian Duality: {w2_bounds[k+1]['lagrangian_duality']:.4f}\n"
               if 'lagrangian_duality' in w2_bounds[k+1] else "")
 
