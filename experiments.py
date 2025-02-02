@@ -57,7 +57,7 @@ def _propagate_state_noise_discrete_additive(
 
     return sign_q, q1
 
-def _propagate_state_noise_discrete(
+def _propagate_state_noise_discrete_general(
         dynamics: Dynamics,
         noise_dist: Union[ds.DiscretizedMultivariateNormal, ds.CategoricalFloat],
         sign_state_dist: Union[ds.DiscretizedMultivariateNormal, ds.CategoricalFloat]
@@ -81,7 +81,7 @@ def propagate_state_dist_over_dynamics(
             sign_q, q1 = _propagate_state_noise_discrete_additive(dynamics, noise_dist, sign_state_dist)
 
         else:
-            sign_q, q1 = _propagate_state_noise_discrete(dynamics, noise_dist, sign_state_dist)
+            sign_q, q1 = _propagate_state_noise_discrete_general(dynamics, noise_dist, sign_state_dist)
 
     return sign_q, q1
 
@@ -120,9 +120,10 @@ def single_step(
     # Approximate the noise distribution
     if not propagate_via_gmm:
         sign_noise_dist, w2_noise_quantization = quantize(noise_dist, num_locs)
-        
-    # Propagate the (approximate) state distribution over the dynamics
-    sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, noise_dist, sign_q)
+        sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, sign_noise_dist, sign_q)
+    else:
+        # Propagate the (approximate) state distribution over the dynamics
+        sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, noise_dist, sign_q)
 
     # Empirically approximate the state distribution
     q_samples = q.sample(torch.Size((num_samples,)))
