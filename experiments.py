@@ -91,7 +91,6 @@ def single_step(
         q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
         num_samples: int,
         num_locs: int,
-        plot: bool = False,
         w2_p__q_global_lipschitz: float = 0.,
         w2_p__q_lagrangian_duality: float = 0.,
         run_lagrangian_duality: bool = True,

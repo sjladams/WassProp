@@ -67,7 +67,7 @@ def get_fn_sq_w2_f_q__f_disc_q(
                       UserWarning)
 
         def fn_sq_w2_f_q__f_disc_q():
-            return 0.0
+            return torch.tensor(0.0)
 
     else:
         raise NotImplementedError("Not implemented for q class.")
