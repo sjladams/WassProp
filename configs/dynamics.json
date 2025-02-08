@@ -1,22 +1,4 @@
 {
-    "LogisticMap": {
-        "options": {
-            "0": {
-                "r": 4,
-                "loc_noise_dist": [0.0],
-                "variance_noise_dist": [0.3],
-                "loc_initial_dist": [4.0],
-                "variance_initial_dist": [2.0]
-            },
-            "1": {
-                "r": 4,
-                "loc_noise_dist": [0.0],
-                "variance_noise_dist": [0.3],
-                "loc_initial_dist": [0.5],
-                "variance_initial_dist": [2.0]
-            }
-        }
-    },
     "SigmoidDynamics": {
         "options": {
             "0": {
@@ -29,7 +11,7 @@
                 "loc_noise_dist": [0.0],
                 "variance_noise_dist": [0.3],
                 "loc_initial_dist": [0.2],
-                "variance_initial_dist": [2.0]
+                "variance_initial_dist": [0.5]
             }
         }
     },
@@ -103,6 +85,17 @@
                     }
                 }
             },
+            "4": {
+                "options": {
+                    "0": {
+                        "diagonal": [3.0, 0.8, 0.005, 0.03],
+                        "loc_noise_dist": [0.0, 0.0, 0.0, 0.0],
+                        "variance_noise_dist": [0.3, 0.3, 0.3, 0.3],
+                        "loc_initial_dist": [0.5, 1.0, 0.5, -0.7],
+                        "variance_initial_dist": [0.0001, 0.5, 0.7, 0.2]
+                    }
+                }
+            },
             "10": {
                 "options": {
                     "0": {
@@ -121,13 +114,60 @@
             "2": {
                 "options": {
                     "0": {
-                        "weight": [[1.0, 0.1],[0.1, 1.0]],
+                        "weight": [[0.0, 0.4],
+                                   [0.3, 0.8]],
                         "lower_bound": -2.0,
                         "upper_bound": 2.0,
                         "loc_noise_dist": [0.0, 0.0],
                         "variance_noise_dist": [0.3, 0.3],
                         "loc_initial_dist": [1.5, 2.5],
+                        "variance_initial_dist": [0.4, 0.5]
+                    }
+                }
+            }
+        }
+    },
+    "LinearDynamics": {
+        "dimensions": {
+            "2": {
+                "options": {
+                    "0": {
+                        "weight": [[0.95, 0.1],[0.6, 0.5]],
+                        "loc_noise_dist": [0.0, 0.0],
+                        "variance_noise_dist": [0.3, 0.3],
+                        "loc_initial_dist": [1.5, 2.5],
                         "variance_initial_dist": [0.0001, 0.5]
+                    }
+                }
+            },
+            "4": {
+                "options": {
+                    "0": {
+                        "weight": [[0.921, 0.0, 0.041, 0.0],
+                                   [0.0, 0.918, 0.0, 0.033],
+                                   [0.0, 0.0, 0.924, 0.0],
+                                   [0.0, 0.0, 0.0, 0.937]
+                                  ],
+                        "loc_noise_dist": [0.0, 0.0, 0.0, 0.0],
+                        "variance_noise_dist": [0.3, 0.3, 0.3, 0.3],
+                        "loc_initial_dist": [1.5, 2.5, -0.5, -1.0],
+                        "variance_initial_dist": [0.001, 0.5, 0.8, 0.01]
+                    }
+                }
+            },
+            "5": {
+                "options": {
+                    "0": {
+                        "weight": [[0.9, 0.1, 0.0, 0.2, 0.1],
+                                   [0.6, 0.5, 0.1, 0.8, 0.4],
+                                   [0.1, 0.0, 0.0, 0.5, 0.3],
+                                   [0.5, 0.2, 0.1, 0.1, 0.0],
+                                   [0.1, 0.0, 0.0, 0.0, 0.5]
+                                  ],
+                        "loc_noise_dist": [0.0, 0.0, 0.0, 0.0, 0.0],
+                        "variance_noise_dist": [0.3, 0.3, 0.3, 0.3, 0.3],
+                        "loc_initial_dist": [1.5, 2.5, -0.5, -1.0, 2.0],
+                        "variance_initial_dist": [0.0001, 0.5, 0.8, 0.001, 0.01]
                     }
                 }
             }
@@ -157,37 +197,7 @@
                         "loc_noise_dist": [0.0, 0.0, 0.0],
                         "variance_noise_dist": [0.01, 0.01, 0.01],
                         "loc_initial_dist": [0.3, 0.2, 0.01],
-                        "variance_initial_dist": [0.1, 0.001, 0.01]
-                    }
-                }
-            }
-        }
-    },
-    "DiscreteMountainCarDynamics": {
-        "dimensions": {
-            "2": {
-                "options": {
-                    "0": {
-                        "lower_bound": -2.0,
-                        "upper_bound": 2.0,
-                        "loc_noise_dist": [0.0, 0.0],
-                        "variance_noise_dist": [0.01, 0.01],
-                        "loc_initial_dist": [0.3, 0.2],
-                        "variance_initial_dist": [0.1, 0.001]
-                    }
-                }
-            }
-        }
-    },
-    "DiscreteDubinsCarDynamics": {
-        "dimensions": {
-            "3": {
-                "options": {
-                    "0": {
-                        "loc_noise_dist": [0.0, 0.0, 0.0],
-                        "variance_noise_dist": [0.001, 0.001, 0.0001],
-                        "loc_initial_dist": [0.5, 0.5, 0.01],
-                        "variance_initial_dist": [0.01, 0.01, 0.001]
+                        "variance_initial_dist": [0.1, 0.01, 0.001]
                     }
                 }
             }
@@ -207,23 +217,6 @@
                         "variance_initial_dist": [0.5]
                     }
                 }
-            }
-        }
-    },
-    "DiscreteNeuralNetLayerDynamics": {
-        "dimensions": {
-            "3": {
-                "options": {
-                    "0": {
-                        "diagonal_state": [3.0, 1.5, 0.5],
-                        "diagonal_noise": [1.0, 0.7, 1.2],
-                        "lower_bound": -2.0,
-                        "upper_bound": 2.0,
-                        "loc_noise_dist": [0.0, 0.0, 0.0],
-                        "variance_noise_dist": [0.1, 0.2, 0.4],
-                        "loc_initial_dist": [1.5, 2.0, 0.3],
-                        "variance_initial_dist": [0.1, 0.2, 0.7]
-                }}
             }
         }
     }
