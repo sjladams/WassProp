@@ -89,11 +89,6 @@ def _global_lbp_sq_norm_fx_fc_quadrant(
     input_bound = bp.HyperRectangle(lower, upper)
     lb = linear_factory.build(f).crown_ibp(input_bound)
 
-    #assert independent_dims or check_mat_diag(lb.lower[0]) and check_mat_diag(lb.upper[0]), \
-    #    "Currently global_lbp_sq_norm_fc only works for independent dimensions"
-    warnings.warn("CHECK TESTS",
-                  UserWarning) #TODO: Check
-
     # From linear bounds to bounds on the norms:
     alpha = torch.max(
         torch.svd(lb.lower[0]).S.max(-1).values,
