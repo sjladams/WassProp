@@ -3,6 +3,7 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from scipy.stats import norm
 from analysis.configs import FOLDER
 
 plt.style.use('seaborn-v0_8-bright')
@@ -22,6 +23,58 @@ COLORS_HIST = [
     '#543005', '#8c510a', '#bf812d', '#dfc27d', '#f6e8c3', '#c7eae5', '#80cdc1', '#35978f', '#01665e', '#003c30'
     ]
 
+@torch.no_grad()
+def plot_signatures(f, initial_dist, signatures, bounds):
+    X = torch.linspace(-5, 8, int(1e3)).unsqueeze(-1)
+    Y = f.state_dynamics(X)
+
+    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(36, 12))
+
+    # Gaussian density parameters
+    mu = initial_dist.loc.item()
+    sigma = np.sqrt(initial_dist.covariance_matrix.item())
+    gaussian_density = norm.pdf(X.numpy(), loc=mu, scale=sigma)
+
+    for i, (signature, bound) in enumerate(zip(signatures, bounds)):
+
+        ax[i].plot(X, Y)
+        ax[i].set_xlabel(r"$x$")
+
+        ax[i].plot(X, gaussian_density, label=r'$\mathbb{P}$')
+
+        # Discrete distribution setup
+        arrow_x = signature.locs.squeeze().tolist()
+        discrete_probs = signature.probs.tolist()
+
+        # Add arrows representing discrete probabilities
+        for xi, prob in zip(arrow_x, discrete_probs):
+            ax[i].annotate('', xy=(xi, prob), xytext=(xi, 0),
+                         arrowprops=dict(facecolor='green', edgecolor='green', width=0.8, headwidth=7),
+                         )
+
+        ax[i].text(mu, 0.4, rf'$h(\mathcal{{R}}, \mathcal{{C}}) = {bound:.2f}$',
+                 ha='center', color='black',
+                 bbox=dict(facecolor='white', edgecolor='gray', boxstyle='round,pad=0.3'))
+
+    ax[0].set_ylabel(r'$f(x)$')
+
+    # Add a proxy artist for the annotation to include it in the legend
+    annotation_label = r"$\Delta_{\mathcal{R}, \mathcal{C}}\#\mathbb{P}$"
+    # Add the annotation to the legend
+    handles, labels = plt.gca().get_legend_handles_labels()  # Get existing legend entries
+    proxy_artist = plt.Line2D([0], [0], color="green")  # Create proxy
+    handles.append(proxy_artist)
+    labels.append(annotation_label)
+
+    # Update the legend
+    ax[0].legend(handles=handles, labels=labels, loc="upper left")
+    plt.axhline(y=0, color="black", linewidth=0.2)
+
+    plt.tight_layout()
+
+    # Save the figure as EPS
+    plt.savefig(rf'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\sigmoid.pdf', format='pdf')
+    plt.show()
 
 @torch.no_grad()
 def plot_single_step(dynamics, w2_bounds: dict, **kwargs):
