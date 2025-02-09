@@ -76,7 +76,7 @@ class NonAdditiveGaussianNoiseDynamics(StochasticDynamics):
 
     @property
     def global_lipschitz(self):
-        return self[0].global_lipschitz * 0.25 #TODO: CHECK
+        return self[0].global_lipschitz * 0.25
 
 
 class LinearDynamics(Dynamics):
