@@ -293,18 +293,18 @@ class DubinsCarDynamics(Dynamics):
 
 
 def get_dynamics(dynamics_type: str, additive_gaussian_noise: bool = True, **kwargs):
-    if dynamics_type == 'LinearDynamics' and additive_gaussian_noise:
-        return AdditiveGaussianDynamics(LinearDynamics(**kwargs))
+    if dynamics_type == 'SigmoidDynamics' and additive_gaussian_noise:
+        return SigmoidDynamics(**kwargs)
     elif dynamics_type == 'LinearBoundedDynamics' and additive_gaussian_noise:
-        return AdditiveGaussianDynamics(LinearBoundedDynamics(**kwargs))
+        return LinearBoundedDynamics(**kwargs)
     elif dynamics_type == 'BoundedLinearDynamics' and additive_gaussian_noise:
-        return AdditiveGaussianDynamics(BoundedLinearDynamics(**kwargs))
+        return BoundedLinearDynamics(**kwargs)
+    elif dynamics_type == 'LinearDiagonalBoundedDynamics' and additive_gaussian_noise:
+        return LinearDiagonalBoundedDynamics(**kwargs)
+    elif dynamics_type == 'LinearDynamics' and additive_gaussian_noise:
+        return AdditiveGaussianDynamics(LinearDynamics(**kwargs))
     elif dynamics_type == 'LinearDiagonalDynamics' and additive_gaussian_noise:
         return AdditiveGaussianDynamics(LinearDiagonalDynamics(**kwargs))
-    elif dynamics_type == 'LinearDiagonalBoundedDynamics' and additive_gaussian_noise:
-        return AdditiveGaussianDynamics(LinearDiagonalBoundedDynamics(**kwargs))
-    elif dynamics_type == 'SigmoidDynamics' and additive_gaussian_noise:
-        return AdditiveGaussianDynamics(SigmoidDynamics(**kwargs))
     elif dynamics_type == 'LinearDiagonalSigmoidDynamics' and additive_gaussian_noise:
         return AdditiveGaussianDynamics(LinearDiagonalSigmoidDynamics(**kwargs))
     elif dynamics_type == 'MountainCarDynamics' and additive_gaussian_noise:
