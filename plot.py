@@ -25,8 +25,8 @@ COLORS_HIST = [
 
 @torch.no_grad()
 def plot_signatures(f, initial_dist, signatures, bounds):
-    X = torch.linspace(-5, 8, int(1e3)).unsqueeze(-1)
-    Y = f.state_dynamics(X)
+    X = torch.linspace(-5, 5, int(1e3)).unsqueeze(-1)
+    Y = f(X)
 
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(36, 12))
 
@@ -73,7 +73,7 @@ def plot_signatures(f, initial_dist, signatures, bounds):
     plt.tight_layout()
 
     # Save the figure as EPS
-    plt.savefig(rf'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\sigmoid.pdf', format='pdf')
+    plt.savefig(rf'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\signature_example.pdf', format='pdf')
     plt.show()
 
 @torch.no_grad()
