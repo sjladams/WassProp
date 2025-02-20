@@ -32,7 +32,7 @@ def compute_w2_wrapper(func):
             **kwargs):
 
         if w2_p__q == 0:
-            fn_sq_w2_f_q__f_disc_q = get_fn_sq_w2_f_q__f_disc_q(signature, f)
+            fn_sq_w2_f_q__f_disc_q = get_fn_sq_w2_f_q__f_disc_q(signature, f, w2_q__disc_q)
             return fn_sq_w2_f_q__f_disc_q().sqrt()
         else:
             return func(signature, f, w2_q__disc_q, w2_p__q, **kwargs)
@@ -41,7 +41,11 @@ def compute_w2_wrapper(func):
 
 def get_fn_sq_w2_f_q__f_disc_q(
         signature: Union[ds.DiscretizedMultivariateNormal, ds.CategoricalFloat],
-        f: dynamics.Dynamics) -> Callable:
+        f: dynamics.Dynamics,
+        w2_q__disc_q) -> Callable:
+
+    alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
+    beta = global_ibp_sq_norm_fx_fc(f, signature.locs).upper.squeeze(-1)
 
     if isinstance(signature, ds.DiscretizedMultivariateNormal):
         if not check_mat_diag(signature.dist.covariance_matrix):
@@ -52,9 +56,6 @@ def get_fn_sq_w2_f_q__f_disc_q(
                 "Only implemented for q being of the class MultivariateNormal with diagonal covariance matrix")
 
         voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
-
-        alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
-        beta = global_ibp_sq_norm_fx_fc(f, signature.locs).upper.squeeze(-1)
 
         sq_norm_2nd_moment = compute_sq_norm_2nd_moment(signature.dist, voronoi_partition, signature.locs)
 
@@ -67,7 +68,7 @@ def get_fn_sq_w2_f_q__f_disc_q(
                       UserWarning)
 
         def fn_sq_w2_f_q__f_disc_q():
-            return torch.tensor(0.0)
+            return torch.max(alpha) * w2_q__disc_q ** 2
 
     else:
         raise NotImplementedError("Not implemented for q class.")
