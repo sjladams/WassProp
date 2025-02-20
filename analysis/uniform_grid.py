@@ -3,7 +3,8 @@ import math
 import torch
 import wasserstein
 from bound import global_lbp_sq_norm_fx_fc, global_ibp_sq_norm_fx_fc
-from experiments import multi_step, get_noise_dist, get_initial_dist, single_step_w2_options
+from experiments import multi_step, single_step_w2_options
+from utils_distributions import get_noise_dist, get_initial_dist
 from dynamics import get_dynamics
 import plot
 from regions import HyperRectangularVoronoiPartition

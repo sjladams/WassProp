@@ -1,5 +1,6 @@
 import torch
-from experiments import multi_step, get_noise_dist, get_initial_dist, single_step_w2_options
+from experiments import multi_step, single_step_w2_options
+from utils_distributions import get_noise_dist, get_initial_dist
 from dynamics import get_dynamics
 import plot
 from utils import load_params, parse_arguments
@@ -26,7 +27,7 @@ def multistep_approximation(dynamics_type, num_dims, dyn_setting, num_locs):
         dynamics=dynamics,
         noise_dist=noise_dist,
         q=initial_dist,
-        num_time_steps=10,
+        num_time_steps=50,
         run_lagrangian_duality=True,
         run_empirical=True,
         **params
@@ -36,9 +37,9 @@ def multistep_approximation(dynamics_type, num_dims, dyn_setting, num_locs):
 if __name__ == '__main__':
     torch.manual_seed(0)
 
-    dynamics_type = 'LinearDynamics'
-    num_dims = 4
-    num_locs = 500
+    dynamics_type = 'NonAdditiveGaussianNoiseDynamics'
+    num_dims = 3
+    num_locs = 100
     dyn_setting = 0
 
     multistep_approximation(dynamics_type, num_dims, dyn_setting, num_locs)
