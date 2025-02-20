@@ -25,7 +25,7 @@ COLORS_HIST = [
 
 @torch.no_grad()
 def plot_signatures(f, initial_dist, signatures, bounds):
-    X = torch.linspace(-5, 5, int(1e3)).unsqueeze(-1)
+    X = torch.linspace(-5, 8, int(1e3)).unsqueeze(-1)
     Y = f(X)
 
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(36, 12))
