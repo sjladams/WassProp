@@ -10,20 +10,6 @@ from dynamics import Dynamics, AdditiveGaussianDynamics
 from plot import plot_multi_step
 from utils_distributions import cross_product, sum_discrete_distributions, quantize
 
-
-def get_initial_dist(loc_initial_dist, variance_initial_dist, **kwargs):
-    return construct_diag_gaussian_dist(loc_initial_dist, variance_initial_dist)
-
-
-def get_noise_dist(loc_noise_dist, variance_noise_dist, **kwargs):
-    return construct_diag_gaussian_dist(loc_noise_dist, variance_noise_dist)
-
-
-def construct_diag_gaussian_dist(loc_dist: Union[list, torch.Tensor], variance_dist: Union[list, torch.Tensor]):
-    loc_dist = torch.as_tensor(loc_dist)
-    covariance_dist = torch.diag(torch.as_tensor(variance_dist))
-    return ds.MultivariateNormal(loc=loc_dist, covariance_matrix=covariance_dist)
-
 def _propagate_via_gmms(
         dynamics: Dynamics,
         noise_dist: ds.MultivariateNormal,
