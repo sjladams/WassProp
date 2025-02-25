@@ -60,16 +60,20 @@ class AdditiveGaussianDynamics(StochasticDynamics):
 
 class NonAdditiveGaussianNoiseDynamics(StochasticDynamics):
     def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
-        num_state_dims=1
-        num_noise_dims=1
+        num_state_dims=3
+        num_noise_dims=3
 
         super(NonAdditiveGaussianNoiseDynamics, self).__init__(
             num_state_dims=num_state_dims,
             num_noise_dims=num_noise_dims,
             modules=[
                 LinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
-                SigmoidDynamics(num_state_dims+num_noise_dims),
-                Sum(num_state_dims+num_noise_dims)
+                bp.Parallel(
+                    torch.nn.Identity(),
+                    torch.nn.Identity(),
+                    split_size=num_state_dims),
+                bp.VectorAdd(),
+                SigmoidDynamics(num_state_dims)
             ]
         )
 
