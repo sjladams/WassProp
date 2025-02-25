@@ -19,7 +19,7 @@ factory.register(torch.nn.Sequential, BoundSequential)
 
 def overwrite_build(old_build):
     def new_build(self, module):
-        if isinstance(module, (torch.nn.Sequential, Linear, torch.nn.Sigmoid, bp.Clamp, bp.Sin)):
+        if isinstance(module, (torch.nn.Sequential, Linear, torch.nn.Sigmoid, bp.Clamp, bp.Sin, bp.Parallel, bp.VectorAdd, bp.Sub)):
             return old_build(module)
         else:
             raise NotImplementedError('strict linear bound propagation not supported for module type')
