@@ -5,7 +5,7 @@ import dynamics
 import discretize_distributions as ds
 from regions import HyperRectangularVoronoiPartition
 
-from bound import local_ibp_sq_norm_fx_fc, get_norm_of_proj_matrix, global_ibp_sq_norm_fx_fc, global_lbp_sq_norm_fx_fc
+from bound import local_ibp_sq_norm_fx_fc, global_ibp_sq_norm_fx_fc, global_lbp_sq_norm_fx_fc
 
 from optimize import minimize_with_adam
 from tensors import check_mat_diag
@@ -40,28 +40,6 @@ def compute_w2_wrapper(func):
     return wrapper
 
 
-# ----- W_2(f#p, f#disc#p) -----
-def get_fn_sq_w2_f_p__f_disc_p(
-        signature: ds.DiscretizedMultivariateNormal,
-        f: dynamics.Dynamics,
-        w2_q__disc_q: float,
-        w2_p__q: float) -> Callable:
-
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
-
-    sq_norm_fx_fc = local_ibp_sq_norm_fx_fc(f, voronoi_partition).upper.squeeze(-1).diag()
-
-    sq_norm_proj_matrix = get_norm_of_proj_matrix(voronoi_partition).pow(2)
-
-    w2_p__disc_q = w2_q__disc_q + w2_p__q
-
-    def fn_sq_w2_f_p__f_disc_p(lambd: torch.Tensor):
-        inner_sup = torch.max(sq_norm_fx_fc - lambd * sq_norm_proj_matrix, dim=-1).values
-        return lambd * w2_p__disc_q ** 2 + torch.einsum('m,m->', signature.probs, inner_sup)
-
-    return fn_sq_w2_f_p__f_disc_p
-
-
 def get_fn_sq_w2_f_q__f_disc_q(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics) -> Callable:
@@ -86,76 +64,6 @@ def get_fn_sq_w2_f_q__f_disc_q(
         return torch.einsum('...i,...i->...', w2_alpha_or_beta, signature.probs)
 
     return fn_sq_w2_f_q__f_disc_q
-
-
-@compute_w2_wrapper
-def compute_w2_f_p__f_disc_p(
-        signature: ds.DiscretizedMultivariateNormal,
-        f: dynamics.Dynamics,
-        w2_q__disc_q: float,
-        w2_p__q: float,
-        **kwargs):
-
-    fn_sq_w2_f_p__f_disc_p = get_fn_sq_w2_f_p__f_disc_p(signature, f, w2_q__disc_q, w2_p__q)
-
-    lambd = torch.tensor(0.1, requires_grad=True)
-    optimized_lambda, losses = minimize_with_adam(
-        param=lambd,
-        objective=fn_sq_w2_f_p__f_disc_p,
-        lower_constraint=0.,
-        **kwargs)
-
-    return fn_sq_w2_f_p__f_disc_p(optimized_lambda).sqrt()
-
-
-# ----- W_2(f#p, f#disc#q) for Independent Coupling approach -----
-def get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
-        signature: ds.DiscretizedMultivariateNormal,
-        f: dynamics.Dynamics,
-        w2_q__disc_q: float,
-        w2_p__q: float) -> Callable:
-
-    w2_p__disc_q = w2_q__disc_q + w2_p__q
-
-    alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
-
-    def fn_sq_w2_f_p__f_disc_q_independent_coupling(lambd: torch.Tensor, **kwargs): # \todo: respect batches
-        v = lambd * signature.locs - ((signature.probs * alpha).unsqueeze(1) * signature.locs).sum(dim=0, keepdim=True)
-        coeff_v = 1 / (lambd - torch.dot(signature.probs, alpha))
-
-        c__transpose__c = torch.sum(signature.locs ** 2, dim=1)
-        sum_pi_alpha_c__transpose__c = torch.sum(signature.probs * alpha * c__transpose__c)
-
-        quadrat_sol = coeff_v * (v ** 2).sum(dim=1) - lambd * (signature.locs ** 2).sum(dim=1) + sum_pi_alpha_c__transpose__c
-
-        return lambd * w2_p__disc_q ** 2 + torch.dot(signature.probs, quadrat_sol)
-
-    return fn_sq_w2_f_p__f_disc_q_independent_coupling
-
-
-@compute_w2_wrapper
-def compute_w2_f_p__f_disc_q_independent_coupling(
-        signature: ds.DiscretizedMultivariateNormal,
-        f: dynamics.Dynamics,
-        w2_q__disc_q: float,
-        w2_p__q: float,
-        **kwargs):
-    # \todo revise independend coupling: use package on stable truncated gaussians, and get rid of doulbe alpha computation
-
-    alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
-    avg_alpha = torch.dot(alpha, signature.probs).detach()
-
-    fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_independent_coupling(
-        signature, f, w2_q__disc_q, w2_p__q)
-
-    optimized_lambda, losses = minimize_with_adam(
-        param=avg_alpha + 10.,
-        objective=fn_sq_w2_f_p__f_disc_q,
-        lower_constraint=avg_alpha,
-        **kwargs
-    )
-
-    return fn_sq_w2_f_p__f_disc_q(optimized_lambda).sqrt()
 
 
 # ----- W_2(f#p, f#disc#q) for Lagrangian Duality approach -----
