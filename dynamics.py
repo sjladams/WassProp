@@ -5,6 +5,13 @@ import bound_propagation as bp
 from linear_bound_propagation import ScalarMult, ScalarAdd, Linear, Sum, Identity
 
 
+class Dynamics(torch.nn.Sequential):
+    num_dims = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
 class StochasticDynamics(torch.nn.Sequential):
     def __init__(self, num_state_dims: int, num_noise_dims: int, modules: list):
         self.num_state_dims = num_state_dims
@@ -20,7 +27,6 @@ class StochasticDynamics(torch.nn.Sequential):
 
         return super().forward(input)
 
-
     @property
     def global_lipschitz(self):
         """
@@ -28,107 +34,6 @@ class StochasticDynamics(torch.nn.Sequential):
         :return:
         """
         return None
-
-
-class NonAdditiveGaussianNoiseDynamics(StochasticDynamics):
-    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
-        num_state_dims=1
-        num_noise_dims=1
-
-        super(NonAdditiveGaussianNoiseDynamics, self).__init__(
-            num_state_dims=num_state_dims,
-            num_noise_dims=num_noise_dims,
-            modules=[
-                LinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
-                SigmoidDynamics(num_state_dims+num_noise_dims),
-                Sum(num_state_dims+num_noise_dims)
-            ]
-        )
-
-    @property
-    def global_lipschitz(self):
-        return self[0].global_lipschitz * 0.25 #TODO: CHECK
-
-
-class DiscreteMountainCarDynamics(StochasticDynamics):
-    def __init__(self, action: float = 1.0, **kwargs):
-        num_state_dims=2
-        num_noise_dims=2
-
-        mountain_car = MountainCarDynamics(action, **kwargs)
-
-        super(DiscreteMountainCarDynamics, self).__init__(
-            num_state_dims=num_state_dims,
-            num_noise_dims=num_noise_dims,
-            modules=[
-                bp.Parallel(
-                    mountain_car,
-                    Identity(num_noise_dims),
-                    split_size=num_state_dims),
-                bp.VectorAdd()
-            ]
-        )
-
-    @property
-    def global_lipschitz(self):
-        return 2
-
-
-class DiscreteDubinsCarDynamics(StochasticDynamics):
-    def __init__(self,  velocity: float = 5.0, u: float = 2.0, h: float = 0.3, **kwargs):
-        num_state_dims=3
-        num_noise_dims=3
-
-        self.velocity = velocity
-        self.u = u
-        self.h = h
-
-        dubins_car = DubinsCarDynamics(velocity, u, h, **kwargs)
-
-        super(DiscreteDubinsCarDynamics, self).__init__(
-            num_state_dims=num_state_dims,
-            num_noise_dims=num_noise_dims,
-            modules=[
-                bp.Parallel(
-                    dubins_car,
-                    Identity(num_noise_dims),
-                    split_size=num_state_dims),
-                bp.VectorAdd()
-            ]
-        )
-
-    @property
-    def global_lipschitz(self):
-        return 1 + self.h * self.velocity
-
-
-class DiscreteNeuralNetLayerDynamics(StochasticDynamics):
-    def __init__(self, diagonal_state: Union[torch.Tensor, list], diagonal_noise: Union[torch.Tensor, list], **kwargs):
-        diagonal_state, diagonal_noise = torch.as_tensor(diagonal_state), torch.as_tensor(diagonal_noise)
-        num_state_dims, num_noise_dims = len(diagonal_state), len(diagonal_noise)
-
-        self._global_lipschitz  = max(diagonal_state.max(), diagonal_noise.max())
-
-        super(DiscreteNeuralNetLayerDynamics, self).__init__(
-            num_state_dims=num_state_dims,
-            num_noise_dims=num_noise_dims,
-            modules=
-            [
-                Linear(torch.cat((torch.diag(diagonal_state), torch.diag(diagonal_noise)), dim=1)),
-                # torch.nn.Sigmoid()
-            ]
-        )
-
-    @property
-    def global_lipschitz(self):
-        return self._global_lipschitz
-
-
-class Dynamics(torch.nn.Sequential):
-    num_dims = None
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
 
 class AdditiveGaussianDynamics(StochasticDynamics):
@@ -153,23 +58,28 @@ class AdditiveGaussianDynamics(StochasticDynamics):
         return self[0].subnetworks[0]
 
 
-class LogisticMap(Dynamics):
-    num_dims = 1
-    def __init__(self,
-                 r: float,
-                 **kwargs):
-        self.r = r
+class NonAdditiveGaussianNoiseDynamics(StochasticDynamics):
+    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
+        num_state_dims=3
+        num_noise_dims=3
 
-        clamp_0_1 = bp.Sub(torch.nn.ReLU(), torch.nn.Sequential(ScalarAdd(self.num_dims, -1), torch.nn.ReLU()))
-
-        super(LogisticMap, self).__init__(
-            bp.Mul(clamp_0_1, torch.nn.Sequential(clamp_0_1, ScalarAdd(self.num_dims, -1))),
-            ScalarMult(self.num_dims, -r)
+        super(NonAdditiveGaussianNoiseDynamics, self).__init__(
+            num_state_dims=num_state_dims,
+            num_noise_dims=num_noise_dims,
+            modules=[
+                LinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
+                bp.Parallel(
+                    torch.nn.Identity(),
+                    torch.nn.Identity(),
+                    split_size=num_state_dims),
+                bp.VectorAdd(),
+                SigmoidDynamics(num_state_dims)
+            ]
         )
 
     @property
     def global_lipschitz(self):
-        return self.r
+        return self[0].global_lipschitz * 0.25 #TODO: CHECK
 
 
 class LinearDynamics(Dynamics):
@@ -190,6 +100,7 @@ class LinearDynamics(Dynamics):
     @property
     def global_lipschitz(self):
         return self._global_lipschitz
+
 
 class LinearDiagonalDynamics(LinearDynamics):
     def __init__(self,
@@ -380,10 +291,9 @@ class DubinsCarDynamics(Dynamics):
         return 1 + self.h * self.velocity
 
 
+
 def get_dynamics(dynamics_type: str, additive_gaussian_noise: bool = True, **kwargs):
-    if dynamics_type == 'LogisticMap' and additive_gaussian_noise:
-        return AdditiveGaussianDynamics(LogisticMap(**kwargs))
-    elif dynamics_type == 'LinearDynamics' and additive_gaussian_noise:
+    if dynamics_type == 'LinearDynamics' and additive_gaussian_noise:
         return AdditiveGaussianDynamics(LinearDynamics(**kwargs))
     elif dynamics_type == 'LinearBoundedDynamics' and additive_gaussian_noise:
         return AdditiveGaussianDynamics(LinearBoundedDynamics(**kwargs))
@@ -401,13 +311,7 @@ def get_dynamics(dynamics_type: str, additive_gaussian_noise: bool = True, **kwa
         return AdditiveGaussianDynamics(MountainCarDynamics(**kwargs))
     elif dynamics_type == 'DubinsCarDynamics' and additive_gaussian_noise:
         return AdditiveGaussianDynamics(DubinsCarDynamics(**kwargs))
-    elif dynamics_type == 'DiscreteMountainCarDynamics':
-        return DiscreteMountainCarDynamics(**kwargs)
-    elif dynamics_type == 'DiscreteDubinsCarDynamics':
-        return DiscreteDubinsCarDynamics(**kwargs)
     elif dynamics_type == 'NonAdditiveGaussianNoiseDynamics':
         return NonAdditiveGaussianNoiseDynamics(**kwargs)
-    elif dynamics_type == 'DiscreteNeuralNetLayerDynamics':
-        return DiscreteNeuralNetLayerDynamics(**kwargs)
     else:
         raise ValueError(f"Unknown dynamics: {dynamics_type}")
