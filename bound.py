@@ -69,7 +69,7 @@ class SqNormFxSubFz(torch.nn.Sequential):
         super().__init__(
             bp.Parallel(f, f, split_size=f.num_dims),
             bp.VectorSub(),
-            SqNorm(f.num_dims if isinstance(f, AdditiveGaussianDynamics) else f.num_state_dims)
+            SqNorm(f.num_dims)
         )
 
 
