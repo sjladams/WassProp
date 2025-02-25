@@ -2,7 +2,7 @@ from typing import Optional
 import torch
 import bound_propagation as bp
 
-__all__ = ['BoundLinear', 'Linear']
+__all__ = ['BoundLinear', 'Linear', 'Identity']
 
 
 def nan_matmul(mat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
@@ -18,6 +18,11 @@ class Linear(torch.nn.Linear):
             self.weight.copy_(weight)
             if bias is not None:
                 self.bias.copy_(bias)
+
+class Identity(Linear):
+    def __init__(self, in_features: int):
+        super(Identity, self).__init__(torch.eye(in_features))
+
 
 class BoundLinear(bp.BoundLinear):
     def __init__(self, *args, **kwargs):

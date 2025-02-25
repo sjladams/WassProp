@@ -2,7 +2,7 @@ import torch
 from typing import Union, Optional
 import bound_propagation as bp
 
-from linear_bound_propagation import ScalarMult, ScalarAdd, Linear, Sum
+from linear_bound_propagation import ScalarMult, ScalarAdd, Linear, Sum, Identity
 
 
 class StochasticDynamics(torch.nn.Sequential):
@@ -63,7 +63,7 @@ class DiscreteMountainCarDynamics(StochasticDynamics):
             modules=[
                 bp.Parallel(
                     mountain_car,
-                    torch.nn.Identity(),
+                    Identity(num_noise_dims),
                     split_size=num_state_dims),
                 bp.VectorAdd()
             ]
@@ -91,7 +91,7 @@ class DiscreteDubinsCarDynamics(StochasticDynamics):
             modules=[
                 bp.Parallel(
                     dubins_car,
-                    torch.nn.Identity(),
+                    Identity(num_noise_dims),
                     split_size=num_state_dims),
                 bp.VectorAdd()
             ]
@@ -137,7 +137,7 @@ class AdditiveGaussianDynamics(StochasticDynamics):
                          modules=[
                              bp.Parallel(
                                  state_dynamics,
-                                 torch.nn.Identity(),
+                                 Identity(state_dynamics.num_dims),
                                  split_size=state_dynamics.num_dims),
                              bp.VectorAdd()
                          ])

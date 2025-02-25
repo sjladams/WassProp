@@ -3,7 +3,7 @@ import torch
 import types
 
 from .arithmetic import ScalarMult, ScalarAdd, Sum, SqNorm
-from .linear import BoundLinear, Linear
+from .linear import BoundLinear, Linear, Identity
 from .sigmoid import BoundSigmoid
 from .saturation import BoundClamp
 from .sin import BoundSin
