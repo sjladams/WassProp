@@ -2,7 +2,7 @@ import torch
 from typing import Union, Optional
 import bound_propagation as bp
 
-from modules import ScalarMult, ScalarAdd, Linear, Sum
+from linear_bound_propagation import ScalarMult, ScalarAdd, Linear, Sum
 
 
 class StochasticDynamics(torch.nn.Sequential):

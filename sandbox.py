@@ -13,7 +13,7 @@ from dynamics import get_dynamics
 
 from utils import load_params, parse_arguments
 
-from modules import linear_factory, Linear
+from linear_bound_propagation import Linear, factory as linear_factory
 
 factory = bp.BoundModelFactory()
 

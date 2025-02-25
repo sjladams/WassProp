@@ -4,7 +4,7 @@ import bound_propagation as bp
 
 from dynamics import LinearDiagonalDynamics, LinearDiagonalBoundedDynamics, AdditiveGaussianDynamics
 from regions import HyperRectangularVoronoiPartition
-from modules import SqNorm, linear_factory
+from linear_bound_propagation import SqNorm, factory as linear_factory
 from optimize import minimize_with_adam
 from tensors import check_mat_diag
 

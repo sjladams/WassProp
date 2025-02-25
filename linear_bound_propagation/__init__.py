@@ -9,12 +9,12 @@ from .saturation import BoundClamp
 from .sin import BoundSin
 from .sequential import BoundSequential
 
-linear_factory = bp.BoundModelFactory()
-linear_factory.register(torch.nn.Sigmoid, BoundSigmoid)
-linear_factory.register(Linear, BoundLinear)
-linear_factory.register(bp.Clamp, BoundClamp)
-linear_factory.register(bp.Sin, BoundSin)
-linear_factory.register(torch.nn.Sequential, BoundSequential)
+factory = bp.BoundModelFactory()
+factory.register(torch.nn.Sigmoid, BoundSigmoid)
+factory.register(Linear, BoundLinear)
+factory.register(bp.Clamp, BoundClamp)
+factory.register(bp.Sin, BoundSin)
+factory.register(torch.nn.Sequential, BoundSequential)
 
 
 def overwrite_build(old_build):
@@ -25,13 +25,13 @@ def overwrite_build(old_build):
             raise NotImplementedError('strict linear bound propagation not supported for module type')
     return new_build
 
-linear_factory.build = types.MethodType(overwrite_build(linear_factory.build), linear_factory)
+factory.build = types.MethodType(overwrite_build(factory.build), factory)
 
 __all__ = [
     'ScalarMult',
     'ScalarAdd',
     'Sum',
     'SqNorm',
-    'linear_factory',
+    'factory',
     'BoundSin'
 ]
