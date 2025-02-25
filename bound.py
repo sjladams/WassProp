@@ -10,59 +10,6 @@ from tensors import check_mat_diag
 
 factory = bp.BoundModelFactory()
 
-def get_proj_matrix(vp: HyperRectangularVoronoiPartition):
-    """
-    Compute proj_{R_k}(c_i) for all signature locations c_i and regions R_k in the voronoi partition, and store
-    in matrix with i-th row corresponding to c_i and k-th column corresponding to R_k.
-
-    CONVENTION: indexing regions over columns and centers over rows
-
-    :param vp: VornoiPartition
-    """
-    locs_ex = vp.locs.unsqueeze(-2)
-    l_ex = vp.lower.unsqueeze(-3)
-    u_ex = vp.upper.unsqueeze(-3)
-
-    # Compute the projections for all locs and regions that do not overlap, set overlapping to nan
-    mask_c_smaller_l = locs_ex <= l_ex
-    mask_c_larger_u = locs_ex >= u_ex
-    mask_c_in_region = torch.logical_and(~mask_c_larger_u, ~mask_c_smaller_l).all(-1)
-
-    below_l = torch.where(mask_c_smaller_l, l_ex, torch.zeros_like(l_ex))
-    above_u = torch.where(mask_c_larger_u, u_ex, torch.zeros_like(l_ex))
-    overlapping = torch.where(mask_c_in_region.unsqueeze(-1).repeat(1,1,vp.locs.size(-1)),
-                              torch.zeros_like(locs_ex).fill_(torch.nan),
-                              torch.zeros_like(locs_ex))
-
-    # Calculate the projection, summing both below and above cases
-    proj_matrix = below_l + above_u + overlapping
-
-    # Account for proj_{R_i}(c_i) = c_i
-    proj_matrix.diagonal(dim1=-3, dim2=-2).copy_(vp.locs.swapaxes(-1, -2))
-
-    # Handle non-overlapping regions:
-    if vp.shell[:,0].isneginf().all() and vp.shell[:,1].isinf().all():
-        proj_matrix[:, -1] = vp.locs  # To guarantee numerical stability, we set the projection on an empty set to zero
-    else:
-        closest_edge_shell = torch.where(
-            (vp.locs - vp.shell[..., 0]).abs() < (vp.locs - vp.shell[..., 1]).abs(),
-            vp.shell[..., 0],
-            vp.shell[..., 1]
-        )
-        proj_matrix[:-1, -1] = closest_edge_shell[:-1]
-
-    return torch.nan_to_num(proj_matrix)
-
-def get_norm_of_proj_matrix(vp: HyperRectangularVoronoiPartition):
-    """
-    Compute ||proj_{R_k}(c_i) - c_i||_2 for all signature locations c_i and regions R_k in the voronoi
-    partition, and store in matrix with i-th row corresponding to c_i and k-th column corresponding to R_k.
-
-    :param vp: VoronoiPartition
-    """
-    proj_matrix = get_proj_matrix(vp)
-    return torch.norm(proj_matrix - vp.locs.unsqueeze(-2), dim=-1, p=2)
-
 
 class SqNormFxSubFz(torch.nn.Sequential):
     def __init__(self, f):
