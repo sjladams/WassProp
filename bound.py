@@ -125,14 +125,6 @@ def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, locs: torch.Tensor) -> bp.I
     return ibp_bound
 
 
-def check_if_affine_bound_is_linear_at_locs(A, b, locs, y_locs):
-    """
-    Checks if affine bound is linear around locs, i.e., check if A*locs + b = y_locs
-    """
-    bias = torch.einsum('nij,nj->ni', A, locs) + b - y_locs
-    return (bias.abs() <= 1e-5).all()
-
-
 def _global_lbp_sq_norm_fx_fc_quadrant(
         f: torch.nn.Sequential,
         locs: torch.Tensor,
@@ -141,24 +133,13 @@ def _global_lbp_sq_norm_fx_fc_quadrant(
         independent_dims: bool = False) -> torch.Tensor:
 
     input_bound = bp.HyperRectangle(lower, upper)
-    lb = linear_factory.build(f).crown_ibp(input_bound)
-
-    assert independent_dims or check_mat_diag(lb.lower[0]) and check_mat_diag(lb.upper[0]), \
-        "Currently global_lbp_sq_norm_fc only works for independent dimensions"
+    lb = linear_factory.build(f).crown_ibp_point(input_bound, locs)
 
     # From linear bounds to bounds on the norms:
     alpha = torch.max(
         torch.svd(lb.lower[0]).S.max(-1).values,
         torch.svd(lb.upper[0]).S.max(-1).values
     ).pow(2)
-
-    y_locs = f(locs)
-    msg_tmpl = "{} bound in {}-{} \n QUADRANT IS NOT LINEAR. Check BoundModule for dynamics or use Gradient Descent"
-    if not check_if_affine_bound_is_linear_at_locs(lb.lower[0], lb.lower[1], locs, y_locs):
-        check_if_affine_bound_is_linear_at_locs(lb.lower[0], lb.lower[1], locs, y_locs)
-        print(msg_tmpl.format("Lower", lower, upper))
-    assert check_if_affine_bound_is_linear_at_locs(lb.upper[0], lb.upper[1], locs, y_locs), \
-        msg_tmpl.format("Upper", lower, upper)
 
     return alpha
 
