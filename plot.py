@@ -77,7 +77,7 @@ def plot_signatures(f, initial_dist, signatures, bounds):
 def plot_single_step(dynamics, w2_bounds: dict, **kwargs):
     w2_p__q_options = list(w2_bounds.keys())
 
-    fig_w2_bounds = plt.figure()
+    fig_w2_bounds = plt.figure(figsize=(16, 16))
     for key in w2_bounds[w2_p__q_options[0]].keys():
         if not key in ['sign_q']:
             plt.plot(w2_p__q_options, [w2_bounds[w2_p__q][key] for w2_p__q in w2_p__q_options], label=key)
