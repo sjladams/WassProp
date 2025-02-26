@@ -9,56 +9,6 @@ import wasserstein
 from dynamics import Dynamics, AdditiveGaussianDynamics
 from plot import plot_multi_step
 
-
-def get_initial_dist(loc_initial_dist, variance_initial_dist, **kwargs):
-    return construct_diag_gaussian_dist(loc_initial_dist, variance_initial_dist)
-
-
-def get_noise_dist(loc_noise_dist, variance_noise_dist, **kwargs):
-    return construct_diag_gaussian_dist(loc_noise_dist, variance_noise_dist)
-
-
-def construct_diag_gaussian_dist(loc_dist: Union[list, torch.Tensor], variance_dist: Union[list, torch.Tensor]):
-    loc_dist = torch.as_tensor(loc_dist)
-    covariance_dist = torch.diag(torch.as_tensor(variance_dist))
-    return ds.MultivariateNormal(loc=loc_dist, covariance_matrix=covariance_dist)
-
-
-def propagate_state_dist_over_dynamics(
-        dynamics: Dynamics,
-        noise_dist: Union[ds.MultivariateNormal, ds.DiscretizedMultivariateNormal],
-        sign_state_dist: Union[ds.DiscretizedMultivariateNormal, ds.CategoricalFloat]
-):
-    if isinstance(dynamics, AdditiveGaussianDynamics): # \todo add check on noise
-        assert isinstance(noise_dist, ds.MultivariateNormal)
-        sign_q = sign_state_dist # \todo make diff between sign_Q and signature of noise and state more clear
-        q1 = ds.MixtureMultivariateNormal(
-                mixture_distribution=torch.distributions.Categorical(
-                    probs=sign_state_dist.probs),
-                component_distribution=ds.MultivariateNormal(
-                    loc=dynamics.state_dynamics(sign_state_dist.locs) + noise_dist.loc,
-                    covariance_matrix=noise_dist.covariance_matrix
-                ))
-    else:
-        assert isinstance(noise_dist, ds.DiscretizedMultivariateNormal)
-        n, m = sign_state_dist.locs.size(0), noise_dist.locs.size(0)
-        d = sign_state_dist.locs.shape[-1]
-        locs_state_expanded = sign_state_dist.locs.unsqueeze(1)
-        locs_noise_expanded = noise_dist.locs.unsqueeze(0)
-        combinations = torch.cat((locs_state_expanded.expand(-1, m, -1), locs_noise_expanded.expand(n, -1, -1)), dim=-1)
-        combinations_flat = combinations.view(-1, 2 * d)
-        probs_combined = sign_state_dist.probs.unsqueeze(1) * noise_dist.probs.unsqueeze(0)
-        probs_combined_flat = probs_combined.view(-1)
-
-        sign_q = ds.CategoricalFloat(probs=probs_combined_flat, locs=combinations_flat)
-        # sign q is the cross-product of the signature of the states and the noise, hence the approximation error of
-        # sign_q is the sum of the errors of the two signatures:
-        sign_q.w2 = noise_dist.w2 + sign_state_dist.w2 if isinstance(sign_state_dist, ds.DiscretizedMultivariateNormal) else 0.
-        q1 = ds.CategoricalFloat(probs=probs_combined_flat, locs=dynamics(combinations_flat))
-
-    return sign_q, q1
-
-
 def single_step(
         dynamics: Dynamics,
         noise_dist: ds.MultivariateNormal,
