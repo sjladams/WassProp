@@ -8,6 +8,9 @@ import GMMWas
 import wasserstein
 from dynamics import Dynamics, AdditiveGaussianDynamics
 from plot import plot_multi_step
+from propagation import propagate_state_dist_over_dynamics
+from utils_distributions import quantize
+
 
 def single_step(
         dynamics: Dynamics,
@@ -22,6 +25,7 @@ def single_step(
         run_empirical: bool = False,
         p_samples: Optional[torch.Tensor] = None,
         num_locs_after_compr: Optional[int] = None,
+        propagate_via_gmm: bool = False,
         **kwargs):
 
     # Initialize System Dynamics
@@ -38,14 +42,15 @@ def single_step(
             w2_compr = GMMWas.w2(q, q_pre_compression)
 
     # Approximate the state distribution
-    sign_q = ds.discretization_generator(dist=q, num_locs=num_locs)
+    sign_q, theta_d = quantize(q, num_locs)
 
-    # Approximate the noise distribution
-    if not isinstance(dynamics, AdditiveGaussianDynamics):
-        noise_dist = ds.discretization_generator(dist=noise_dist, num_locs=num_locs)
-
-    # Propagate the (approximate) state distribution over the dynamics
-    sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, noise_dist, sign_q)
+    # Propagate
+    if not propagate_via_gmm:
+        sign_noise_dist, w2_noise_quantization = quantize(noise_dist, num_locs)
+        sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, sign_noise_dist, sign_q)
+    else:
+        # Propagate the (approximate) state distribution over the dynamics
+        sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, noise_dist, sign_q)
 
     # Empirically approximate the state distribution
     q_samples = q.sample(torch.Size((num_samples,)))
@@ -55,7 +60,7 @@ def single_step(
     p1_samples = dynamics(torch.cat((p_samples if p_samples is not None else q_samples, noise_samples), dim=-1))
 
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
-    w2_bounds = {'sign_q': sign_q.w2,
+    w2_bounds = {'sign_q': theta_d,
                  'empirical': torch.nan,
                  'lagrangian_duality': torch.nan
                  }
@@ -65,17 +70,22 @@ def single_step(
                                             q1_samples.view(-1, dynamics.num_dims)
                                             ).value.sqrt()
 
-    w2_bounds['global_lipschitz'] = dynamics.global_lipschitz * (sign_q.w2 + w2_compr + w2_p__q_global_lipschitz)
+    w2_bounds['global_lipschitz'] = dynamics.global_lipschitz * (theta_d + w2_compr + w2_p__q_global_lipschitz)
 
     if isinstance(dynamics, AdditiveGaussianDynamics):
         f = dynamics.state_dynamics
     else:
         f = dynamics
+        theta_d += w2_noise_quantization
 
     if run_lagrangian_duality:
         print(f"-- Lagrangian Duality --")
         w2_bounds['lagrangian_duality'] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-            signature=sign_q, f=f, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
+            signature=sign_q, f=f, w2_q__disc_q=theta_d, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
+
+    if isinstance(dynamics, AdditiveGaussianDynamics) and not propagate_via_gmm:
+        w2_bounds['global_lipschitz'] += w2_noise_quantization
+        w2_bounds['lagrangian_duality'] += w2_noise_quantization
 
     return w2_bounds, q1, {'q': q1_samples, 'p': p1_samples}
 
