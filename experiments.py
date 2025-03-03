@@ -18,14 +18,13 @@ def single_step(
         q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
         num_samples: int,
         num_locs: int,
-        plot: bool = False,
+        propagate_via_gmm: bool,
         w2_p__q_global_lipschitz: float = 0.,
         w2_p__q_lagrangian_duality: float = 0.,
         run_lagrangian_duality: bool = True,
         run_empirical: bool = False,
         p_samples: Optional[torch.Tensor] = None,
         num_locs_after_compr: Optional[int] = None,
-        propagate_via_gmm: bool = False,
         **kwargs):
 
     # Initialize System Dynamics
@@ -47,10 +46,10 @@ def single_step(
     # Propagate
     if not propagate_via_gmm:
         sign_noise_dist, w2_noise_quantization = quantize(noise_dist, num_locs)
-        sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, sign_noise_dist, sign_q)
+        sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, sign_noise_dist, sign_q, propagate_via_gmm)
     else:
         # Propagate the (approximate) state distribution over the dynamics
-        sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, noise_dist, sign_q)
+        sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, noise_dist, sign_q, propagate_via_gmm)
 
     # Empirically approximate the state distribution
     q_samples = q.sample(torch.Size((num_samples,)))

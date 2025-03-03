@@ -54,7 +54,7 @@ def propagate_state_dist_over_dynamics(
         dynamics: Dynamics,
         noise_dist: Union[ds.MultivariateNormal, ds.DiscretizedMultivariateNormal, ds.CategoricalFloat],
         sign_state_dist: Union[ds.DiscretizedMultivariateNormal, ds.CategoricalFloat],
-        propagate_via_gmm: bool = False
+        propagate_via_gmm: bool
 ):
     if propagate_via_gmm:
         sign_q, q1 = _propagate_via_gmms(dynamics, noise_dist, sign_state_dist)

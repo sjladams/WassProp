@@ -23,8 +23,8 @@ if __name__ == '__main__':
         optimize_locs=False
     )
 
-    run_single_step = False
-    run_multi_step = True
+    run_single_step = True
+    run_multi_step = False
 
     params = load_params(args)
 
@@ -37,9 +37,10 @@ if __name__ == '__main__':
             dynamics=dynamics,
             noise_dist=noise_dist,
             q=initial_dist,
-            w2_p__q_options=[0., 0.1],
+            w2_p__q_options=[0., 0.1, 0.5, 1.0],
             run_independent_coupling=False,
             run_lagrangian_duality=True,
+            propagate_via_gmm=True,
             **params
         )
         plot.plot_single_step(dynamics, w2_bounds, **params)
@@ -52,6 +53,7 @@ if __name__ == '__main__':
             run_independent_coupling=False,
             run_lagrangian_duality=True,
             run_empirical=False,
+            propagate_via_gmm=False,
             **params
         )
         plot.plot_multi_step(dynamics, samples)
