@@ -76,7 +76,7 @@ def compare_quantization_operators(dynamics_type, num_dims, dyn_setting, nums_lo
 
         fn_sq_w2_f_q__f_disc_q = wasserstein.get_fn_sq_w2_f_q__f_disc_q(signature, dynamics.state_dynamics)
         bound = fn_sq_w2_f_q__f_disc_q().sqrt()
-        bounds_optimal.append(bound)
+        bounds_optimal.append(round(bound.item(), 4))
 
         # Compute for uniform grid
         locs = make_uniform_grid(signature.locs) # Compute uniform locs
@@ -90,15 +90,15 @@ def compare_quantization_operators(dynamics_type, num_dims, dyn_setting, nums_lo
 
         w2_alpha_or_beta = torch.min(sq_norm_2nd_moment * alpha, beta)
         bound =  torch.einsum('...i,...i->...', w2_alpha_or_beta, probs).sqrt()
-        bounds_uniform.append(bound)
+        bounds_uniform.append(round(bound.item(), 4))
 
         signatures_uniform.append(ds.CategoricalFloat(probs, locs))
 
-    print(bounds_optimal)
-    print(bounds_uniform)
+    print(f'Optimal grid: {bounds_optimal}')
+    print(f'Uniform grid: {bounds_uniform}')
 
-    plot.plot_signatures(dynamics, initial_dist, signatures_optimal, bounds_optimal)
-    plot.plot_signatures(dynamics, initial_dist, signatures_uniform, bounds_uniform)
+    #plot.plot_signatures(dynamics, initial_dist, signatures_optimal, bounds_optimal)
+    #plot.plot_signatures(dynamics, initial_dist, signatures_uniform, bounds_uniform)
 
 if __name__ == '__main__':
     torch.manual_seed(0)
