@@ -10,14 +10,14 @@ from bound import local_ibp_sq_norm_fx_fc, global_ibp_sq_norm_fx_fc, global_lbp_
 from optimize import minimize_with_adam
 from tensors import check_mat_diag
 
-def compute_sq_norm_2nd_moment(signature: ds.DiscretizedMultivariateNormal, voronoi_partition: HyperRectangularVoronoiPartition, locs: torch.Tensor):
+def compute_sq_norm_2nd_moment(distribution: ds.MultivariateNormal, voronoi_partition: HyperRectangularVoronoiPartition, locs: torch.Tensor):
     # \todo include in discretize_distributions packages
     # \todo locs are the representative points of the partition, which in case of a shift is not the voronoi_partition any more: Create new partition class that combines both locs and lower and upper
 
     ## Compute integral terms:
     trunc_mean, trunc_var = ds.utils.calculate_mean_and_var_trunc_normal(
-        loc=signature.dist.loc.unsqueeze(0),
-        scale=signature.dist.covariance_matrix.diagonal(dim1=-1, dim2=-2).sqrt().unsqueeze(0),
+        loc=distribution.loc.unsqueeze(0),
+        scale=distribution.covariance_matrix.diagonal(dim1=-1, dim2=-2).sqrt().unsqueeze(0),
         l=voronoi_partition.lower, u=voronoi_partition.upper)
 
     return (trunc_var + (trunc_mean - locs).pow(2)).sum(-1)
@@ -57,7 +57,7 @@ def get_fn_sq_w2_f_q__f_disc_q(
     alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
     beta = global_ibp_sq_norm_fx_fc(f, signature.locs).upper.squeeze(-1)
 
-    sq_norm_2nd_moment = compute_sq_norm_2nd_moment(signature, voronoi_partition, signature.locs)
+    sq_norm_2nd_moment = compute_sq_norm_2nd_moment(signature.dist, voronoi_partition, signature.locs)
 
     def fn_sq_w2_f_q__f_disc_q():
         w2_alpha_or_beta = torch.min(sq_norm_2nd_moment * alpha, beta)
@@ -80,7 +80,7 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
             if not isinstance(f, dynamics.NonAdditiveGaussianNoiseDynamics):
                 voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
 
-                sq_norm_2nd_moment = compute_sq_norm_2nd_moment(signature, voronoi_partition, locs) # we use the same partition and probs, only move the locations
+                sq_norm_2nd_moment = compute_sq_norm_2nd_moment(signature.dist, voronoi_partition, locs) # we use the same partition and probs, only move the locations
                 w2_disc = torch.sum(sq_norm_2nd_moment * signature.probs).sqrt()
                 w2_p__disc_q = w2_p__q + w2_disc
             else:
