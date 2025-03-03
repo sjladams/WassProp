@@ -65,9 +65,9 @@ def single_step(
                  }
 
     if run_empirical:
-        w2_bounds['empirical'] = ot.solve_sample(p1_samples.view(-1, dynamics.num_dims),
-                                            q1_samples.view(-1, dynamics.num_dims)
-                                            ).value.sqrt()
+        w2_bounds['empirical'] = ot.solve_sample(p1_samples.view(-1, p1_samples.shape[-1]),
+                                                 q1_samples.view(-1, q1_samples.shape[-1])
+                                                 ).value.sqrt()
 
     w2_bounds['global_lipschitz'] = dynamics.global_lipschitz * (theta_d + w2_compr + w2_p__q_global_lipschitz)
 
