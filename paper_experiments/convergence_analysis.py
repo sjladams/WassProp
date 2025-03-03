@@ -35,7 +35,7 @@ if __name__ == '__main__':
     torch.manual_seed(0)
 
     # Set parameters
-    num_locs_experiment = [10]
+    num_locs_experiment = [10, 100, 1000, 10000]
     w_p__q = 0.0
 
     run_inputs = { # [dynamics_type, num_dims, dynamics_setting]
@@ -61,4 +61,5 @@ if __name__ == '__main__':
 
         experiment_dict[dynamics_name] = bounds
 
+    # Print results (dict)
     print(experiment_dict)
