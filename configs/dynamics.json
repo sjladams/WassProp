@@ -4,6 +4,12 @@
             "0": {
                 "loc_noise_dist": [0.0],
                 "variance_noise_dist": [0.5],
+                "loc_initial_dist": [0.2],
+                "variance_initial_dist": [0.5]
+            },
+            "1": {
+                "loc_noise_dist": [0.0],
+                "variance_noise_dist": [0.5],
                 "loc_initial_dist": [5.0],
                 "variance_initial_dist": [2.0]
             }
