@@ -32,10 +32,6 @@ def make_uniform_grid(points):
     # Remove duplicate points using torch.unique
     unique_grid_points = torch.unique(grid_points, dim=0)
 
-    # Select the first n points to maintain the original count (if needed)
-    #if unique_grid_points.shape[0] > n:
-    #    unique_grid_points = unique_grid_points[:n]
-
     return unique_grid_points
 
 def gaussian_hypercube_prob(dist, lower, upper):
@@ -96,9 +92,6 @@ def compare_quantization_operators(dynamics_type, num_dims, dyn_setting, nums_lo
 
     print(f'Optimal grid: {bounds_optimal}')
     print(f'Uniform grid: {bounds_uniform}')
-
-    #plot.plot_signatures(dynamics, initial_dist, signatures_optimal, bounds_optimal)
-    #plot.plot_signatures(dynamics, initial_dist, signatures_uniform, bounds_uniform)
 
 if __name__ == '__main__':
     torch.manual_seed(0)

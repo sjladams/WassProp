@@ -46,7 +46,7 @@ if __name__ == '__main__':
         'Sigmoid (1D)' : ('SigmoidDynamics', 1, 0, 100),
         'Bounded Linear (2D)' : ('BoundedLinearDynamics', 2, 0, 100),
         'Quadruple-Tank (4D)' : ('LinearDynamics', 4, 0, 1000),
-        #'NN Layer (10D)' : ('LinearDiagonalSigmoidDynamics', 10, 0, 1000),
+        'NN Layer (10D)' : ('LinearDiagonalSigmoidDynamics', 10, 0, 1000),
         'Mountain Car (2D)' : ('MountainCarDynamics', 2, 0, 100),
         'Dubins car (3D)' : ('DubinsCarDynamics', 3, 0, 1000)
     }
