@@ -22,7 +22,7 @@ COLORS_HIST = [
 
 @torch.no_grad()
 def plot_signatures(f, initial_dist, signatures, bounds):
-    X = torch.linspace(-5, 8, int(1e3)).unsqueeze(-1)
+    X = torch.linspace(-3, 3, int(1e3)).unsqueeze(-1)
     Y = f(X)
 
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(36, 12))
@@ -34,7 +34,7 @@ def plot_signatures(f, initial_dist, signatures, bounds):
 
     for i, (signature, bound) in enumerate(zip(signatures, bounds)):
 
-        ax[i].plot(X, Y)
+        ax[i].plot(X, Y, label=r'$f(x)$')
         ax[i].set_xlabel(r"$x$")
 
         ax[i].plot(X, gaussian_density, label=r'$\mathbb{P}$')
@@ -49,11 +49,13 @@ def plot_signatures(f, initial_dist, signatures, bounds):
                          arrowprops=dict(facecolor='green', edgecolor='green', width=0.8, headwidth=7),
                          )
 
-        ax[i].text(mu, 0.4, rf'$h(\mathcal{{R}}, \mathcal{{C}}) = {bound:.2f}$',
+        ax[i].text(mu-2.0, 0.5, rf'$h(\mathcal{{R}}, \mathcal{{C}}) = {bound:.2f}$',
                  ha='center', color='black',
                  bbox=dict(facecolor='white', edgecolor='gray', boxstyle='round,pad=0.3'))
 
-    ax[0].set_ylabel(r'$f(x)$')
+        ax[i].yaxis.set_visible(False)
+
+    #ax[0].set_ylabel(r'$f(x)$')
 
     # Add a proxy artist for the annotation to include it in the legend
     annotation_label = r"$\Delta_{\mathcal{R}, \mathcal{C}}\#\mathbb{P}$"
@@ -70,7 +72,7 @@ def plot_signatures(f, initial_dist, signatures, bounds):
     plt.tight_layout()
 
     # Save the figure as EPS
-    #plt.savefig(rf'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\signature_example.pdf', format='pdf')
+    #plt.savefig(rf'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\sigmoid_signature_example.pdf', format='pdf')
     plt.show()
 
 @torch.no_grad()
