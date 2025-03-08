@@ -98,7 +98,7 @@ if __name__ == '__main__':
 
     dynamics_type = 'LinearDiagonalBoundedDynamics'
     num_dims = 1
-    nums_locs = [5, 10, 100]
+    nums_locs = [5, 10, 100, 1000]
     dyn_setting = 0
 
     compare_quantization_operators(dynamics_type, num_dims, dyn_setting, nums_locs)
