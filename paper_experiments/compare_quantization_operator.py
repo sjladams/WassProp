@@ -7,7 +7,6 @@ from dynamics import get_dynamics
 import plot
 from regions import HyperRectangularVoronoiPartition
 from utils import load_params, parse_arguments
-from utils_distributions import quantize
 from torch.distributions import Normal
 import discretize_distributions as ds
 
@@ -67,7 +66,9 @@ def compare_quantization_operators(dynamics_type, num_dims, dyn_setting, nums_lo
         initial_dist = get_initial_dist(**params)
 
         # Compute signature and quantization error for our approach
-        signature, w2 = quantize(initial_dist, num_locs)
+        signature = ds.discretization_generator(initial_dist, num_locs)
+        w2 = signature.w2
+
         signatures_optimal.append(signature)
 
         fn_sq_w2_f_q__f_disc_q = wasserstein.get_fn_sq_w2_f_q__f_disc_q(signature, dynamics.state_dynamics)

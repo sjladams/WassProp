@@ -38,18 +38,3 @@ def sum_discrete_distributions(state_signature, noise_signature):
     sum_probs = ( state_signature.probs.unsqueeze(1) * noise_signature.probs.unsqueeze(0) ).view(-1)
 
     return sum_probs, sum_locs
-
-def quantize(q, num_locs):
-
-    if isinstance(q, ds.MultivariateNormal):
-        sign_q = ds.discretization_generator(dist=q, num_locs=num_locs)
-        w2_quantization = sign_q.w2
-
-    elif isinstance(q, ds.DiscretizedMultivariateNormal) or isinstance(q, ds.CategoricalFloat):
-        sign_q = q
-        w2_quantization = 0.0 # TODO: Assuming same support, this needs to be extended
-
-    else:
-        raise ValueError('Optimal quantization not implemented for q class.')
-
-    return sign_q, w2_quantization

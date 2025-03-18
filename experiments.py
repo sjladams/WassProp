@@ -8,7 +8,6 @@ import GMMWas
 import wasserstein
 from dynamics import Dynamics, AdditiveGaussianDynamics
 from propagation import propagate_state_dist_over_dynamics
-from utils_distributions import quantize
 
 
 def single_step(
@@ -53,11 +52,14 @@ def single_step(
                 raise ValueError
 
     # Approximate the state distribution
-    sign_q, theta_d = quantize(q, num_locs)
+    sign_q = ds.discretization_generator(q, num_locs)
+    theta_d = sign_q.w2
 
     # Propagate
     if not propagate_via_gmm:
-        sign_noise_dist, w2_noise_quantization = quantize(noise_dist, num_locs)
+        sign_noise_dist = ds.discretization_generator(noise_dist, num_locs)
+        w2_noise_quantization = sign_noise_dist.w2
+
         sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, sign_noise_dist, sign_q, propagate_via_gmm)
     else:
         # Propagate the (approximate) state distribution over the dynamics
