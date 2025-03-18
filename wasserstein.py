@@ -11,17 +11,6 @@ from optimize import minimize_with_adam
 from tensors import check_mat_diag
 
 
-def compute_sq_l2_norm(distribution: ds.MultivariateNormal, voronoi_partition: HyperRectangularVoronoiPartition, locs: torch.Tensor):
-    # \todo locs are the representative points of the partition, which in case of a shift is not the voronoi_partition any more: Create new partition class that combines both locs and lower and upper
-    ## Compute integral terms:
-    trunc_mean, trunc_var = ds.utils.calculate_mean_and_var_trunc_normal(
-        loc=distribution.loc.unsqueeze(0),
-        scale=distribution.covariance_matrix.diagonal(dim1=-1, dim2=-2).sqrt().unsqueeze(0),
-        l=voronoi_partition.lower, u=voronoi_partition.upper)
-
-    return (trunc_var + (trunc_mean - locs).pow(2)).sum(-1)
-
-
 def compute_w2_wrapper(func):
     def wrapper(
             signature: ds.DiscretizedMultivariateNormal,
