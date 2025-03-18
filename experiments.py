@@ -7,7 +7,7 @@ import discretize_distributions as ds
 import GMMWas
 import wasserstein
 from dynamics import Dynamics, AdditiveGaussianDynamics
-from propagation import propagate_state_dist_over_dynamics
+import propagation as prop
 
 
 def single_step(
@@ -53,30 +53,30 @@ def single_step(
 
     # Approximate the state distribution
     sign_q = ds.discretization_generator(q, num_locs)
-    theta_d = sign_q.w2
+    theta_d = sign_q.w2 # \todo remove this
 
     # Propagate
-    if not propagate_via_gmm:
-        sign_noise_dist = ds.discretization_generator(noise_dist, num_locs)
-        w2_noise_quantization = sign_noise_dist.w2
-
-        sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, sign_noise_dist, sign_q, propagate_via_gmm)
+    if isinstance(dynamics, AdditiveGaussianDynamics) and propagate_via_gmm:
+        q1 = prop.propagate_additive_gaussian_noise(dynamics, noise_dist, sign_q)
     else:
-        # Propagate the (approximate) state distribution over the dynamics
-        sign_q, q1 = propagate_state_dist_over_dynamics(dynamics, noise_dist, sign_q, propagate_via_gmm)
+        sign_noise_dist = ds.discretization_generator(noise_dist, num_locs)
+        if isinstance(dynamics, AdditiveGaussianDynamics):
+            q1 = prop.propagate_additive_discrete_noise(dynamics, sign_noise_dist, sign_q)
+        else:
+            sign_cross, q1 = prop.propagate_general_discrete_noise(dynamics, sign_noise_dist, sign_q)
 
     # Empirically approximate the state distribution
     q_samples = q.sample(torch.Size((num_samples,)))
+    p_samples = q_samples if p_samples is not None else q_samples
     q1_samples = q1.sample(torch.Size((num_samples,)))
     noise_samples = noise_dist.sample(torch.Size((num_samples,)))
-
-    p1_samples = dynamics(torch.cat((p_samples if p_samples is not None else q_samples, noise_samples), dim=-1))
+    p1_samples = dynamics(torch.cat((p_samples, noise_samples), dim=-1))
 
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
     w2_bounds = {'sign_q': theta_d,
                  'empirical': torch.nan,
                  'lagrangian_duality': torch.nan
-                 }
+                 } # \todo initialize empty dict, then append
 
     if run_empirical:
         w2_bounds['empirical'] = ot.solve_sample(p1_samples.view(-1, p1_samples.shape[-1]),
@@ -84,21 +84,20 @@ def single_step(
                                                  ).value.sqrt()
 
     w2_bounds['global_lipschitz'] = dynamics.global_lipschitz * (theta_d + w2_compr + w2_p__q_global_lipschitz)
-
-    if isinstance(dynamics, AdditiveGaussianDynamics):
-        f = dynamics.state_dynamics
-    else:
-        f = dynamics
-        theta_d += w2_noise_quantization
+    if isinstance(dynamics, AdditiveGaussianDynamics) and not propagate_via_gmm:
+        w2_bounds['global_lipschitz'] += sign_noise_dist.w2
 
     if run_lagrangian_duality:
         print(f"-- Lagrangian Duality --")
-        w2_bounds['lagrangian_duality'] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-            signature=sign_q, f=f, w2_q__disc_q=theta_d, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
+        if isinstance(dynamics, AdditiveGaussianDynamics):
+            w2_bounds['lagrangian_duality'] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
+                signature=sign_q, f=dynamics.state_dynamics, w2_q__disc_q=theta_d, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
 
-    if isinstance(dynamics, AdditiveGaussianDynamics) and not propagate_via_gmm:
-        w2_bounds['global_lipschitz'] += w2_noise_quantization
-        w2_bounds['lagrangian_duality'] += w2_noise_quantization
+            if not propagate_via_gmm:
+                w2_bounds['lagrangian_duality'] += sign_noise_dist.w2
+        else:
+            w2_bounds['lagrangian_duality'] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
+                signature=sign_cross, f=dynamics, w2_q__disc_q=theta_d+sign_noise_dist.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
 
     return w2_bounds, q1, {'q': q1_samples, 'p': p1_samples}
 
