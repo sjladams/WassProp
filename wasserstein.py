@@ -40,15 +40,11 @@ def get_fn_sq_w2_f_q__f_disc_q(
         # grid in the transformed space induced by the whitening transformation of the covariance matrix.
         raise NotImplementedError("Only implemented for q being of the class MultivariateNormal with diagonal covariance matrix")
 
-    voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
-
     alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
     beta = global_ibp_sq_norm_fx_fc(f, signature.locs).upper.squeeze(-1)
 
-    sq_norm_2nd_moment = compute_sq_l2_norm(signature.dist, voronoi_partition, signature.locs)
-
     def fn_sq_w2_f_q__f_disc_q():
-        w2_alpha_or_beta = torch.min(sq_norm_2nd_moment * alpha, beta)
+        w2_alpha_or_beta = torch.min(signature.sq_l2_norm * alpha, beta)
         return torch.einsum('...i,...i->...', w2_alpha_or_beta, signature.probs)
 
     return fn_sq_w2_f_q__f_disc_q
