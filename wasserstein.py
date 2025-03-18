@@ -3,11 +3,9 @@ from typing import Callable, Union
 
 import dynamics
 import discretize_distributions as ds
-from regions import HyperRectangularVoronoiPartition
 
-from bound import local_ibp_sq_norm_fx_fc, global_ibp_sq_norm_fx_fc, global_lbp_sq_norm_fx_fc
+from bound import global_ibp_sq_norm_fx_fc, global_lbp_sq_norm_fx_fc
 
-from optimize import minimize_with_adam
 from tensors import check_mat_diag
 
 
