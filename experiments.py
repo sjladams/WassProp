@@ -53,7 +53,6 @@ def single_step(
 
     # Approximate the state distribution
     sign_q = ds.discretization_generator(q, num_locs)
-    theta_d = sign_q.w2 # \todo remove this
 
     # Propagate
     if isinstance(dynamics, AdditiveGaussianDynamics) and propagate_via_gmm:
@@ -73,7 +72,7 @@ def single_step(
     p1_samples = dynamics(torch.cat((p_samples, noise_samples), dim=-1))
 
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
-    w2_bounds = {'sign_q': theta_d,
+    w2_bounds = {'sign_q': sign_q.w2,
                  'empirical': torch.nan,
                  'lagrangian_duality': torch.nan
                  } # \todo initialize empty dict, then append
@@ -83,7 +82,7 @@ def single_step(
                                                  q1_samples.view(-1, q1_samples.shape[-1])
                                                  ).value.sqrt()
 
-    w2_bounds['global_lipschitz'] = dynamics.global_lipschitz * (theta_d + w2_compr + w2_p__q_global_lipschitz)
+    w2_bounds['global_lipschitz'] = dynamics.global_lipschitz * (sign_q.w2 + w2_compr + w2_p__q_global_lipschitz)
     if isinstance(dynamics, AdditiveGaussianDynamics) and not propagate_via_gmm:
         w2_bounds['global_lipschitz'] += sign_noise_dist.w2
 
@@ -91,13 +90,12 @@ def single_step(
         print(f"-- Lagrangian Duality --")
         if isinstance(dynamics, AdditiveGaussianDynamics):
             w2_bounds['lagrangian_duality'] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-                signature=sign_q, f=dynamics.state_dynamics, w2_q__disc_q=theta_d, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
-
+                signature=sign_q, f=dynamics.state_dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
             if not propagate_via_gmm:
                 w2_bounds['lagrangian_duality'] += sign_noise_dist.w2
         else:
             w2_bounds['lagrangian_duality'] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-                signature=sign_cross, f=dynamics, w2_q__disc_q=theta_d+sign_noise_dist.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
+                signature=sign_cross, f=dynamics, w2_q__disc_q=sign_q.w2+sign_noise_dist.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
 
     return w2_bounds, q1, {'q': q1_samples, 'p': p1_samples}
 
