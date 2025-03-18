@@ -33,7 +33,7 @@ if __name__ == '__main__':
     noise_dist = get_noise_dist(**params)
 
     if run_single_step:
-        w2_bounds = single_step_w2_options(
+        w2_q__sign_q_store, w2_p1__q1_store = single_step_w2_options(
             dynamics=dynamics,
             noise_dist=noise_dist,
             q=initial_dist,
@@ -43,9 +43,9 @@ if __name__ == '__main__':
             propagate_via_gmm=True,
             **params
         )
-        plot.plot_single_step(dynamics, w2_bounds, **params)
+        plot.plot_single_step(dynamics, w2_p1__q1_store, **params)
     elif run_multi_step:
-        w2_bounds, samples = multi_step(
+        w2_q__sign_q_store, w2_p1__q1_store, samples_store = multi_step(
             dynamics=dynamics,
             noise_dist=noise_dist,
             q=initial_dist,
@@ -56,4 +56,4 @@ if __name__ == '__main__':
             propagate_via_gmm=False,
             **params
         )
-        plot.plot_multi_step(dynamics, samples)
+        # plot.plot_multi_step(dynamics, samples)

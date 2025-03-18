@@ -16,7 +16,7 @@ def single_step(
         q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal, ds.CategoricalFloat],
         num_samples: int,
         num_locs: int,
-        propagate_via_gmm: bool,
+        propagate_via_gmm: bool, # todo rename
         w2_p__q_global_lipschitz: float = 0.,
         w2_p__q_lagrangian_duality: float = 0.,
         run_lagrangian_duality: bool = True,
@@ -72,32 +72,39 @@ def single_step(
     p1_samples = dynamics(torch.cat((p_samples, noise_samples), dim=-1))
 
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
-    w2_bounds = {'sign_q': sign_q.w2,
-                 'empirical': torch.nan,
-                 'lagrangian_duality': torch.nan
-                 } # \todo initialize empty dict, then append
-
     if run_empirical:
-        w2_bounds['empirical'] = ot.solve_sample(p1_samples.view(-1, p1_samples.shape[-1]),
+        w2_p1__q1_empirical = ot.solve_sample(p1_samples.view(-1, p1_samples.shape[-1]),
                                                  q1_samples.view(-1, q1_samples.shape[-1])
                                                  ).value.sqrt()
+    else:
+        w2_p1__q1_empirical = torch.nan
 
-    w2_bounds['global_lipschitz'] = dynamics.global_lipschitz * (sign_q.w2 + w2_compr + w2_p__q_global_lipschitz)
+    w2_p1__q1_global_lipschitz = dynamics.global_lipschitz * (sign_q.w2 + w2_compr + w2_p__q_global_lipschitz)
     if isinstance(dynamics, AdditiveGaussianDynamics) and not propagate_via_gmm:
-        w2_bounds['global_lipschitz'] += sign_noise_dist.w2
+        w2_p1__q1_global_lipschitz += sign_noise_dist.w2
 
     if run_lagrangian_duality:
         print(f"-- Lagrangian Duality --")
         if isinstance(dynamics, AdditiveGaussianDynamics):
-            w2_bounds['lagrangian_duality'] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
+            w2_p1__q1_lagrangian_duality = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
                 signature=sign_q, f=dynamics.state_dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
             if not propagate_via_gmm:
-                w2_bounds['lagrangian_duality'] += sign_noise_dist.w2
+                w2_p1__q1_lagrangian_duality += sign_noise_dist.w2
         else:
-            w2_bounds['lagrangian_duality'] = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
+            w2_p1__q1_lagrangian_duality = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
                 signature=sign_cross, f=dynamics, w2_q__disc_q=sign_q.w2+sign_noise_dist.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
+    else:
+        w2_p1__q1_lagrangian_duality = torch.nan
 
-    return w2_bounds, q1, {'q': q1_samples, 'p': p1_samples}
+    return dict(
+        w2_q__sign_q=sign_q.w2,
+        w2_p1__q1_empirical=w2_p1__q1_empirical,
+        w2_p1__q1_global_lipschitz=w2_p1__q1_global_lipschitz,
+        w2_p1__q1_lagrangian_duality=w2_p1__q1_lagrangian_duality,
+        q1=q1,
+        q1_samples=q1_samples,
+        p1_samples=p1_samples
+    )
 
 
 def single_step_w2_options(
@@ -108,31 +115,32 @@ def single_step_w2_options(
         w2_p__q_options = [w2_p__q_options]
 
     # store wasserstein error bounds
-    w2_bounds = dict()
+    w2_p1__q1_store = dict()
+    w2_q__sign_q_store = dict()
 
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
     for w2_p__q in w2_p__q_options:
         print(f"\n ------ W_2(p,q) = {w2_p__q} ------ \n")
 
-        w2_bounds[w2_p__q], q, samples = single_step(
+        out = single_step(
             w2_p__q_global_lipschitz=w2_p__q,
             w2_p__q_lagrangian_duality=w2_p__q,
             **kwargs
         )
+        w2_p1__q1_store[w2_p__q] = {key: value for key, value in out.items() if 'w2_p1__q1' in key}
+        w2_q__sign_q_store[w2_p__q] = out['w2_q__sign_q']
 
         print(
             f"Bounds on W_2(f#p, f#disc#q) for W_2(p,q) = {w2_p__q} and "
-            f"W_2(q_0, Delta_C#q_0) = {w2_bounds[w2_p__q]['sign_q']:.4f} via:\n"
-            f"\t Global Lipschitz: {w2_bounds[w2_p__q]['global_lipschitz']:.4f}\n")
-        print(f"\t Empirical: {w2_bounds[w2_p__q]['empirical']:.4f}\n"
-              if 'empirical' in w2_bounds[w2_p__q] else "")
-        print(f"\t Lagrangian Duality: {w2_bounds[w2_p__q]['lagrangian_duality']:.4f}\n"
-              if 'lagrangian_duality' in w2_bounds[w2_p__q] else "")
+            f"W_2(q_0, Delta_C#q_0) = {out['w2_q__sign_q']:.4f} via:\n"
+            f"\t Global Lipschitz: {out['w2_p1__q1_global_lipschitz']:.4f}\n"
+            f"\t Empirical: {out['w2_p1__q1_empirical']:.4f}\n"
+            f"\t Lagrangian Duality: {out['w2_p1__q1_lagrangian_duality']:.4f}\n")
 
-    return w2_bounds
+    return w2_q__sign_q_store, w2_p1__q1_store
 
 
-def multi_step(
+def multi_step( # \todo kill gradients
         dynamics: Dynamics,
         noise_dist: ds.MultivariateNormal,
         q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
@@ -146,28 +154,35 @@ def multi_step(
     # Initialize w2_p__q error:
     w2_bounds = {0: {'global_lipschitz': 0., 'lagrangian_duality': 0.}}
 
+    # store wasserstein error bounds
+    w2_p1__q1_store = {0: dict(w2_p1__q1_global_lipschitz=0., w2_p1__q1_lagrangian_duality=0.)}
+    w2_q__sign_q_store = dict()
+
     # store trajectories
-    samples = dict()
+    samples_store = dict()
 
     # loop over time steps
     for k in range(num_time_steps):
         print(f'---- TIME STEP {k} ----')
-        w2_bounds[k+1], q, samples[k] = single_step(
+        out = single_step(
             dynamics=dynamics,
             noise_dist=noise_dist,
             q=q,
-            p_samples=None if k==0 else samples[k-1]['p'],
-            w2_p__q_global_lipschitz=w2_bounds[k]['global_lipschitz'],
-            w2_p__q_lagrangian_duality=w2_bounds[k]['lagrangian_duality'],
+            p_samples=samples_store[k-1]['p1_samples'] if k-1 in samples_store else None,
+            w2_p__q_global_lipschitz=w2_p1__q1_store[k]['w2_p1__q1_global_lipschitz'],
+            w2_p__q_lagrangian_duality=w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'],
             **kwargs
         )
 
+        w2_p1__q1_store[k+1] = {key: value for key, value in out.items() if 'w2_p1__q1' in key}
+        w2_q__sign_q_store[k+1] = out['w2_q__sign_q']
+        samples_store[k] = {key: value for key, value in out.items() if 'samples' in key}
+
         print(
             f"Bounds on W_2(p_{k+1}, q_{k+1}) via:\n"
-            f"\t Global Lipschitz: {w2_bounds[k+1]['global_lipschitz']:.4f}\n")
-        print(f"\t Empirical: {w2_bounds[k+1]['empirical']:.4f}\n"
-              if 'empirical' in w2_bounds[k+1] else "")
-        print(f"\t Lagrangian Duality: {w2_bounds[k+1]['lagrangian_duality']:.4f}\n"
-              if 'lagrangian_duality' in w2_bounds[k+1] else "")
+            f"\t Global Lipschitz: {out['w2_p1__q1_global_lipschitz']:.4f}\n"
+            f"\t Empirical: {out['w2_p1__q1_empirical']:.4f}\n"
+            f"\t Lagrangian Duality: {out['w2_p1__q1_lagrangian_duality']:.4f}\n"
+        )
 
-    return w2_bounds, samples
+    return w2_q__sign_q_store, w2_p1__q1_store, samples_store

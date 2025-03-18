@@ -76,16 +76,16 @@ def plot_signatures(f, initial_dist, signatures, bounds):
     plt.show()
 
 @torch.no_grad()
-def plot_single_step(dynamics, w2_bounds: dict, **kwargs):
-    w2_p__q_options = list(w2_bounds.keys())
+def plot_single_step(dynamics, w2_p1__q1_store: dict, **kwargs):
+    w2_p__q_options = list(w2_p1__q1_store.keys())
 
-    fig_w2_bounds = plt.figure(figsize=(16, 16))
-    for key in w2_bounds[w2_p__q_options[0]].keys():
-        if not key in ['sign_q']:
-            plt.plot(w2_p__q_options, [w2_bounds[w2_p__q][key] for w2_p__q in w2_p__q_options], label=key)
+    fig = plt.figure(figsize=(16, 16))
+    for key in w2_p1__q1_store[w2_p__q_options[0]].keys():
+        plt.plot(w2_p__q_options, [w2_p1__q1_store[w2_p__q][key] for w2_p__q in w2_p__q_options], label=key)
 
     plt.legend()
-    plt.title(f"{dynamics.state_dynamics.__class__.__name__ if hasattr(dynamics, 'state_dynamics') else dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f})")
+    plt.title(f"{dynamics.state_dynamics.__class__.__name__ if hasattr(dynamics, 'state_dynamics') else \
+        dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f})")
     plt.xlabel('$W_2(p,q)$')
     plt.xticks(w2_p__q_options)
     plt.ylabel(r'$W_2(f p, f \Delta q)$')
