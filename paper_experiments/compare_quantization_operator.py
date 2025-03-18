@@ -81,7 +81,7 @@ def compare_quantization_operators(dynamics_type, num_dims, dyn_setting, nums_lo
         alpha = global_lbp_sq_norm_fx_fc(dynamics.state_dynamics, locs)
         beta = global_ibp_sq_norm_fx_fc(dynamics.state_dynamics, locs).upper.squeeze(-1)
 
-        sq_norm_2nd_moment = wasserstein.compute_sq_norm_2nd_moment(initial_dist, voronoi_partition, locs)
+        sq_norm_2nd_moment = wasserstein.compute_sq_l2_norm(initial_dist, voronoi_partition, locs)
         probs = gaussian_hypercube_prob(initial_dist, voronoi_partition.lower, voronoi_partition.upper)
 
         w2_alpha_or_beta = torch.min(sq_norm_2nd_moment * alpha, beta)
