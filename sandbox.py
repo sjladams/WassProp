@@ -148,8 +148,7 @@ def invest_alphas_betas():
         num_samples=5000,
         lr=0.01,
         num_iterations=1000,
-        plot=False,
-        optimize_locs=False
+        plot=False
     )
 
     params = load_params(args)

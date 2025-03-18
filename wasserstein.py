@@ -72,26 +72,14 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
         w2_q__disc_q: float,
         w2_p__q: float)-> Callable:
 
-    def fn_sq_w2_f_p__f_disc_q_lagrangian_duality(locs_shift: Union[torch.Tensor, float] = 0., **kwargs): # \todo respect batches
-        locs = signature.locs + locs_shift
+    def fn_sq_w2_f_p__f_disc_q_lagrangian_duality(**kwargs):
+        w2_p__disc_q = w2_p__q + w2_q__disc_q
 
-        if (torch.as_tensor(locs_shift) != 0.).any():
-            if not isinstance(f, dynamics.NonAdditiveGaussianNoiseDynamics):
-                voronoi_partition = HyperRectangularVoronoiPartition(signature.locs)
-
-                sq_norm_2nd_moment = compute_sq_l2_norm(signature.dist, voronoi_partition, locs) # we use the same partition and probs, only move the locations
-                w2_disc = torch.sum(sq_norm_2nd_moment * signature.probs).sqrt()
-                w2_p__disc_q = w2_p__q + w2_disc
-            else:
-                raise NotImplementedError
-        else:
-            w2_p__disc_q = w2_p__q + w2_q__disc_q
-
-        alpha = global_lbp_sq_norm_fx_fc(f, locs)
-        beta = global_ibp_sq_norm_fx_fc(f, locs).upper.squeeze(-1)
+        alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
+        beta = global_ibp_sq_norm_fx_fc(f, signature.locs).upper.squeeze(-1)
 
         mask = torch.ones(alpha.size(0), alpha.size(0)).tril()[:, alpha.sort().indices]
-        mask = torch.cat((mask, torch.zeros(1, locs.shape[-2])), dim=0)
+        mask = torch.cat((mask, torch.zeros(1, signature.locs.shape[-2])), dim=0)
 
         alpha_options = torch.einsum('ij, j->ij', mask, alpha)
         beta_options = torch.einsum('ij, j->ij', 1 - mask, beta)
@@ -110,27 +98,10 @@ def compute_w2_f_p__f_disc_q_lagrangian_duality(
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
         w2_p__q: float,
-        optimize_locs: bool = False,
         **kwargs):
 
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(signature, f, w2_q__disc_q, w2_p__q)
 
-    if optimize_locs:
-        locs_shift = torch.randn_like(signature.locs.detach()) * 5.0
-        optimal_shift, losses = minimize_with_adam(
-            param=locs_shift.requires_grad_(True),
-            objective=fn_sq_w2_f_p__f_disc_q,
-            **kwargs
-        )
-        w2 = fn_sq_w2_f_p__f_disc_q(optimal_shift).sqrt()
-        print(f'w2 after GD (starting from signatures + gaussian noise): {w2:.4f}')
-        w2_zero_shift = fn_sq_w2_f_p__f_disc_q().sqrt()
-        if w2_zero_shift < w2:
-            w2 = w2_zero_shift
-            print('Optimal shift is zero!')
-        else:
-            print(f'w2 improvement due to loc optimization: {w2-w2_zero_shift:.8f}')
-    else:
-        w2 = fn_sq_w2_f_p__f_disc_q().sqrt()
+    w2 = fn_sq_w2_f_p__f_disc_q().sqrt()
 
     return w2
