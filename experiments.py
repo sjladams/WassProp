@@ -7,7 +7,6 @@ import discretize_distributions as ds
 import GMMWas
 import wasserstein
 from dynamics import Dynamics, AdditiveGaussianDynamics
-from plot import plot_multi_step
 from propagation import propagate_state_dist_over_dynamics
 from utils_distributions import quantize
 
@@ -15,7 +14,7 @@ from utils_distributions import quantize
 def single_step(
         dynamics: Dynamics,
         noise_dist: ds.MultivariateNormal,
-        q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
+        q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal, ds.CategoricalFloat],
         num_samples: int,
         num_locs: int,
         propagate_via_gmm: bool,
@@ -27,18 +26,31 @@ def single_step(
         num_locs_after_compr: Optional[int] = None,
         **kwargs):
 
+    if num_locs_after_compr is None:
+        num_locs_after_compr = num_locs
+
     # Initialize System Dynamics
     print(f"Global Lipschitz constant of f: {dynamics.global_lipschitz}")
 
     # Compress the mixture distribution
     with torch.no_grad():
-        q_pre_compression = copy(q)
-        # \todo make the unique(), i.e., the filtering in .compress() optional. Currently, it is always applied. This is problematic because GMMWas.w2 is an over-approximation, such that the w2 between the true and filtered are not guaranteed to be zero..
-        if isinstance(q, ds.MultivariateNormal) or (num_locs if num_locs_after_compr is None else num_locs_after_compr) >= q.num_components:
+        if isinstance(q, ds.MultivariateNormal) or num_locs_after_compr >= q.num_components:
             w2_compr = 0.
         else:
-            q.compress(n_max=num_locs if num_locs_after_compr is None else num_locs_after_compr)
-            w2_compr = GMMWas.w2(q, q_pre_compression)
+            if isinstance(q, ds.MixtureMultivariateNormal):
+                q = ds.unique_mixture_multivariate_normal(q)
+                if num_locs_after_compr >= q.num_components:
+                    w2_compr = 0.
+                else:
+                    q_pre = copy(q)
+                    q = ds.compress_mixture_multivariate_normal(q, n_max=num_locs_after_compr)
+                    w2_compr = GMMWas.w2(q, q_pre)
+            elif isinstance(q, ds.CategoricalFloat):
+                q_pre = copy(q)
+                q = ds.compress_categorical_floats(q_pre, n_max=num_locs_after_compr)
+                w2_compr = GMMWas.w2(q, q_pre)
+            else:
+                raise ValueError
 
     # Approximate the state distribution
     sign_q, theta_d = quantize(q, num_locs)
