@@ -37,7 +37,6 @@ if __name__ == '__main__':
             noise_dist=noise_dist,
             q=initial_dist,
             w2_p__q_options=[0., 0.1, 0.5, 1.0],
-            run_independent_coupling=False,
             run_lagrangian_duality=True,
             propagate_via_gmm=True,
             **params
@@ -49,7 +48,6 @@ if __name__ == '__main__':
             noise_dist=noise_dist,
             q=initial_dist,
             num_time_steps=3,
-            run_independent_coupling=False,
             run_lagrangian_duality=True,
             run_empirical=False,
             propagate_via_gmm=False,
