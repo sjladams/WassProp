@@ -1,3 +1,4 @@
+from typing import Union
 import torch
 import bound_propagation as bp
 
