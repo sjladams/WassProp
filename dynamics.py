@@ -42,6 +42,19 @@ class Dynamics(torch.nn.Sequential):
         super().__init__(*args)
 
 
+class CompositionalStructure:
+    """
+    z_{k+1} = dynamics[-1] o ... o dynamics[0](z_k), with z_k being x_k, noise_k OR OR (x_k, noise_k)
+
+    For Dynamics or StochasticDynamics of with a CompositionalStructure, global_lbp_sq_norm_fx_fc is applied
+    iteratively over the lowest level of the Sequential module.
+    """
+    pass
+
+class Separable:
+    pass
+
+
 class AdditiveGaussianDynamics(StochasticDynamics):
     """
     Special case of StochasticDynamics:
@@ -166,7 +179,7 @@ class LinearBoundedDynamics(Dynamics):
         return self._global_lipschitz
 
 
-class DiagonalLinearBoundedDynamics(LinearBoundedDynamics):
+class DiagonalLinearBoundedDynamics(LinearBoundedDynamics, Separable):
     def __init__(self,
                  diagonal: Union[torch.Tensor, list],
                  lower_bound: Union[float, torch.Tensor, list],
@@ -206,7 +219,7 @@ class BoundedLinearDynamics(Dynamics):
         return self._global_lipschitz
 
 
-class SigmoidDynamics(Dynamics):
+class SigmoidDynamics(Dynamics, Separable):
     def __init__(self, num_dims: int = 1, **kwargs):
         super().__init__(torch.nn.Sigmoid())
         self.num_dims = num_dims
@@ -216,7 +229,7 @@ class SigmoidDynamics(Dynamics):
         return 0.25
 
 
-class DiagonalLinearSigmoidDynamics(Dynamics):
+class DiagonalLinearSigmoidDynamics(Dynamics, Separable):
     def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
         if isinstance(diagonal, list):
             diagonal = torch.tensor(diagonal)
