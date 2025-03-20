@@ -12,7 +12,7 @@ def check_if_affine_bound_intersect_at_point(A, b, point, y):
 
 class BoundSequential(bp.BoundSequential):
     def __init__(self, *args, **kwargs):
-        super(BoundSequential, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def crown(self, *args, **kwargs):
         raise NotImplementedError

@@ -53,7 +53,7 @@ class SinTangentBisectionStrategy(bp.activation.SinTangentBisectionStrategy):
 
 class BoundSin(bp.BoundSin):
     def __init__(self, *args, **kwargs):
-        super(BoundSin, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.tangent_strategy = kwargs.get('sin_tangent_strategy', SinTangentBisectionStrategy())
 
     @bp.activation.assert_bound_order

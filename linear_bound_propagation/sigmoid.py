@@ -32,7 +32,7 @@ class SigmoidTangentBisectionStrategy:
 
 class BoundSigmoid(bp.BoundSigmoid):
     def __init__(self, *args, **kwargs):
-        super(BoundSigmoid, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.tangent_strategy = SigmoidTangentBisectionStrategy()
 
     @bp.activation.assert_bound_order

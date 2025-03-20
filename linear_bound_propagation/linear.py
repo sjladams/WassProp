@@ -13,7 +13,7 @@ def nan_matmul(mat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
 
 class Linear(torch.nn.Linear):
     def __init__(self, weight: torch.Tensor, bias: Optional[torch.Tensor] = None, **kwargs):
-        super(Linear, self).__init__(weight.size(-1), weight.size(-2), bias=bias is not None)
+        super().__init__(weight.size(-1), weight.size(-2), bias=bias is not None)
         with torch.no_grad():
             self.weight.copy_(weight)
             if bias is not None:
@@ -21,12 +21,12 @@ class Linear(torch.nn.Linear):
 
 class Identity(Linear):
     def __init__(self, in_features: int):
-        super(Identity, self).__init__(torch.eye(in_features))
+        super().__init__(torch.eye(in_features))
 
 
 class BoundLinear(bp.BoundLinear):
     def __init__(self, *args, **kwargs):
-        super(BoundLinear, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     @bp.activation.assert_bound_order
     def ibp_forward(self, bounds, save_relaxation=False, save_input_bounds=False):

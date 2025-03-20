@@ -38,8 +38,8 @@ class Dynamics(torch.nn.Sequential):
     """
     num_dims = None
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args):
+        super().__init__(*args)
 
 
 class AdditiveGaussianDynamics(StochasticDynamics):
@@ -105,7 +105,7 @@ class SigmoidStochasticDynamics(StochasticDynamics):
 class IdentityDynamics(Dynamics):
     def __init__(self, num_dims: int = 1, **kwargs):
         self.num_dims = num_dims
-        super(IdentityDynamics, self).__init__(lbp.Identity(num_dims))
+        super().__init__(lbp.Identity(num_dims))
 
     @property
     def global_lipschitz(self):
@@ -125,21 +125,21 @@ class LinearDynamics(Dynamics):
         self.num_dims = weight.size(-1)
         self._global_lipschitz = torch.linalg.svd(weight).S[0]
 
-        super(LinearDynamics, self).__init__(lbp.Linear(weight, bias))
+        super().__init__(lbp.Linear(weight, bias))
 
     @property
     def global_lipschitz(self):
         return self._global_lipschitz
 
 
-class LinearDiagonalDynamics(LinearDynamics):
+class LinearDiagonalDynamics(LinearDynamics, Separable):
     def __init__(self,
                  diagonal: Union[torch.Tensor, list],
                  **kwargs):
         if isinstance(diagonal, list):
             diagonal = torch.tensor(diagonal)
 
-        super(LinearDiagonalDynamics, self).__init__(torch.diag(diagonal))
+        super().__init__(torch.diag(diagonal))
 
 
 class LinearBoundedDynamics(Dynamics):
@@ -159,7 +159,7 @@ class LinearBoundedDynamics(Dynamics):
         self.num_dims = weight.size(-1)
         self._global_lipschitz = torch.linalg.svd(weight).S[0]
 
-        super(LinearBoundedDynamics, self).__init__(lbp.Linear(weight, bias), bp.Clamp(lower_bound, upper_bound))
+        super().__init__(lbp.Linear(weight, bias), bp.Clamp(lower_bound, upper_bound))
 
     @property
     def global_lipschitz(self):
@@ -175,10 +175,11 @@ class DiagonalLinearBoundedDynamics(LinearBoundedDynamics):
         if isinstance(diagonal, list):
             diagonal = torch.tensor(diagonal)
 
-        super(DiagonalLinearBoundedDynamics, self).__init__(weight=torch.diag(diagonal),
-                                                            bias=None,
-                                                            lower_bound=lower_bound,
-                                                            upper_bound=upper_bound)
+        super().__init__(
+            weight=torch.diag(diagonal),
+            bias=None,
+            lower_bound=lower_bound,
+            upper_bound=upper_bound)
 
 
 class BoundedLinearDynamics(Dynamics):
@@ -207,7 +208,7 @@ class BoundedLinearDynamics(Dynamics):
 
 class SigmoidDynamics(Dynamics):
     def __init__(self, num_dims: int = 1, **kwargs):
-        super(SigmoidDynamics, self).__init__(torch.nn.Sigmoid())
+        super().__init__(torch.nn.Sigmoid())
         self.num_dims = num_dims
 
     @property
@@ -222,7 +223,7 @@ class DiagonalLinearSigmoidDynamics(Dynamics):
         self.num_dims = diagonal.size(0)
         self._diagonal = diagonal
 
-        super(DiagonalLinearSigmoidDynamics, self).__init__(
+        super().__init__(
             LinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
             SigmoidDynamics(self.num_dims)
         )
@@ -265,7 +266,7 @@ class MountainCarDynamics(Dynamics):
             ),
         )
 
-        super(MountainCarDynamics, self).__init__(
+        super().__init__(
             bp.Parallel(linear_part, trig_part),
             bp.VectorAdd(),
         )
@@ -312,7 +313,7 @@ class DubinsCarDynamics(Dynamics):
             ),
         )
 
-        super(DubinsCarDynamics, self).__init__(
+        super().__init__(
             bp.Parallel(linear_part, trig_part),
             bp.VectorAdd(),
         )
