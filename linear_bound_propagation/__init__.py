@@ -2,7 +2,7 @@ import bound_propagation as bp
 import torch
 import types
 
-from .arithmetic import ScalarMult, ScalarAdd, Sum, SqNorm
+from .arithmetic import ScalarMult, ScalarAdd, Sum
 from .linear import BoundLinear, Linear, Identity
 from .sigmoid import BoundSigmoid
 from .saturation import BoundClamp
@@ -31,7 +31,6 @@ __all__ = [
     'ScalarMult',
     'ScalarAdd',
     'Sum',
-    'SqNorm',
     'factory',
     'BoundSin'
 ]

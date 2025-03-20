@@ -3,7 +3,6 @@ import torch
 import bound_propagation as bp
 
 from dynamics import LinearDiagonalDynamics, LinearDiagonalBoundedDynamics, AdditiveGaussianDynamics
-from linear_bound_propagation import SqNorm, factory as linear_factory
 from optimize import minimize_with_adam
 
 factory = bp.BoundModelFactory()
