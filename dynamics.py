@@ -246,6 +246,23 @@ class DiagonalLinearSigmoidDynamics(Dynamics, Separable):
         return self._diagonal.abs().max() * 0.25
 
 
+class LinearSigmoidDynamics(Dynamics, CompositionalStructure):
+    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs): # \todo change to full weight matrix
+        if isinstance(diagonal, list):
+            diagonal = torch.tensor(diagonal)
+        self.num_dims = diagonal.size(0)
+        self._diagonal = diagonal
+
+        super().__init__(
+            LinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
+            SigmoidDynamics(self.num_dims)
+        )
+
+    @property
+    def global_lipschitz(self):
+        return self._diagonal.abs().max() * 0.25
+
+
 class MountainCarDynamics(Dynamics):
     num_dims = 2
 
@@ -350,6 +367,8 @@ def get_dynamics(dynamics_type: str, **kwargs):
         return AdditiveGaussianDynamics(DiagonalLinearBoundedDynamics(**kwargs))
     elif dynamics_type == 'SigmoidDynamics':
         return AdditiveGaussianDynamics(SigmoidDynamics(**kwargs))
+    elif dynamics_type == 'LinearSigmoidDynamics':
+        return AdditiveGaussianDynamics(LinearSigmoidDynamics(**kwargs))
     elif dynamics_type == 'DiagonalLinearSigmoidDynamics':
         return AdditiveGaussianDynamics(DiagonalLinearSigmoidDynamics(**kwargs))
     elif dynamics_type == 'MountainCarDynamics':

@@ -54,11 +54,36 @@
                 "variance_initial_dist": [0.0001, 0.5, 0.7, 0.2]
             },
             "1": {
+                "diagonal": [1.2, -1.2],
+                "loc_noise_dist": [0.0, 0.0],
+                "variance_noise_dist": [0.3, 0.3],
+                "loc_initial_dist": [4.0, 4.0],
+                "variance_initial_dist": [0.0001, 0.5]
+            },
+            "2": {
                 "diagonal": [3.0, 0.001, 0.005, 0.007, 0.03, 0.001, 0.001, 0.001, 0.001, 0.001],
                 "loc_noise_dist": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                 "variance_noise_dist": [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3],
                 "loc_initial_dist": [0.0, 1.0, 0.5, -0.7, 0.3, 2.0, -3.0, 0.4, -0.1, 4.0],
                 "variance_initial_dist": [0.0001, 0.5, 0.7, 0.2, 1.5, 2.5, 0.1, 0.5, 0.8, 0.2]
+            }
+        }
+    },
+    "LinearSigmoidDynamics": {
+        "options": {
+            "0": {
+                "diagonal": [3.0, 0.8, 0.005, 0.03],
+                "loc_noise_dist": [0.0, 0.0, 0.0, 0.0],
+                "variance_noise_dist": [0.3, 0.3, 0.3, 0.3],
+                "loc_initial_dist": [0.5, 1.0, 0.5, -0.7],
+                "variance_initial_dist": [0.0001, 0.5, 0.7, 0.2]
+            },
+            "1": {
+                "diagonal": [1.2, 1.2],
+                "loc_noise_dist": [0.0, 0.0],
+                "variance_noise_dist": [0.3, 0.3],
+                "loc_initial_dist": [4.0, 4.0],
+                "variance_initial_dist": [0.0001, 0.5]
             }
         }
     },
