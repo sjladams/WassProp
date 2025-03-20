@@ -76,7 +76,7 @@ def plot_signatures(f, initial_dist, signatures, bounds):
     plt.show()
 
 @torch.no_grad()
-def plot_single_step(dynamics, w2_p1__q1_store: dict, **kwargs):
+def plot_single_step(dynamics, w2_p1__q1_store: dict):
     w2_p__q_options = list(w2_p1__q1_store.keys())
 
     fig = plt.figure(figsize=(16, 16))

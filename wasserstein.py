@@ -80,8 +80,7 @@ def compute_w2_f_p__f_disc_q_lagrangian_duality(
         signature: ds.DiscretizedMultivariateNormal,
         f: dynamics.Dynamics,
         w2_q__disc_q: float,
-        w2_p__q: float,
-        **kwargs):
+        w2_p__q: float):
 
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(signature, f, w2_q__disc_q, w2_p__q)
 

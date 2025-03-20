@@ -4,15 +4,17 @@ from experiments import multi_step, single_step_w2_options
 from dynamics import get_dynamics
 import plot
 
-from utils import load_params, parse_arguments
+from utils import parse_arguments
 from utils_distributions import get_initial_dist, get_noise_dist
 
 if __name__ == '__main__':
     torch.manual_seed(0)
 
+    run_single_step = True
+    run_multi_step = False
+
     args = parse_arguments(
         dynamics_type = "SigmoidDynamics",
-        num_dims = 1,
         dynamics_setting = 0,
         num_locs = 10,
         num_locs_after_compr=1,
@@ -22,14 +24,9 @@ if __name__ == '__main__':
         plot = False
     )
 
-    run_single_step = True
-    run_multi_step = False
-
-    params = load_params(args)
-
-    dynamics = get_dynamics(**params)
-    initial_dist = get_initial_dist(**params)
-    noise_dist = get_noise_dist(**params)
+    dynamics = get_dynamics(**vars(args))
+    initial_dist = get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
+    noise_dist = get_noise_dist(args.loc_noise_dist, args.variance_noise_dist)
 
     if run_single_step:
         w2_q__sign_q_store, w2_p1__q1_store = single_step_w2_options(
@@ -38,11 +35,14 @@ if __name__ == '__main__':
             q=initial_dist,
             w2_p__q_options=[0., 0.1, 0.5, 1.0],
             run_lagrangian_duality=True,
+            run_empirical=False,
             propagate_via_gmm=True,
-            **params
+            num_samples=args.num_samples,
+            num_locs=args.num_locs
         )
-        plot.plot_single_step(dynamics, w2_p1__q1_store, **params)
-    elif run_multi_step:
+        plot.plot_single_step(dynamics, w2_p1__q1_store)
+
+    if run_multi_step:
         w2_q__sign_q_store, w2_p1__q1_store, samples_store = multi_step(
             dynamics=dynamics,
             noise_dist=noise_dist,
@@ -51,6 +51,7 @@ if __name__ == '__main__':
             run_lagrangian_duality=True,
             run_empirical=False,
             propagate_via_gmm=False,
-            **params
+            num_samples=args.num_samples,
+            num_locs=args.num_locs,
+            num_locs_after_compr=args.num_locs_after_compr
         )
-        # plot.plot_multi_step(dynamics, samples)

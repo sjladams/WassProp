@@ -2,11 +2,11 @@ import torch
 import discretize_distributions as ds
 from typing import Union
 
-def get_initial_dist(loc_initial_dist, variance_initial_dist, **kwargs):
+def get_initial_dist(loc_initial_dist: torch.Tensor, variance_initial_dist: torch.Tensor):
     return construct_diag_gaussian_dist(loc_initial_dist, variance_initial_dist)
 
 
-def get_noise_dist(loc_noise_dist, variance_noise_dist, **kwargs):
+def get_noise_dist(loc_noise_dist: torch.Tensor, variance_noise_dist: torch.Tensor):
     return construct_diag_gaussian_dist(loc_noise_dist, variance_noise_dist)
 
 

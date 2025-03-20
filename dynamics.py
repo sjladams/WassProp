@@ -2,17 +2,13 @@ import torch
 from typing import Union, Optional
 import bound_propagation as bp
 
-from linear_bound_propagation import ScalarMult, ScalarAdd, Linear, Sum, Identity
-
-
-class Dynamics(torch.nn.Sequential):
-    num_dims = None
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+import linear_bound_propagation as lbp
 
 
 class StochasticDynamics(torch.nn.Sequential):
+    """
+    x_{k+1} = stochastic_dynamics(x_k, noise_k)
+    """
     def __init__(self, num_state_dims: int, num_noise_dims: int, modules: list):
         self.num_state_dims = num_state_dims
         self.num_noise_dims = num_noise_dims
@@ -36,16 +32,38 @@ class StochasticDynamics(torch.nn.Sequential):
         return None
 
 
+class Dynamics(torch.nn.Sequential):
+    """
+    z_{k+1} = dynamics(z_k), with z the state or noise
+    """
+    num_dims = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
 class AdditiveGaussianDynamics(StochasticDynamics):
-    def __init__(self, state_dynamics: Dynamics):
-        super().__init__(state_dynamics.num_dims, num_noise_dims=state_dynamics.num_dims,
-                         modules=[
-                             bp.Parallel(
-                                 state_dynamics,
-                                 Identity(state_dynamics.num_dims),
-                                 split_size=state_dynamics.num_dims),
-                             bp.VectorAdd()
-                         ])
+    """
+    Special case of StochasticDynamics:
+    x_{k+1} = state_dynamics(x_k) + noise_dynamics(noise_k)
+    """
+    def __init__(self, state_dynamics: Dynamics, noise_dynamics: Optional[Dynamics] = None):
+        if noise_dynamics is None:
+            noise_dynamics = IdentityDynamics(state_dynamics.num_dims)
+
+        if not state_dynamics.num_dims == noise_dynamics.num_dims:
+            raise ValueError("The state and noise dynamics should have the same number of dimensions")
+
+        super().__init__(
+            num_state_dims=state_dynamics.num_dims,
+            num_noise_dims=noise_dynamics.num_dims,
+            modules=[
+                bp.Parallel(
+                    state_dynamics,
+                    noise_dynamics,
+                    split_size=state_dynamics.num_dims),
+                bp.VectorAdd()
+            ])
 
         self._global_lipschitz = state_dynamics.global_lipschitz
 
@@ -58,28 +76,40 @@ class AdditiveGaussianDynamics(StochasticDynamics):
         return self[0].subnetworks[0]
 
 
-class NonAdditiveGaussianNoiseDynamics(StochasticDynamics):
-    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
-        num_state_dims=3
-        num_noise_dims=3
+class SigmoidStochasticDynamics(StochasticDynamics):
+    num_state_dims = 3
+    num_noise_dims = 3
 
-        super(NonAdditiveGaussianNoiseDynamics, self).__init__(
-            num_state_dims=num_state_dims,
-            num_noise_dims=num_noise_dims,
+    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
+        assert len(diagonal) == self.num_state_dims + self.num_noise_dims
+
+        super(SigmoidStochasticDynamics, self).__init__(
+            num_state_dims=self.num_state_dims,
+            num_noise_dims=self.num_noise_dims,
             modules=[
                 LinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
                 bp.Parallel(
                     torch.nn.Identity(),
                     torch.nn.Identity(),
-                    split_size=num_state_dims),
+                    split_size=self.num_state_dims),
                 bp.VectorAdd(),
-                SigmoidDynamics(num_state_dims)
+                SigmoidDynamics(self.num_state_dims)
             ]
         )
 
     @property
     def global_lipschitz(self):
-        return self[0].global_lipschitz * 0.25 #TODO: CHECK
+        return self[0].global_lipschitz * self[3].global_lipschitz
+
+
+class IdentityDynamics(Dynamics):
+    def __init__(self, num_dims: int = 1, **kwargs):
+        self.num_dims = num_dims
+        super(IdentityDynamics, self).__init__(lbp.Identity(num_dims))
+
+    @property
+    def global_lipschitz(self):
+        return 1
 
 
 class LinearDynamics(Dynamics):
@@ -95,7 +125,7 @@ class LinearDynamics(Dynamics):
         self.num_dims = weight.size(-1)
         self._global_lipschitz = torch.linalg.svd(weight).S[0]
 
-        super(LinearDynamics, self).__init__(Linear(weight, bias))
+        super(LinearDynamics, self).__init__(lbp.Linear(weight, bias))
 
     @property
     def global_lipschitz(self):
@@ -129,14 +159,14 @@ class LinearBoundedDynamics(Dynamics):
         self.num_dims = weight.size(-1)
         self._global_lipschitz = torch.linalg.svd(weight).S[0]
 
-        super(LinearBoundedDynamics, self).__init__(Linear(weight, bias), bp.Clamp(lower_bound, upper_bound))
+        super(LinearBoundedDynamics, self).__init__(lbp.Linear(weight, bias), bp.Clamp(lower_bound, upper_bound))
 
     @property
     def global_lipschitz(self):
         return self._global_lipschitz
 
 
-class LinearDiagonalBoundedDynamics(LinearBoundedDynamics):
+class DiagonalLinearBoundedDynamics(LinearBoundedDynamics):
     def __init__(self,
                  diagonal: Union[torch.Tensor, list],
                  lower_bound: Union[float, torch.Tensor, list],
@@ -145,7 +175,7 @@ class LinearDiagonalBoundedDynamics(LinearBoundedDynamics):
         if isinstance(diagonal, list):
             diagonal = torch.tensor(diagonal)
 
-        super(LinearDiagonalBoundedDynamics, self).__init__(weight=torch.diag(diagonal),
+        super(DiagonalLinearBoundedDynamics, self).__init__(weight=torch.diag(diagonal),
                                                             bias=None,
                                                             lower_bound=lower_bound,
                                                             upper_bound=upper_bound)
@@ -168,7 +198,7 @@ class BoundedLinearDynamics(Dynamics):
         self.num_dims = weight.size(-1)
         self._global_lipschitz = torch.linalg.svd(weight).S[0]
 
-        super(BoundedLinearDynamics, self).__init__(bp.Clamp(lower_bound, upper_bound), Linear(weight, bias))
+        super(BoundedLinearDynamics, self).__init__(bp.Clamp(lower_bound, upper_bound), lbp.Linear(weight, bias))
 
     @property
     def global_lipschitz(self):
@@ -185,14 +215,14 @@ class SigmoidDynamics(Dynamics):
         return 0.25
 
 
-class LinearDiagonalSigmoidDynamics(Dynamics):
+class DiagonalLinearSigmoidDynamics(Dynamics):
     def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
         if isinstance(diagonal, list):
             diagonal = torch.tensor(diagonal)
         self.num_dims = diagonal.size(0)
         self._diagonal = diagonal
 
-        super(LinearDiagonalSigmoidDynamics, self).__init__(
+        super(DiagonalLinearSigmoidDynamics, self).__init__(
             LinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
             SigmoidDynamics(self.num_dims)
         )
@@ -203,12 +233,12 @@ class LinearDiagonalSigmoidDynamics(Dynamics):
 
 
 class MountainCarDynamics(Dynamics):
-    def __init__(self, action: float = 1.0, **kwargs):
-        self.num_dims = 2
+    num_dims = 2
 
+    def __init__(self, action: float = 1.0, **kwargs):
         linear_part = torch.nn.Sequential(
             bp.Clamp(-0.5, 1.2),
-            Linear(
+            lbp.Linear(
                 torch.tensor([
                     [1.0, 0.0],
                     [1.0, 1.0]
@@ -218,7 +248,7 @@ class MountainCarDynamics(Dynamics):
         )
 
         trig_part = torch.nn.Sequential(
-            Linear(
+            lbp.Linear(
                 torch.tensor([
                     [0.0, 3.0],
                     [0.0, 0.0]
@@ -226,7 +256,7 @@ class MountainCarDynamics(Dynamics):
                 torch.tensor([torch.pi / 2, 0.0])
                 ),
             bp.Sin(),
-            Linear(
+            lbp.Linear(
                 torch.tensor([
                     [-0.0025, 0.0],
                     [0.0, 0.0]
@@ -246,13 +276,14 @@ class MountainCarDynamics(Dynamics):
 
 
 class DubinsCarDynamics(Dynamics):
+    num_dims = 3
+
     def __init__(self, velocity: float = 5.0, u: float = 2.0, h: float = 0.3, **kwargs):
-        self.num_dims = 3
         self.velocity = velocity
         self.u = u
         self.h = h
 
-        linear_part = Linear(
+        linear_part = lbp.Linear(
                 torch.tensor([
                     [1.0, 0.0, 0.0],
                     [0.0, 1.0, 0.0],
@@ -262,7 +293,7 @@ class DubinsCarDynamics(Dynamics):
             )
 
         trig_part = torch.nn.Sequential(
-            Linear(
+            lbp.Linear(
                 torch.tensor([
                     [0.0, 0.0, 1.0],
                     [0.0, 0.0, 1.0],
@@ -271,7 +302,7 @@ class DubinsCarDynamics(Dynamics):
                 torch.tensor([torch.pi / 2, 0.0, 0.0])
                 ),
             bp.Sin(),
-            Linear(
+            lbp.Linear(
                 torch.tensor([
                     [h * velocity, 0.0, 0.0],
                     [0.0, h * velocity, 0.0],
@@ -292,26 +323,26 @@ class DubinsCarDynamics(Dynamics):
 
 
 
-def get_dynamics(dynamics_type: str, additive_gaussian_noise: bool = True, **kwargs):
-    if dynamics_type == 'LinearDynamics' and additive_gaussian_noise:
+def get_dynamics(dynamics_type: str, **kwargs):
+    if dynamics_type == 'LinearDynamics':
         return AdditiveGaussianDynamics(LinearDynamics(**kwargs))
-    elif dynamics_type == 'LinearBoundedDynamics' and additive_gaussian_noise:
+    elif dynamics_type == 'LinearBoundedDynamics':
         return AdditiveGaussianDynamics(LinearBoundedDynamics(**kwargs))
-    elif dynamics_type == 'BoundedLinearDynamics' and additive_gaussian_noise:
+    elif dynamics_type == 'BoundedLinearDynamics':
         return AdditiveGaussianDynamics(BoundedLinearDynamics(**kwargs))
-    elif dynamics_type == 'LinearDiagonalDynamics' and additive_gaussian_noise:
+    elif dynamics_type == 'LinearDiagonalDynamics':
         return AdditiveGaussianDynamics(LinearDiagonalDynamics(**kwargs))
-    elif dynamics_type == 'LinearDiagonalBoundedDynamics' and additive_gaussian_noise:
-        return AdditiveGaussianDynamics(LinearDiagonalBoundedDynamics(**kwargs))
-    elif dynamics_type == 'SigmoidDynamics' and additive_gaussian_noise:
+    elif dynamics_type == 'DiagonalLinearBoundedDynamics':
+        return AdditiveGaussianDynamics(DiagonalLinearBoundedDynamics(**kwargs))
+    elif dynamics_type == 'SigmoidDynamics':
         return AdditiveGaussianDynamics(SigmoidDynamics(**kwargs))
-    elif dynamics_type == 'LinearDiagonalSigmoidDynamics' and additive_gaussian_noise:
-        return AdditiveGaussianDynamics(LinearDiagonalSigmoidDynamics(**kwargs))
-    elif dynamics_type == 'MountainCarDynamics' and additive_gaussian_noise:
+    elif dynamics_type == 'DiagonalLinearSigmoidDynamics':
+        return AdditiveGaussianDynamics(DiagonalLinearSigmoidDynamics(**kwargs))
+    elif dynamics_type == 'MountainCarDynamics':
         return AdditiveGaussianDynamics(MountainCarDynamics(**kwargs))
-    elif dynamics_type == 'DubinsCarDynamics' and additive_gaussian_noise:
+    elif dynamics_type == 'DubinsCarDynamics':
         return AdditiveGaussianDynamics(DubinsCarDynamics(**kwargs))
-    elif dynamics_type == 'NonAdditiveGaussianNoiseDynamics':
-        return NonAdditiveGaussianNoiseDynamics(**kwargs)
+    elif dynamics_type == 'SigmoidStochasticDynamics':
+        return SigmoidStochasticDynamics(**kwargs)
     else:
         raise ValueError(f"Unknown dynamics: {dynamics_type}")

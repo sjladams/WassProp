@@ -22,8 +22,7 @@ def single_step(
         run_lagrangian_duality: bool = True,
         run_empirical: bool = False,
         p_samples: Optional[torch.Tensor] = None,
-        num_locs_after_compr: Optional[int] = None,
-        **kwargs):
+        num_locs_after_compr: Optional[int] = None):
 
     if num_locs_after_compr is None:
         num_locs_after_compr = num_locs
@@ -87,12 +86,12 @@ def single_step(
         print(f"-- Lagrangian Duality --")
         if isinstance(dynamics, AdditiveGaussianDynamics):
             w2_p1__q1_lagrangian_duality = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-                signature=sign_q, f=dynamics.state_dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
+                signature=sign_q, f=dynamics.state_dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr)
             if not propagate_via_gmm:
                 w2_p1__q1_lagrangian_duality += sign_noise_dist.w2
         else:
             w2_p1__q1_lagrangian_duality = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-                signature=sign_cross, f=dynamics, w2_q__disc_q=sign_q.w2+sign_noise_dist.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
+                signature=sign_cross, f=dynamics, w2_q__disc_q=sign_q.w2+sign_noise_dist.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr)
     else:
         w2_p1__q1_lagrangian_duality = torch.nan
 
@@ -146,9 +145,6 @@ def multi_step( # \todo kill gradients
         q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
         num_time_steps: int,
         **kwargs):
-
-    # Initialize w2_p__q error:
-    w2_bounds = {0: {'global_lipschitz': 0., 'lagrangian_duality': 0.}}
 
     # store wasserstein error bounds
     w2_p1__q1_store = {0: dict(w2_p1__q1_global_lipschitz=0., w2_p1__q1_lagrangian_duality=0.)}

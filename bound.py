@@ -1,9 +1,8 @@
-from typing import Optional
 import torch
 import bound_propagation as bp
 
-from dynamics import LinearDiagonalDynamics, LinearDiagonalBoundedDynamics, AdditiveGaussianDynamics
-from optimize import minimize_with_adam
+from dynamics import LinearDiagonalDynamics, DiagonalLinearBoundedDynamics
+from linear_bound_propagation import factory as linear_factory
 
 factory = bp.BoundModelFactory()
 
@@ -63,7 +62,7 @@ def global_lbp_sq_norm_fx_fc(
     num_dims = locs.shape[-1]
 
     # quadrants of shape (nr_quadrants, 2, num_locs, num_dims)
-    if isinstance(f, (LinearDiagonalDynamics, LinearDiagonalBoundedDynamics, )):
+    if isinstance(f, (LinearDiagonalDynamics, DiagonalLinearBoundedDynamics, )):
         # If the dynamics is separable, then we only have to the positive and negative quadrants
         quadrants = torch.stack((
             torch.stack((torch.ones(num_locs, num_dims).fill_(-torch.inf), locs)),
