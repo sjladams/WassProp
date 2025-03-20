@@ -39,7 +39,7 @@ def get_fn_sq_w2_f_q__f_disc_q(
         raise NotImplementedError("Only implemented for q being of the class MultivariateNormal with diagonal covariance matrix")
 
     alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
-    beta = global_ibp_sq_norm_fx_fc(f, signature.locs).upper.squeeze(-1)
+    beta = global_ibp_sq_norm_fx_fc(f, signature.locs)
 
     def fn_sq_w2_f_q__f_disc_q():
         w2_alpha_or_beta = torch.min(signature.sq_l2_norm * alpha, beta)
@@ -59,7 +59,7 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
         w2_p__disc_q = w2_p__q + w2_q__disc_q
 
         alpha = global_lbp_sq_norm_fx_fc(f, signature.locs)
-        beta = global_ibp_sq_norm_fx_fc(f, signature.locs).upper.squeeze(-1)
+        beta = global_ibp_sq_norm_fx_fc(f, signature.locs)
 
         mask = torch.ones(alpha.size(0), alpha.size(0)).tril()[:, alpha.sort().indices]
         mask = torch.cat((mask, torch.zeros(1, signature.locs.shape[-2])), dim=0)

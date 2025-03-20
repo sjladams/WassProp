@@ -111,7 +111,7 @@ def investigate_linear_bound_propagation():
 @torch.no_grad()
 def plot_norm_overapproximation(dynamics, signature, loc_pos, **kwargs):
     alpha = global_lbp_sq_norm_fx_fc(dynamics, signature.locs)
-    beta = global_ibp_sq_norm_fx_fc(dynamics, signature.locs).upper.squeeze(-1)
+    beta = global_ibp_sq_norm_fx_fc(dynamics, signature.locs)
 
     start, end, steps = signature.locs[loc_pos]-2, signature.locs[loc_pos]+2, 1000
     grid_x, grid_y = torch.meshgrid(torch.linspace(start[0], end[0], steps), torch.linspace(start[1], end[1], steps), indexing='ij')

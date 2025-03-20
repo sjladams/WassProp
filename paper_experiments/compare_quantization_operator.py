@@ -80,7 +80,7 @@ def compare_quantization_operators(dynamics_type, num_dims, dyn_setting, nums_lo
         voronoi_partition = HyperRectangularVoronoiPartition(locs)
 
         alpha = global_lbp_sq_norm_fx_fc(dynamics.state_dynamics, locs)
-        beta = global_ibp_sq_norm_fx_fc(dynamics.state_dynamics, locs).upper.squeeze(-1)
+        beta = global_ibp_sq_norm_fx_fc(dynamics.state_dynamics, locs)
 
         sq_norm_2nd_moment = wasserstein.compute_sq_l2_norm(initial_dist, voronoi_partition, locs)
         probs = gaussian_hypercube_prob(initial_dist, voronoi_partition.lower, voronoi_partition.upper)

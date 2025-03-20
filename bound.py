@@ -3,73 +3,33 @@ import torch
 import bound_propagation as bp
 
 from dynamics import LinearDiagonalDynamics, LinearDiagonalBoundedDynamics, AdditiveGaussianDynamics
-from regions import HyperRectangularVoronoiPartition
 from linear_bound_propagation import SqNorm, factory as linear_factory
 from optimize import minimize_with_adam
-from tensors import check_mat_diag
 
 factory = bp.BoundModelFactory()
 
 
-class SqNormFxSubFz(torch.nn.Sequential):
-    def __init__(self, f):
-        super().__init__(
-            bp.Parallel(f, f, split_size=f.num_dims),
-            bp.VectorSub(),
-            SqNorm(f.num_state_dims if hasattr(f, 'num_state_dims') else f.num_dims)
-        )
-
-
-@torch.no_grad()
-def local_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiPartition) -> bp.IntervalBounds:
+def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, locs: torch.Tensor) -> torch.Tensor:
     """
-    find matrix B such that ||f(x) - f(c_i)||^2 leq B^{(ik)} for all x in region [l_k, u_k] and c_i the loc
-     of region R_i
-
-    :param f: dynamics
-    :param vp: VoronoiPartition
-
-    """
-    sq_norm_fx_z = factory.build(SqNormFxSubFz(f))
-
-    l = replace_inf_with(replace_neginf_with(vp.lower))   # \TODO check why this is needed:
-    u = replace_inf_with(replace_neginf_with(vp.upper))
-
-    l_locs = torch.cat((l.unsqueeze(-3).repeat(vp.num_locs, 1, 1), vp.locs.unsqueeze(-2).repeat(1, vp.num_locs, 1)), dim=-1)
-    u_locs = torch.cat((u.unsqueeze(-3).repeat(vp.num_locs, 1, 1), vp.locs.unsqueeze(-2).repeat(1, vp.num_locs, 1)), dim=-1)
-
-    return sq_norm_fx_z.ibp(bp.HyperRectangle(l_locs, u_locs))
-
-
-def replace_inf_with(tensor: torch.Tensor, value: float=1e6):
-    return tensor.masked_fill(torch.isinf(tensor), value)
-
-def replace_neginf_with(tensor, value=-1e6):
-    return tensor.masked_fill(torch.isneginf(tensor), value)
-
-
-def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, locs: torch.Tensor) -> bp.IntervalBounds:
-    """
-    find vector b such that ||f(x) - f(c_i)||^2 leq b_i for all x  and c_i the loc of region R_i
+    find vector b such that ||f(x) - f(c_i)||^2 leq beta_i for all x  and c_i the loc of region R_i
 
     :param f: dynamics
     :param locs: c_i's
     """
-    num_locs = locs.shape[-2]
+    inf = 1e6 # bound_propagation does not support inf, instead use a large value
 
-    sq_norm_fx_z = factory.build(SqNormFxSubFz(f))
+    l = torch.ones_like(locs).fill_(-inf)
+    u = torch.ones_like(locs).fill_(inf)
 
-    l = torch.ones(num_locs, f.num_dims).fill_(-torch.inf)
-    u = torch.ones(num_locs, f.num_dims).fill_(torch.inf)
+    # Alternative (cleaner) implementation:
+    ibp_bounds_f = factory.build(f).ibp(bp.HyperRectangle(l, u))
+    f_c = f(locs)
+    beta = torch.max(
+        torch.linalg.vector_norm(ibp_bounds_f.lower - f_c, dim=-1, ord=2).pow(2),
+        torch.linalg.vector_norm(ibp_bounds_f.upper - f_c, dim=-1, ord=2).pow(2)
+    )
 
-    l = replace_inf_with(replace_neginf_with(l))  # \TODO check why this is needed:
-    u = replace_inf_with(replace_neginf_with(u))
-
-    l_locs = torch.cat((l, locs), dim=-1)
-    u_locs = torch.cat((u, locs), dim=-1)
-
-    ibp_bound = sq_norm_fx_z.ibp(bp.HyperRectangle(l_locs, u_locs))
-    return ibp_bound
+    return beta
 
 
 def _global_lbp_sq_norm_fx_fc_quadrant(
