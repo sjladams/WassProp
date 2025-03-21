@@ -1,13 +1,13 @@
 import torch
 from .linear import Linear
 
-__all__ = ['ScalarMult', 'ScalarAdd', 'Sum']
+__all__ = ['MultScalar', 'AddScalar', 'Sum']
 
-class ScalarMult(Linear): #\todo rename MultScalar
+class MultScalar(Linear):
     def __init__(self, in_features: int, scalar: float):
         super().__init__(torch.eye(in_features) * scalar)
 
-class ScalarAdd(Linear): # \todo rename AddScalar
+class AddScalar(Linear):
     def __init__(self, in_features: int, scalar: float):
         super().__init__(torch.eye(in_features), torch.as_tensor(scalar))
 

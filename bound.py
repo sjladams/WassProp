@@ -38,7 +38,7 @@ def _global_lbp_sq_norm_fx_fc_quadrant(
         upper: torch.Tensor) -> torch.Tensor:
 
     input_bound = bp.HyperRectangle(lower, upper)
-    lb = linear_factory.build(f).crown_ibp_point(input_bound, locs)
+    lb = linear_factory.build(f).strict_crown_ibp(input_bound, locs)
 
     # From linear bounds to bounds on the norms:
     alpha = torch.max(
@@ -81,6 +81,9 @@ def global_lbp_sq_norm_fx_fc_component(
         num_dims=f.num_dims,
         only_pos_and_neg=isinstance(f, Separable)
     )
+
+    inf = 1e2 # bound_propagation does not support inf, instead use a large value
+    quadrants = quadrants.clip(-inf, inf)
 
     num_locs = locs.shape[-2]
     quadrants = quadrants.unsqueeze(-2).repeat(1, 1, num_locs, 1) + locs
