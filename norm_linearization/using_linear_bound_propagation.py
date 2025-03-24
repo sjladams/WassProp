@@ -102,7 +102,7 @@ if __name__ == "__main__":
     ## 2D LinearSigmoid dynamics with full matrix, but we can still handle!
     class TractableLinearSigmoidDynamics(torch.nn.Sequential):
         def __init__(self):
-            super().__init__(lbp.Linear(torch.tensor([[1., 3.],[2., 1.]])), bp.Clamp(min=-0.5, max=0.5))
+            super().__init__(lbp.Linear(torch.tensor([[1., 3.],[2., 1.]])), torch.nn.Sigmoid(), bp.Clamp(min=-0.5, max=0.5))
 
     loc = 2.0
     inf = 10.
