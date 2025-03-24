@@ -1,5 +1,7 @@
 import torch
 import bound_propagation as bp
+from .utils import NotLinearizable
+from .activation import assert_bound_order
 
 __all__ = ['BoundClamp']
 
@@ -7,9 +9,24 @@ class BoundClamp(bp.BoundClamp):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    @assert_bound_order
+    def strict_ibp_forward(self, bounds, intersection, save_relaxation=False, save_input_bounds=False):
+        if save_relaxation:
+            self.strict_alpha_beta(preactivation=bounds, intersection=intersection)
+            self.bounded = True
 
-    @bp.activation.assert_bound_order
-    def alpha_beta(self, preactivation):
+        if save_input_bounds:
+            self.input_bounds = bounds
+
+        bounds = bp.IntervalBounds(bounds.region, self.module(bounds.lower), self.module(bounds.upper))
+
+        intersection = self.module(intersection)
+
+        return bounds, intersection
+
+
+    @assert_bound_order
+    def strict_alpha_beta(self, preactivation, intersection):
         """
         Adaptive is similar to :BoundReLU: with the adaptivity being applied to both bends
 
@@ -17,6 +34,12 @@ class BoundClamp(bp.BoundClamp):
         :param preactivation:
         """
         lower, upper = preactivation.lower, preactivation.upper
+
+        at_lower = torch.isclose(intersection, lower, atol=1e-5)
+        at_upper = torch.isclose(intersection, upper, atol=1e-5)
+        if not torch.logical_or(at_lower, at_upper).all():
+            raise NotLinearizable
+
         zero_width, flat_lower, flat_upper, slope, lower_bend, upper_bend, full_range = bp.saturation.regimes(
             lower, upper, self.module.min, self.module.max)
 
@@ -56,38 +79,62 @@ class BoundClamp(bp.BoundClamp):
 
         # Lower bend
         if min is not None:
-            self.alpha_lower[lower_bend] = 1.
-            self.beta_lower[lower_bend] = act_upper[lower_bend] - upper[lower_bend] * 1.
-
             self.alpha_upper[lower_bend] = z[lower_bend]
-            self.beta_upper[lower_bend] = act_upper[lower_bend] - upper[lower_bend] * z[lower_bend]
+            self.beta_upper[lower_bend] = act_lower[lower_bend] - lower[lower_bend] * z[lower_bend]
 
-            self.unstable_lower = lower_bend
-            self.unstable_slope_lower = z[lower_bend].detach().clone().requires_grad_()
+            # intersect at lower
+            lower_bend_left = lower_bend & at_lower
+            self.alpha_lower[lower_bend_left] = 0.
+            self.beta_lower[lower_bend_left] = act_lower[lower_bend_left]
+
+            # intersect at upper
+            lower_bend_right = lower_bend & at_upper
+            self.alpha_lower[lower_bend_right] = 1.
+            self.beta_lower[lower_bend_right] = act_upper[lower_bend_right] - upper[lower_bend_right] * 1.
 
         # Upper bend
         if max is not None:
             self.alpha_lower[upper_bend] = z[upper_bend]
             self.beta_lower[upper_bend] = act_lower[upper_bend] - lower[upper_bend] * z[upper_bend]
 
-            self.alpha_upper[upper_bend] = 1.
-            self.beta_upper[upper_bend] = act_lower[upper_bend] - lower[upper_bend] * 1.
+            # intersect at lower
+            upper_bend_left = upper_bend & at_lower
+            self.alpha_upper[upper_bend_left] = 1.
+            self.beta_upper[upper_bend_left] = act_lower[upper_bend_left] - lower[upper_bend_left] * 1.
 
-            self.unstable_upper = upper_bend
-            self.unstable_slope_upper = z[upper_bend].detach().clone().requires_grad_()
+            # intersect at upper
+            upper_bend_right = upper_bend & at_upper
+            self.alpha_upper[upper_bend_right] = 0.
+            self.beta_upper[upper_bend_right] = act_upper[upper_bend_right]
 
         # Full range
         if self.module.min is not None and self.module.max is not None:
-            full_range_min = min[full_range] if torch.is_tensor(min) else min
-            full_range_max = max[full_range] if torch.is_tensor(max) else max
+            # intersect at lower
+            full_range_left = full_range & at_lower
 
-            act_full_range_min = self(full_range) if torch.is_tensor(min) else self(torch.as_tensor(full_range_min))
-            act_full_range_max = self(full_range) if torch.is_tensor(max) else self(torch.as_tensor(full_range_max))
+            full_range_left_min = min[full_range_left] if torch.is_tensor(min) else torch.as_tensor(min)
+            full_range_left_max = max[full_range_left] if torch.is_tensor(max) else torch.as_tensor(max)
 
-            z_lower = (full_range_max - full_range_min) / (upper[full_range] - full_range_min)
-            self.alpha_lower[full_range] = z_lower
-            self.beta_lower[full_range] = act_full_range_min - full_range_min * z_lower
+            z_full_range_left = (self(full_range_left_max) - self(full_range_left_min)) / (full_range_left_max - lower[full_range_left])
 
-            z_upper = (full_range_max - full_range_min) / (full_range_max - lower[full_range])
-            self.alpha_upper[full_range] = z_upper
-            self.beta_upper[full_range] = act_full_range_max - full_range_max * z_upper
+            self.alpha_lower[full_range_left] = 0.
+            self.beta_lower[full_range_left] = act_lower[full_range_left]
+
+            self.alpha_upper[full_range_left] = z_full_range_left
+            self.beta_upper[full_range_left] = act_lower[full_range_left] - lower[full_range_left] * z_full_range_left
+
+            # intersect at upper
+            full_range_right = full_range & at_upper
+
+            full_range_right_min = min[full_range_right] if torch.is_tensor(min) else torch.as_tensor(min)
+            full_range_right_max = max[full_range_right] if torch.is_tensor(max) else torch.as_tensor(max)
+
+            z_full_range_right = (self(full_range_right_max) - self(full_range_right_min)) / (upper[full_range_right] - full_range_right_min)
+
+            self.alpha_lower[full_range_right] = z_full_range_right
+            self.beta_lower[full_range_right] = act_upper[full_range_right] - upper[full_range_right] * z_full_range_right
+
+            self.alpha_upper[full_range_right] = 0.
+            self.beta_upper[full_range_right] = act_upper[full_range_right]
+
+

@@ -1,39 +1,30 @@
 import bound_propagation as bp
 import torch
-
-
-def check_if_affine_bound_intersect_at_point(A, b, point, y):
-    """
-    Checks if affine bound is linear around locs, i.e., check if A*locs + b = y_locs
-    """
-    bias = torch.einsum('...ij,...j->...i', A, point) + b - y
-    return (bias.abs() <= 1e-5).all()
-
+from .utils import linear_bounds_intersect_at_point
 
 class BoundSequential(bp.BoundSequential):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def crown(self, *args, **kwargs):
-        raise NotImplementedError
+    def strict_crown_ibp(self, region, intersection, bound_lower=True, bound_upper=True):
+        out_size = self.propagate_size(region.size(-1))
+        self.strict_ibp_relax(region, intersection)
 
-    def crown_ibp(self, *args, **kwargs):
-        raise NotImplementedError
+        linear_bounds = self.initial_linear_bounds(region, out_size, lower=bound_lower, upper=bound_upper)
+        linear_bounds = self.crown_backward(linear_bounds, False)
 
-    def ibp(self, region):
-        raise NotImplementedError
+        self.clear_relaxation()
 
-    def crown_ibp_point(self, region, point, bound_lower=True, bound_upper=True):
-        linear_bounds = self.crown_with_relaxation(self.ibp_relax, region, bound_lower, bound_upper, alpha=False)
+        linear_bounds_intersect_at_point(linear_bounds, intersection, self.module(intersection))
 
-        y = self(point)
-
-        msg_tmpl = "{} bound in {}-{} \n QUADRANT IS NOT LINEAR. Check BoundModules for dynamics or use Gradient Descent"
-        assert check_if_affine_bound_intersect_at_point(*linear_bounds.lower, point, y), \
-            msg_tmpl.format("Lower", region.lower, region.upper)
-        assert check_if_affine_bound_intersect_at_point(*linear_bounds.upper, point, y), \
-            msg_tmpl.format("Upper", region.lower, region.upper)
         return linear_bounds
 
+    @torch.no_grad()
+    def strict_ibp_relax(self, region, intersection):
+        bounds = region.bounding_hyperrect()
+        self.strict_ibp_forward(bounds, intersection, save_relaxation=True)
 
-
+    def strict_ibp_forward(self, bounds, intersection, save_relaxation=False, save_input_bounds=False):
+        for module in self.bound_sequential:
+            bounds, intersection = module.strict_ibp_forward(bounds, intersection, save_relaxation=save_relaxation, save_input_bounds=save_input_bounds)
+        return bounds, intersection

@@ -1,12 +1,15 @@
 import torch
 import bound_propagation as bp
-import math
+from .utils import NotLinearizable
+from .activation import assert_bound_order
+from bound_propagation.activation import sine_like_regimes
 
 __all__ = ['BoundSin']
 
 
-class SinTangentBisectionStrategy(bp.activation.SinTangentBisectionStrategy):
-    def increasing_upper_tangent_inf(self, bound_module, lower, bisection_lower, bisection_upper):
+class SinTangentBisectionStrategy:
+    @staticmethod
+    def increasing_upper_tangent(bound_module, lower, bisection_lower, bisection_upper):
         lower_act = bound_module(lower)
 
         def f_lower(d: torch.Tensor) -> torch.Tensor:
@@ -17,7 +20,8 @@ class SinTangentBisectionStrategy(bp.activation.SinTangentBisectionStrategy):
         _, d_upper = bp.activation.bisection(bisection_lower, bisection_upper, f_lower, num_iter=100)
         return d_upper
 
-    def increasing_lower_tangent_inf(self, bound_module, upper, bisection_lower, bisection_upper):
+    @staticmethod
+    def increasing_lower_tangent(bound_module, upper, bisection_lower, bisection_upper):
         upper_act = bound_module(upper)
 
         def f_lower(d: torch.Tensor) -> torch.Tensor:
@@ -25,10 +29,13 @@ class SinTangentBisectionStrategy(bp.activation.SinTangentBisectionStrategy):
             a_derivative = bound_module.derivative(d)
             return a_derivative - a_slope
 
+        # Bisection will return left and right bounds for d s.t. f_lower(d) is zero
+        # Derivative of left bound will over-approximate the slope - hence a true bound
         d_lower, _ = bp.activation.bisection(bisection_lower, bisection_upper, f_lower, num_iter=100)
         return d_lower
 
-    def decreasing_upper_tangent_inf(self, bound_module, upper, bisection_lower, bisection_upper):
+    @staticmethod
+    def decreasing_upper_tangent(bound_module, upper, bisection_lower, bisection_upper):
         upper_act = bound_module(upper)
 
         def f_upper(d: torch.Tensor) -> torch.Tensor:
@@ -39,7 +46,8 @@ class SinTangentBisectionStrategy(bp.activation.SinTangentBisectionStrategy):
         _, d_upper = bp.activation.bisection(bisection_lower, bisection_upper, f_upper, num_iter=100)
         return d_upper
 
-    def decreasing_lower_tangent_inf(self, bound_module, lower, bisection_lower, bisection_upper):
+    @staticmethod
+    def decreasing_lower_tangent(bound_module, lower, bisection_lower, bisection_upper):
         lower_act = bound_module(lower)
 
         def f_upper(d: torch.Tensor) -> torch.Tensor:
@@ -56,14 +64,70 @@ class BoundSin(bp.BoundSin):
         super().__init__(*args, **kwargs)
         self.tangent_strategy = kwargs.get('sin_tangent_strategy', SinTangentBisectionStrategy())
 
-    @bp.activation.assert_bound_order
-    def alpha_beta(self, preactivation):
+    @assert_bound_order
+    def strict_ibp_forward(self, bounds, intersection, save_relaxation=False, save_input_bounds=False):
+        if save_relaxation:
+            self.strict_alpha_beta(preactivation=bounds, intersection=intersection)
+            self.bounded = True
+
+        if save_input_bounds:
+            self.input_bounds = bounds
+
+        zero_width, half_period, (increasing, _), (decreasing, _), crossing_peak, crossing_trough = \
+            sine_like_regimes(bounds.lower, bounds.upper, period=self.period, zero_increasing=self.zero_increasing)
+
+        lower = torch.zeros_like(bounds.lower)
+        upper = torch.zeros_like(bounds.upper)
+
+        lower_act = self.module(bounds.lower)
+        upper_act = self.module(bounds.upper)
+
+        lower[zero_width] = torch.min(lower_act[zero_width], upper_act[zero_width])
+        upper[zero_width] = torch.max(lower_act[zero_width], upper_act[zero_width])
+
+        lower[half_period] = -1
+        upper[half_period] = 1
+
+        lower[increasing] = lower_act[increasing]
+        upper[increasing] = upper_act[increasing]
+
+        lower[decreasing] = upper_act[decreasing]
+        upper[decreasing] = lower_act[decreasing]
+
+        lower[crossing_peak] = torch.min(lower_act[crossing_peak], upper_act[crossing_peak])
+        upper[crossing_peak] = 1
+
+        lower[crossing_trough] = -1
+        upper[crossing_trough] = torch.max(lower_act[crossing_trough], upper_act[crossing_trough])
+
+        bounds = bp.IntervalBounds(bounds.region, lower, upper)
+
+        intersection = self.module(intersection)
+
+        return bounds, intersection
+
+
+    def ibp_forward(self, bounds, save_relaxation=False, save_input_bounds=False):
+        if save_relaxation:
+            self.alpha_beta(preactivation=bounds)
+            self.bounded = True
+
+        if save_input_bounds:
+            self.input_bounds = bounds
+
+
+
+    @assert_bound_order
+    def strict_alpha_beta(self, preactivation, intersection):
         lower, upper = preactivation.lower, preactivation.upper
+
+        at_lower = torch.isclose(intersection, lower, atol=1e-5)
+        at_upper = torch.isclose(intersection, upper, atol=1e-5)
+        if not torch.logical_or(at_lower, at_upper).all():
+            raise NotLinearizable
 
         zero_width, half_period, (_, increasing), (_, decreasing), crossing_peak, crossing_trough = \
             bp.activation.sine_like_regimes(lower, upper, period=self.period, zero_increasing=self.zero_increasing)
-        increasing_lower_curve, increasing_upper_curve, increasing_full_region = increasing
-        decreasing_lower_curve, decreasing_upper_curve, decreasing_full_region = decreasing
 
         self.alpha_lower, self.beta_lower = torch.zeros_like(lower), torch.zeros_like(lower)
         self.alpha_upper, self.beta_upper = torch.zeros_like(lower), torch.zeros_like(lower)
@@ -73,17 +137,7 @@ class BoundSin(bp.BoundSin):
         self.alpha_lower[zero_width], self.beta_lower[zero_width] = 0, self(lower[zero_width])
         self.alpha_upper[zero_width], self.beta_upper[zero_width] = 0, self(upper[zero_width])
 
-        lower_act, upper_act = self(lower), self(upper)
-        lower_prime, upper_prime = self.derivative(lower), self.derivative(upper)
-
-        d = (lower + upper) * 0.5  # Let d be the midpoint of the two bounds
-        d_act = self(d)
-        d_prime = self.derivative(d)
-
-        slope = (upper_act - lower_act) / (upper - lower)
-
-        ones = torch.ones_like(lower)
-        zeros = torch.zeros_like(lower)
+        inter_act, inter_prime = self.module(intersection), self.derivative(intersection)
 
         def add_linear(alpha, beta, mask, a, x, y, a_mask=True):
             if a_mask:
@@ -92,233 +146,115 @@ class BoundSin(bp.BoundSin):
             alpha[mask] = a
             beta[mask] = y[mask] - a * x[mask]
 
-        ##################
-        # >= Half period #
-        ##################
-        # Lower bound
-        # - Flat line = -1
-        add_linear(self.alpha_lower, self.beta_lower, mask=half_period, a=zeros, x=zeros, y=-ones)
-
-        # Upper bound
-        # - Flat line = +1
-        add_linear(self.alpha_upper, self.beta_upper, mask=half_period, a=zeros, x=zeros, y=ones)
-
-        ###############
-        # Lower curve #
-        ###############
-        lower_curve = increasing_lower_curve | decreasing_lower_curve | crossing_trough
-
-        # Upper bound
-        # - Exact slope between lower and upper
-        add_linear(self.alpha_upper, self.beta_upper, mask=lower_curve, a=slope, x=lower, y=lower_act)
-
-        # Lower bound
-        # - d = (lower + upper) / 2 for midpoint
-        # - Slope is sigma'(d) and it has to cross through sigma(d)
-        add_linear(self.alpha_lower, self.beta_lower, mask=lower_curve, a=d_prime, x=d, y=d_act)
-
-        # Allow parameterization
-        # Save mask
-        self.unstable_lower = lower_curve
-        # Optimization variables - detach, clone, and require grad to perform back prop and optimization
-        self.unstable_d_lower = d[lower_curve].detach().clone().requires_grad_()
-        # Save ranges to clip (aka. PGD)
-        self.unstable_range_lower = lower[lower_curve], upper[lower_curve]
-
-        ###############
-        # Upper curve #
-        ###############
-        upper_curve = increasing_upper_curve | decreasing_upper_curve | crossing_peak
-
-        # Lower bound
-        # - Exact slope between lower and upper
-        add_linear(self.alpha_lower, self.beta_lower, mask=upper_curve, a=slope, x=upper, y=upper_act)
-
-        # Upper bound
-        # - d = (lower + upper) / 2 for midpoint
-        # - Slope is sigma'(d) and it has to cross through sigma(d)
-        add_linear(self.alpha_upper, self.beta_upper, mask=upper_curve, a=d_prime, x=d, y=d_act)
-
-        # Allow parameterization
-        # Save mask
-        self.unstable_upper = upper_curve
-        # Optimization variables - detach, clone, and require grad to perform back prop and optimization
-        self.unstable_d_upper = d[upper_curve].detach().clone().requires_grad_()
-        # Save ranges to clip (aka. PGD)
-        self.unstable_range_upper = lower[upper_curve], upper[upper_curve]
-
-        # ##########################
-        # Increasing full region #
-        ##########################
-        # Upper bound #
-        # If tangent to upper is below lower, then take direct slope between lower and upper
-        direct = increasing_full_region & (slope <= upper_prime)
-        add_linear(self.alpha_upper, self.beta_upper, mask=direct, a=slope, x=lower, y=lower_act)
-
-        # Else use bisection to find upper bound on slope.
-        implicit = increasing_full_region & (slope > upper_prime)
-
-        if torch.any(implicit):
-            d = self.tangent_strategy.increasing_upper_tangent(self, lower[implicit], upper[implicit])
-
-            # Slope has to attach to (lower, sigma(lower))
-            add_linear(self.alpha_upper, self.beta_upper, mask=implicit, a=self.derivative(d), x=lower, y=lower_act, a_mask=False)
-
-        # Lower bound #
-        # If tangent to lower is above upper, then take direct slope between lower and upper
-        direct = increasing_full_region & (slope <= lower_prime)
-        add_linear(self.alpha_lower, self.beta_lower, mask=direct, a=slope, x=upper, y=upper_act)
-
-        # Else use bisection to find upper bound on slope.
-        implicit = increasing_full_region & (slope > lower_prime)
-
-        if torch.any(implicit):
-            d = self.tangent_strategy.increasing_lower_tangent(self, lower[implicit], upper[implicit])
-
-            # Slope has to attach to (upper, sigma(upper))
-            add_linear(self.alpha_lower, self.beta_lower, mask=implicit, a=self.derivative(d), x=upper, y=upper_act, a_mask=False)
-
-        ##########################
-        # Decreasing full region #
-        ##########################
-        # Upper bound #
-        # If tangent to lower is below upper, then take direct slope between lower and upper
-        direct = decreasing_full_region & (slope >= lower_prime)
-        add_linear(self.alpha_upper, self.beta_upper, mask=direct, a=slope, x=lower, y=lower_act)
-
-        # Else use bisection to find upper bound on slope.
-        implicit = decreasing_full_region & (slope < lower_prime)
-
-        if torch.any(implicit):
-            d = self.tangent_strategy.decreasing_upper_tangent(self, lower[implicit], upper[implicit])
-
-            # Slope has to attach to (lower, sigma(lower))
-            add_linear(self.alpha_upper, self.beta_upper, mask=implicit, a=self.derivative(d), x=upper, y=upper_act, a_mask=False)
-
-        # Lower bound #
-        # If tangent to upper is above lower, then take direct slope between lower and upper
-        direct = decreasing_full_region & (slope >= upper_prime)
-        add_linear(self.alpha_lower, self.beta_lower, mask=direct, a=slope, x=lower, y=lower_act)
-
-        # Else use bisection to find upper bound on slope.
-        implicit = decreasing_full_region & (slope < upper_prime)
-
-        if torch.any(implicit):
-            d = self.tangent_strategy.decreasing_lower_tangent(self, lower[implicit], upper[implicit])
-
-            # Slope has to attach to (upper, sigma(upper))
-            add_linear(self.alpha_lower, self.beta_lower, mask=implicit, a=self.derivative(d), x=lower, y=lower_act, a_mask=False)
-
         ##########################
         # Negative Open regions #
         ##########################
-        neginf = lower.isneginf() & ~upper.isinf()
-
-        lower_bisection_lower, lower_bisection_upper = torch.zeros_like(lower), torch.zeros_like(lower)
-        upper_bisection_lower, upper_bisection_upper = torch.zeros_like(upper), torch.zeros_like(upper)
+        lower_domain = torch.zeros(lower.shape + (2,))
+        upper_bisection = torch.zeros(upper.shape + (2,))
 
         ####  First Quarter (bound > 0 & bound_prime > 0) ####
-        neginf_1st = (upper_act > 0) & (upper_prime > 0) & neginf
+        at_upper_1st = (inter_act >= 0) & (inter_prime >= 0) & at_upper
 
-        lower_bisection_lower[neginf_1st] = -0.5 * self.period
-        lower_bisection_upper[neginf_1st] = 0. * self.period
+        lower_domain[..., 0][at_upper_1st] = -0.5 * self.period
+        lower_domain[..., 1][at_upper_1st] = 0. * self.period
 
-        upper_bisection_lower[neginf_1st] = -0.75 * self.period
-        upper_bisection_lower[neginf_1st] = -0.5 * self.period
+        upper_bisection[..., 0][at_upper_1st] = -0.75 * self.period
+        upper_bisection[..., 1][at_upper_1st] = -0.5 * self.period
 
         #### Second Quarter (bound > 0 & bound_prime < 0) ####
-        neginf_2nd = (upper_act > 0) & (upper_prime < 0) & neginf
+        at_upper_2nd = (inter_act >= 0) & (inter_prime < 0) & at_upper
 
-        lower_bisection_lower[neginf_2nd] = -0.5 * self.period
-        lower_bisection_upper[neginf_2nd] = 0. * self.period
+        lower_domain[..., 0][at_upper_2nd] = -0.5 * self.period
+        lower_domain[..., 1][at_upper_2nd] = 0. * self.period
 
-        upper_bisection_lower[neginf_2nd] = 0.25 * self.period
-        upper_bisection_upper[neginf_2nd] = 0.5 * self.period
+        upper_bisection[..., 0][at_upper_2nd] = 0.25 * self.period
+        upper_bisection[..., 1][at_upper_2nd] = 0.5 * self.period
 
         #### Third Quarter (bound < 0 & bound_prime < 0) ####
-        neginf_3th = (upper_act < 0) & (upper_prime < 0) & neginf
+        at_upper_3th = (inter_act < 0) & (inter_prime <= 0) & at_upper
 
-        lower_bisection_lower[neginf_3th] = -0.5 * self.period
-        lower_bisection_upper[neginf_3th] = 0. * self.period
+        lower_domain[..., 0][at_upper_3th] = -0.5 * self.period
+        lower_domain[..., 1][at_upper_3th] = 0. * self.period
 
-        upper_bisection_lower[neginf_3th] = 0.25 * self.period
-        upper_bisection_upper[neginf_3th] = 0.5 * self.period
+        upper_bisection[..., 0][at_upper_3th] = 0.25 * self.period
+        upper_bisection[..., 1][at_upper_3th] = 0.5 * self.period
 
         #### Fourth Quarter (bound < 0 & bound_prime > 0) ####
-        neginf_4th = (upper_act < 0) & (upper_prime > 0) & neginf
+        at_upper_4th = (inter_act < 0) & (inter_prime > 0) & at_upper
 
-        lower_bisection_lower[neginf_4th] = 0.75 * self.period
-        lower_bisection_upper[neginf_4th] = 1.0 * self.period
+        lower_domain[..., 0][at_upper_4th] = 0.75 * self.period
+        lower_domain[..., 1][at_upper_4th] = 1.0 * self.period
 
-        upper_bisection_lower[neginf_4th] = 0.25 * self.period
-        upper_bisection_upper[neginf_4th] = 0.5 * self.period
+        upper_bisection[..., 0][at_upper_4th] = 0.25 * self.period
+        upper_bisection[..., 1][at_upper_4th] = 0.5 * self.period
 
         # Construct Bounds
-        neginf_correction = (upper[neginf] // self.period) * self.period
-        lower_bisection_lower[neginf] += neginf_correction
-        lower_bisection_upper[neginf] += neginf_correction
-        upper_bisection_lower[neginf] += neginf_correction
-        upper_bisection_upper[neginf] += neginf_correction
+        at_upper_correction = (upper[at_upper] // self.period) * self.period
+        lower_domain[..., 0][at_upper] += at_upper_correction
+        lower_domain[..., 1][at_upper] += at_upper_correction
+        upper_bisection[..., 0][at_upper] += at_upper_correction
+        upper_bisection[..., 1][at_upper] += at_upper_correction
 
-        d = self.tangent_strategy.increasing_lower_tangent_inf(
-            self, upper[neginf], lower_bisection_lower[neginf], lower_bisection_upper[neginf])
-        add_linear(self.alpha_lower, self.beta_lower, mask=neginf, a=self.derivative(d), x=upper, y=upper_act, a_mask=False)
+        d = self.tangent_strategy.increasing_lower_tangent(
+            self, upper[at_upper], lower_domain[..., 0][at_upper], lower_domain[..., 1][at_upper])
+        add_linear(self.alpha_lower, self.beta_lower, mask=at_upper, a=self.derivative(d), x=intersection, y=inter_act, a_mask=False)
 
-        d = self.tangent_strategy.decreasing_upper_tangent_inf(
-            self, upper[neginf], upper_bisection_lower[neginf], upper_bisection_upper[neginf])
-        add_linear(self.alpha_upper, self.beta_upper, mask=neginf, a=self.derivative(d), x=upper, y=upper_act, a_mask=False)
+        d = self.tangent_strategy.decreasing_upper_tangent(
+            self, upper[at_upper], upper_bisection[..., 0][at_upper], upper_bisection[...,1][at_upper])
+        add_linear(self.alpha_upper, self.beta_upper, mask=at_upper, a=self.derivative(d), x=intersection, y=inter_act, a_mask=False)
 
         ##########################
         # Positive Open regions #
         ##########################
-        inf = ~lower.isneginf() & upper.isinf()
+        lower_domain = torch.zeros(lower.shape + (2,))
+        upper_domain = torch.zeros(upper.shape + (2,))
 
         ### First Quarter (bound > 0 & bound_prime > 0) ###
-        inf_1st = (lower_act > 0) & (lower_prime > 0) & inf
+        at_lower_1st = (inter_act >= 0) & (inter_prime >= 0) & at_lower
 
-        lower_bisection_lower[inf_1st] = 0.5 * self.period
-        lower_bisection_upper[inf_1st] = 0.75 * self.period
+        lower_domain[..., 0][at_lower_1st] = 0.5 * self.period
+        lower_domain[..., 1][at_lower_1st] = 0.75 * self.period
 
-        upper_bisection_lower[inf_1st] = 0. * self.period
-        upper_bisection_upper[inf_1st] = 0.25 * self.period
+        upper_domain[..., 0][at_lower_1st] = 0. * self.period
+        upper_domain[..., 1][at_lower_1st] = 0.25 * self.period
 
         #### Second Quarter (bound > 0 & bound_prime < 0) ###
-        inf_2nd = (lower_act > 0) & (lower_prime < 0) & inf
+        at_lower_2nd = (inter_act >= 0) & (inter_prime < 0) & at_lower
 
-        lower_bisection_lower[inf_2nd] = 0.5 * self.period
-        lower_bisection_upper[inf_2nd] = 0.75 * self.period
+        lower_domain[..., 0][at_lower_2nd] = 0.5 * self.period
+        lower_domain[..., 1][at_lower_2nd] = 0.75 * self.period
 
-        upper_bisection_lower[inf_2nd] = 1.0 * self.period
-        upper_bisection_upper[inf_2nd] = 1.25 * self.period
+        upper_domain[..., 0][at_lower_2nd] = 1.0 * self.period
+        upper_domain[..., 1][at_lower_2nd] = 1.25 * self.period
 
         #### Third Quarter (bound < 0 & bound_prime < 0) ####
-        inf_3th = (lower_act < 0) & (lower_prime < 0) & inf
+        at_lower_3th = (inter_act < 0) & (inter_prime <= 0) & at_lower
 
-        lower_bisection_lower[inf_3th] = 0.5 * self.period
-        lower_bisection_upper[inf_3th] = 0.75 * self.period
+        lower_domain[..., 0][at_lower_3th] = 0.5 * self.period
+        lower_domain[..., 1][at_lower_3th] = 0.75 * self.period
 
-        upper_bisection_lower[inf_3th] = 1.0 * self.period
-        upper_bisection_upper[inf_3th] = 1.25 * self.period
+        upper_domain[..., 0][at_lower_3th] = 1.0 * self.period
+        upper_domain[..., 1][at_lower_3th] = 1.25 * self.period
 
         # Fourth Quarter (bound < 0 & bound_prime > 0)
-        inf_4th = (lower_act < 0) & (lower_prime > 0) & inf
+        at_lower_4th = (inter_act < 0) & (inter_prime > 0) & at_lower
 
-        lower_bisection_lower[inf_4th] = 1.5 * self.period
-        lower_bisection_upper[inf_4th] = 1.75 * self.period
+        lower_domain[..., 0][at_lower_4th] = 1.5 * self.period
+        lower_domain[..., 1][at_lower_4th] = 1.75 * self.period
 
-        upper_bisection_lower[inf_4th] = 1.0 * self.period
-        upper_bisection_upper[inf_4th] = 1.25 * self.period
+        upper_domain[..., 0][at_lower_4th] = 1.0 * self.period
+        upper_domain[..., 1][at_lower_4th] = 1.25 * self.period
 
         # Construct Bounds
-        inf_correction = (lower[inf] // self.period) * self.period
-        lower_bisection_lower[inf] += inf_correction
-        lower_bisection_upper[inf] += inf_correction
-        upper_bisection_lower[inf] += inf_correction
-        upper_bisection_upper[inf] += inf_correction
+        at_lower_correction = (lower[at_lower] // self.period) * self.period
+        lower_domain[..., 0][at_lower] += at_lower_correction
+        lower_domain[..., 1][at_lower] += at_lower_correction
+        upper_domain[..., 0][at_lower] += at_lower_correction
+        upper_domain[..., 1][at_lower] += at_lower_correction
 
-        d = self.tangent_strategy.decreasing_lower_tangent_inf(
-            self, lower[inf], lower_bisection_lower[inf], lower_bisection_upper[inf])
-        add_linear(self.alpha_lower, self.beta_lower, mask=inf, a=self.derivative(d), x=lower, y=lower_act, a_mask=False)
-        d = self.tangent_strategy.increasing_upper_tangent_inf(
-            self, lower[inf], upper_bisection_lower[inf], upper_bisection_upper[inf])
-        add_linear(self.alpha_upper, self.beta_upper, mask=inf, a=self.derivative(d), x=lower, y=lower_act, a_mask=False)
+        d = self.tangent_strategy.decreasing_lower_tangent(
+            self, lower[at_lower], lower_domain[..., 0][at_lower], lower_domain[..., 1][at_lower])
+        add_linear(self.alpha_lower, self.beta_lower, mask=at_lower, a=self.derivative(d), x=intersection, y=inter_act, a_mask=False)
+        d = self.tangent_strategy.increasing_upper_tangent(
+            self, lower[at_lower], upper_domain[..., 0][at_lower], upper_domain[..., 1][at_lower])
+        add_linear(self.alpha_upper, self.beta_upper, mask=at_lower, a=self.derivative(d), x=intersection, y=inter_act, a_mask=False)
