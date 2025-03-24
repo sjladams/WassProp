@@ -62,7 +62,7 @@ class BoundSin(bp.BoundSin):
         super().__init__(*args, **kwargs)
         self.tangent_strategy = kwargs.get('sin_tangent_strategy', SinTangentBisectionStrategy())
 
-    @bp.activation.assert_bound_order
+    @assert_bound_order
     def strict_ibp_forward(self, bounds, intersection, save_relaxation=False, save_input_bounds=False):
         if save_relaxation:
             self.strict_alpha_beta(preactivation=bounds, intersection=intersection)
@@ -78,6 +78,7 @@ class BoundSin(bp.BoundSin):
         return bounds, intersection
 
     @bp.activation.assert_bound_order
+    @assert_bound_order
     def strict_alpha_beta(self, preactivation, intersection):
         lower, upper = preactivation.lower, preactivation.upper
 

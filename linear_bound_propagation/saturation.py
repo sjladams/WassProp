@@ -1,6 +1,7 @@
 import torch
 import bound_propagation as bp
 from .utils import NotLinearizable
+from .activation import assert_bound_order
 
 __all__ = ['BoundClamp']
 
@@ -8,7 +9,7 @@ class BoundClamp(bp.BoundClamp):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    @bp.activation.assert_bound_order
+    @assert_bound_order
     def strict_ibp_forward(self, bounds, intersection, save_relaxation=False, save_input_bounds=False):
         if save_relaxation:
             self.strict_alpha_beta(preactivation=bounds, intersection=intersection)
@@ -24,7 +25,7 @@ class BoundClamp(bp.BoundClamp):
         return bounds, intersection
 
 
-    @bp.activation.assert_bound_order
+    @assert_bound_order
     def strict_alpha_beta(self, preactivation, intersection):
         """
         Adaptive is similar to :BoundReLU: with the adaptivity being applied to both bends

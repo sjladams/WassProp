@@ -1,8 +1,25 @@
 import torch
 import bound_propagation as bp
+from functools import wraps
 from .utils import NotLinearizable
 
 __all__ = ['BoundSigmoid', 'BoundIdentity']
+
+def assert_bound_order(func, position=0, keyword='preactivation'):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if len(args) > position:
+            bounds = args[position]
+        else:
+            bounds = kwargs[keyword]
+
+        if torch.isnan(bounds.lower).any() or torch.isnan(bounds.upper).any() or \
+            not torch.all(bounds.lower <= bounds.upper + 1e-6):
+            raise ValueError(f"Bounds are not ordered: {bounds.lower} <= {bounds.upper}")
+
+        return func(self, *args, **kwargs)
+
+    return wrapper
 
 class SigmoidTangentBisectionStrategy:
     def upper_tangent(self, bound_module, lower, upper):
@@ -36,7 +53,7 @@ class BoundSigmoid(bp.BoundSigmoid):
         super().__init__(*args, **kwargs)
         self.tangent_strategy = SigmoidTangentBisectionStrategy()
 
-    @bp.activation.assert_bound_order
+    @assert_bound_order
     def strict_ibp_forward(self, bounds, intersection, save_relaxation=False, save_input_bounds=False):
         if save_relaxation:
             self.strict_alpha_beta(preactivation=bounds, intersection=intersection)
@@ -50,7 +67,7 @@ class BoundSigmoid(bp.BoundSigmoid):
 
         return bounds, intersection
 
-    @bp.activation.assert_bound_order
+    @assert_bound_order
     def strict_alpha_beta(self, preactivation, intersection):
         lower, upper = preactivation.lower, preactivation.upper
 
