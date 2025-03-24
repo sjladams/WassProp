@@ -261,20 +261,23 @@ class DiagonalLinearSigmoidDynamics(Dynamics, Separable):
 
 
 class LinearSigmoidDynamics(Dynamics, CompositionalStructure):
-    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs): # \todo change to full weight matrix
-        if isinstance(diagonal, list):
-            diagonal = torch.tensor(diagonal)
-        self.num_dims = diagonal.size(0)
-        self._diagonal = diagonal
+    def __init__(self,
+                 weight: Union[torch.Tensor, list],
+                 bias: Optional[Union[torch.Tensor, list]] = None,
+                 **kwargs):
+        if isinstance(weight, list):
+            weight = torch.tensor(weight)
+
+        self.num_dims = weight.size(-1)
 
         super().__init__(
-            LinearDiagonalDynamics(diagonal),
+            LinearDynamics(weight, bias),
             SigmoidDynamics(self.num_dims)
         )
 
     @property
     def global_lipschitz(self):
-        return self._diagonal.abs().max() * 0.25
+        return self[0].global_lipschitz * self[1].global_lipschitz
 
 
 class MountainCarDynamics(Dynamics):
@@ -365,6 +368,19 @@ class DubinsCarDynamics(Dynamics):
     @property
     def global_lipschitz(self):
         return 1 + self.h * self.velocity
+
+
+class PiecewiseAffine4modes2dDynamics(Dynamics):
+    num_dims = 2
+
+    def __init__(self, **kwargs):
+        mode1 = BoundedLinearDynamics(
+            weight=[[1.0, 0.0], [0.0, 1.0]],
+            bias=[0.0, 0.0],
+            lower_bound=[-1.0, -1.0],
+            upper_bound=[1.0, 1.0]
+        )
+
 
 
 
