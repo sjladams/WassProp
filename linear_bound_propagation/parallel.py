@@ -12,7 +12,8 @@ class BoundParallel(bp.BoundParallel):
             split_bounds = [bounds for _ in range(len(self.subnetworks))]
             split_intersections = [intersection for _ in range(len(self.subnetworks))]
         else:
-            raise NotImplementedError
+            split_bounds = self.split(bounds, self.split_sizes(bounds.lower.size(-1)))
+            split_intersections = self.split(intersection, self.split_sizes(intersection.size(-1)))
 
         residuals = [network.strict_ibp_forward(bound, intersection, save_relaxation=save_relaxation, save_input_bounds=save_input_bounds)
                     for network, bound, intersection in zip(self.subnetworks, split_bounds, split_intersections)]
