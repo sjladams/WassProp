@@ -1,8 +1,8 @@
 import torch
 import bound_propagation as bp
-from .utils import is_vertice
+from .utils import NotLinearizable
 
-__all__ = ['BoundSigmoid']
+__all__ = ['BoundSigmoid', 'BoundIdentity']
 
 class SigmoidTangentBisectionStrategy:
     def upper_tangent(self, bound_module, lower, upper):
@@ -46,16 +46,19 @@ class BoundSigmoid(bp.BoundSigmoid):
             self.input_bounds = bounds
 
         bounds = bp.IntervalBounds(bounds.region, self.module(bounds.lower), self.module(bounds.upper))
-
-        intersection = self(intersection)
-        if not is_vertice(bounds, intersection):
-            raise NotImplementedError
+        intersection = self.module(intersection)
 
         return bounds, intersection
 
     @bp.activation.assert_bound_order
     def strict_alpha_beta(self, preactivation, intersection):
         lower, upper = preactivation.lower, preactivation.upper
+
+        at_lower = torch.isclose(intersection, lower, atol=1e-5)
+        at_upper = torch.isclose(intersection, upper, atol=1e-5)
+        if not torch.logical_or(at_lower, at_upper).all():
+            raise NotLinearizable
+
         zero_width, n, p, np = bp.activation.regimes(lower, upper)
 
         self.alpha_lower, self.beta_lower = torch.zeros_like(lower), torch.zeros_like(lower)
@@ -68,7 +71,7 @@ class BoundSigmoid(bp.BoundSigmoid):
 
         lower_prime, upper_prime = self.derivative(lower), self.derivative(upper)
 
-        inter_act = self(intersection)
+        inter_act = self.module(intersection)
         inter_prime = self.derivative(intersection)
 
         slope = (self(upper) - self(lower)) / (upper - lower)
@@ -140,3 +143,14 @@ class BoundSigmoid(bp.BoundSigmoid):
 
             # Slope has to attach to (intersection, sigma(intersection))
             add_linear(self.alpha_lower, self.beta_lower, mask=implicit, a=self.derivative(d), x=intersection, y=inter_act, a_mask=False)
+
+
+
+class BoundIdentity(bp.activation.BoundIdentity):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def strict_ibp_forward(self, bounds, intersection, save_relaxation=False, save_input_bounds=False):
+        bounds = self.ibp_forward(bounds, save_relaxation, save_input_bounds)
+        intersection = self.module(intersection)
+        return bounds, intersection

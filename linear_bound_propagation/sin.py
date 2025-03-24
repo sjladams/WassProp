@@ -1,7 +1,6 @@
 import torch
 import bound_propagation as bp
-import math
-from .utils import is_vertice
+from .utils import NotLinearizable
 
 __all__ = ['BoundSin']
 
@@ -74,9 +73,7 @@ class BoundSin(bp.BoundSin):
 
         bounds = bp.IntervalBounds(bounds.region, self.module(bounds.lower), self.module(bounds.upper))
 
-        intersection = self(intersection)
-        if not is_vertice(bounds, intersection):
-            raise NotImplementedError
+        intersection = self.module(intersection)
 
         return bounds, intersection
 
@@ -84,9 +81,10 @@ class BoundSin(bp.BoundSin):
     def strict_alpha_beta(self, preactivation, intersection):
         lower, upper = preactivation.lower, preactivation.upper
 
-        at_lower = torch.isclose(intersection, lower)
-        at_upper = torch.isclose(intersection, upper)
-        assert torch.logical_or(at_lower, at_upper).all()
+        at_lower = torch.isclose(intersection, lower, atol=1e-5)
+        at_upper = torch.isclose(intersection, upper, atol=1e-5)
+        if not torch.logical_or(at_lower, at_upper).all():
+            raise NotLinearizable
 
         zero_width, half_period, (_, increasing), (_, decreasing), crossing_peak, crossing_trough = \
             bp.activation.sine_like_regimes(lower, upper, period=self.period, zero_increasing=self.zero_increasing)
@@ -99,7 +97,7 @@ class BoundSin(bp.BoundSin):
         self.alpha_lower[zero_width], self.beta_lower[zero_width] = 0, self(lower[zero_width])
         self.alpha_upper[zero_width], self.beta_upper[zero_width] = 0, self(upper[zero_width])
 
-        inter_act, inter_prime = self(intersection), self.derivative(intersection)
+        inter_act, inter_prime = self.module(intersection), self.derivative(intersection)
 
         def add_linear(alpha, beta, mask, a, x, y, a_mask=True):
             if a_mask:

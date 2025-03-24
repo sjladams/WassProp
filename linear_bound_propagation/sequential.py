@@ -15,7 +15,7 @@ class BoundSequential(bp.BoundSequential):
 
         self.clear_relaxation()
 
-        linear_bounds_intersect_at_point(linear_bounds, intersection, self(intersection))
+        linear_bounds_intersect_at_point(linear_bounds, intersection, self.module(intersection))
 
         return linear_bounds
 

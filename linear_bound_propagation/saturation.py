@@ -1,6 +1,6 @@
 import torch
 import bound_propagation as bp
-from .utils import is_vertice
+from .utils import NotLinearizable
 
 __all__ = ['BoundClamp']
 
@@ -19,9 +19,7 @@ class BoundClamp(bp.BoundClamp):
 
         bounds = bp.IntervalBounds(bounds.region, self.module(bounds.lower), self.module(bounds.upper))
 
-        intersection = self(intersection)
-        if not is_vertice(bounds, intersection):
-            raise NotImplementedError
+        intersection = self.module(intersection)
 
         return bounds, intersection
 
@@ -36,9 +34,10 @@ class BoundClamp(bp.BoundClamp):
         """
         lower, upper = preactivation.lower, preactivation.upper
 
-        at_lower = torch.isclose(intersection, lower)
-        at_upper = torch.isclose(intersection, upper)
-        assert torch.logical_or(at_lower, at_upper).all()
+        at_lower = torch.isclose(intersection, lower, atol=1e-5)
+        at_upper = torch.isclose(intersection, upper, atol=1e-5)
+        if not torch.logical_or(at_lower, at_upper).all():
+            raise NotLinearizable
 
         zero_width, flat_lower, flat_upper, slope, lower_bend, upper_bend, full_range = bp.saturation.regimes(
             lower, upper, self.module.min, self.module.max)

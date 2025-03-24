@@ -2,7 +2,7 @@ import bound_propagation as bp
 import torch
 
 
-class NotSupportedError(Exception):
+class NotLinearizable(Exception):
     def __init__(self, detail=""):
         base_message = ("Intersection is not a vertice of the bounds. So this procedure can not provide a strictly "
                         "linear bound at the intersection. Consider splitting it in compositional blocks")

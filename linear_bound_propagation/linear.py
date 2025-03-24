@@ -1,7 +1,6 @@
 from typing import Optional
 import torch
 import bound_propagation as bp
-from .utils import is_vertice, NotSupportedError
 
 __all__ = ['BoundLinear', 'Linear', 'Identity']
 
@@ -24,8 +23,6 @@ class BoundLinear(bp.BoundLinear):
     @bp.activation.assert_bound_order
     def strict_ibp_forward(self, bounds, intersection, save_relaxation=False, save_input_bounds=False):
         bounds = self.ibp_forward(bounds, save_relaxation, save_input_bounds)
-        intersection = self(intersection)
-        if not is_vertice(bounds, intersection):
-            raise NotSupportedError()
+        intersection = self.module(intersection)
 
         return bounds, intersection
