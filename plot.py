@@ -102,8 +102,8 @@ def plot_multi_step(dynamics, samples: dict, type: str = "Undefined"):
     time_steps = [time_steps[0], time_steps[-1]] # Get initial and final time steps
 
     if dynamics.num_state_dims >= 2:
-        p_samples = torch.stack([samples[k]['p'] for k in samples.keys()])
-        q_samples = torch.stack([samples[k]['q'] for k in samples.keys()])
+        p_samples = torch.stack([samples[k]['p1_samples'] for k in samples.keys()])
+        q_samples = torch.stack([samples[k]['q1_samples'] for k in samples.keys()])
 
         fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(24, 36))
         for k in time_steps:
