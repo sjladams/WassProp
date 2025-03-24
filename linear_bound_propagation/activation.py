@@ -3,7 +3,7 @@ import bound_propagation as bp
 from functools import wraps
 from .utils import NotLinearizable
 
-__all__ = ['BoundSigmoid', 'BoundIdentity']
+__all__ = ['BoundSigmoid', 'BoundIdentity', 'BoxedIdentity', 'BoundBoxedIdentity']
 
 def assert_bound_order(func, position=0, keyword='preactivation'):
     @wraps(func)
@@ -171,3 +171,151 @@ class BoundIdentity(bp.activation.BoundIdentity):
         bounds = self.ibp_forward(bounds, save_relaxation, save_input_bounds)
         intersection = self.module(intersection)
         return bounds, intersection
+
+
+class BoxedIdentity(torch.nn.Module):
+    def __init__(self, min, max):
+        super().__init__()
+
+        self.min = min
+        self.max = max
+
+    def forward(self, x):
+        mask = (x >= self.min) & (x <= self.max)
+        return x * mask
+
+
+class BoundBoxedIdentity(bp.BoundActivation):
+    def __init__(self, module, factory, **kwargs):
+        super().__init__(module, factory, **kwargs)
+
+    def clear_relaxation(self):
+        super().clear_relaxation()
+
+    @assert_bound_order
+    def strict_ibp_forward(self, bounds, intersection, save_relaxation=False, save_input_bounds=False):
+        if save_relaxation:
+            self.strict_alpha_beta(preactivation=bounds, intersection=intersection)
+            self.bounded = True
+
+        if save_input_bounds:
+            self.input_bounds = bounds
+
+        bounds = bp.IntervalBounds(bounds.region, self.module(bounds.lower), self.module(bounds.upper))
+
+        intersection = self.module(intersection)
+
+        return bounds, intersection
+
+    def parameterize_alpha_beta(self, alpha_lower, alpha_upper, beta_lower, beta_upper):
+        raise NotImplementedError
+
+    def alpha_beta(self, preactivation):
+        raise NotImplementedError
+
+    @assert_bound_order
+    def strict_alpha_beta(self, preactivation, intersection):
+        """
+        Adaptive is similar to :BoundReLU: with the adaptivity being applied to both bends
+
+        :param self:
+        :param preactivation:
+        """
+        lower, upper = preactivation.lower, preactivation.upper
+
+        at_lower = torch.isclose(intersection, lower, atol=1e-5)
+        at_upper = torch.isclose(intersection, upper, atol=1e-5)
+        if not torch.logical_or(at_lower, at_upper).all():
+            raise NotLinearizable
+
+        zero_width, flat_lower, flat_upper, slope, lower_bend, upper_bend, full_range = bp.saturation.regimes(
+            lower, upper, self.module.min, self.module.max)
+
+        self.alpha_lower, self.beta_lower = torch.zeros_like(lower), torch.zeros_like(lower)
+        self.alpha_upper, self.beta_upper = torch.zeros_like(lower), torch.zeros_like(lower)
+
+        act_lower, act_upper = self(lower), self(upper)
+
+        # Use upper and lower in the bias to account for a small numerical difference between lower and upper
+        # which ought to be negligible, but may still be present due to torch.isclose.
+        if zero_width.any():
+            self.alpha_lower[zero_width], self.beta_lower[zero_width] = 0, act_lower[zero_width]
+            self.alpha_upper[zero_width], self.beta_upper[zero_width] = 0, act_upper[zero_width]
+
+        min, max = self.module.min, self.module.max
+        if min is not None and torch.is_tensor(min):
+            min = min.view(*[1 for _ in range(self.alpha_lower.dim() - 1)], -1).expand_as(self.alpha_lower)
+
+        if max is not None and torch.is_tensor(max):
+            max = max.view(*[1 for _ in range(self.alpha_lower.dim() - 1)], -1).expand_as(self.alpha_lower)
+
+        # Flat lower
+        self.alpha_lower[flat_lower], self.beta_lower[flat_lower] = 0, 0
+        self.alpha_upper[flat_lower], self.beta_upper[flat_lower] = 0, 0
+
+        # Flat upper
+        self.alpha_lower[flat_upper], self.beta_lower[flat_upper] = 0, 0
+        self.alpha_upper[flat_upper], self.beta_upper[flat_upper] = 0, 0
+
+        # Slope
+        self.alpha_lower[slope], self.beta_lower[slope] = 1, 0
+        self.alpha_upper[slope], self.beta_upper[slope] = 1, 0
+
+        z = (self(upper) - self(lower)) / (upper - lower)
+
+        # Lower bend
+        if min is not None:
+            # intersect at lower
+            lower_bend_left = lower_bend & at_lower
+            self.alpha_lower[lower_bend_left] = 0.
+            self.beta_lower[lower_bend_left] = act_lower[lower_bend_left]
+            self.alpha_upper[lower_bend_left] = z[lower_bend_left]
+            self.beta_upper[lower_bend_left] = act_lower[lower_bend_left] - lower[lower_bend_left] * z[lower_bend_left]
+
+            # intersect at upper
+            lower_bend_right = lower_bend & at_upper
+            self.alpha_lower[lower_bend_right] = 1.
+            self.beta_lower[lower_bend_right] = act_upper[lower_bend_right] - upper[lower_bend_right] * 1.
+            self.alpha_upper[lower_bend_right] = z[lower_bend_right]
+            self.beta_upper[lower_bend_right] = act_upper[lower_bend_right] - upper[lower_bend_right] * z[
+                lower_bend_right]
+
+        # Upper bend
+        if max is not None:
+            # intersect at lower
+            upper_bend_left = upper_bend & at_lower
+            self.alpha_upper[upper_bend_left] = 1.
+            self.beta_upper[upper_bend_left] = act_lower[upper_bend_left] - lower[upper_bend_left] * 1.
+            self.alpha_lower[upper_bend_left] = z[upper_bend_left]
+            self.beta_lower[upper_bend_left] = act_lower[upper_bend_left] - lower[upper_bend_left] * z[upper_bend_left]
+
+            # intersect at upper
+            upper_bend_right = upper_bend & at_upper
+
+            upper_bend_right_max = max[upper_bend_right] if torch.is_tensor(max) else torch.as_tensor(max)
+
+            self.alpha_upper[upper_bend_right] = - upper_bend_right_max / (upper[upper_bend_right] - upper_bend_right_max)
+            self.beta_upper[upper_bend_right] = act_upper[upper_bend_right] - upper[upper_bend_right] * self.alpha_upper[upper_bend_right]
+            self.alpha_lower[upper_bend_right] = 0
+            self.beta_lower[upper_bend_right] = 0
+
+        # Full range
+        if self.module.min is not None and self.module.max is not None:
+            self.alpha_lower[full_range] = 0.
+            self.beta_lower[full_range] = 0.
+
+            # intersect at lower
+            full_range_left = full_range & at_lower
+
+            self.alpha_upper[full_range_left] = z[full_range_left]
+            self.beta_upper[full_range_left] = act_upper[full_range_left] - upper[full_range_left] * z[
+                full_range_left]
+
+            # intersect at upper
+            full_range_right = full_range & at_upper
+
+            full_range_right_max = max[full_range_right] if torch.is_tensor(max) else torch.as_tensor(max)
+
+            self.alpha_upper[full_range_right] = - full_range_right_max / (upper[full_range_right] - full_range_right_max)
+            self.beta_upper[full_range_right] = act_upper[full_range_right] - upper[full_range_right] * self.alpha_upper[full_range_right]
+
