@@ -12,8 +12,8 @@ if __name__ == '__main__':
     args = parse_arguments(
         dynamics_type="FourModesOpenLoopDynamics",
         dynamics_setting = 0,
-        num_locs = 1000,
-        num_locs_after_compr=1000,
+        num_locs = 100,
+        num_locs_after_compr=100,
         num_samples = 1000,
         plot = False
     )
@@ -53,6 +53,9 @@ if __name__ == '__main__':
         w2_p1__q1_store[k+1] = {key: value for key, value in out.items() if 'w2_p1__q1' in key}
         w2_q__sign_q_store[k+1] = out['w2_q__sign_q']
         samples_store[k] = {key: value for key, value in out.items() if 'samples' in key}
+
+        # Get mixture as the center of the ball
+        q = out['q1']
 
         print(
             f"Bounds on W_2(p_{k+1}, q_{k+1}) via:\n"
