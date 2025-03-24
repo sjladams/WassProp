@@ -89,30 +89,44 @@ class AdditiveGaussianDynamics(StochasticDynamics):
         return self[0].subnetworks[0]
 
 
-class SigmoidStochasticDynamics(StochasticDynamics):
+class LinearStochasticDynamics(StochasticDynamics):
     num_state_dims = 3
     num_noise_dims = 3
 
     def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
         assert len(diagonal) == self.num_state_dims + self.num_noise_dims
 
-        super(SigmoidStochasticDynamics, self).__init__(
+        super().__init__(
             num_state_dims=self.num_state_dims,
             num_noise_dims=self.num_noise_dims,
             modules=[
-                LinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
-                bp.Parallel(
-                    torch.nn.Identity(),
-                    torch.nn.Identity(),
-                    split_size=self.num_state_dims),
-                bp.VectorAdd(),
+                LinearDiagonalDynamics(diagonal),
+                bp.VectorAdd()
+            ]
+        )
+
+    @property
+    def global_lipschitz(self):
+        return self[0].global_lipschitz
+
+
+class LinearSigmoidStochasticDynamics(StochasticDynamics, CompositionalStructure):
+    num_state_dims = 3
+    num_noise_dims = 3
+
+    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
+        super().__init__(
+            num_state_dims=self.num_state_dims,
+            num_noise_dims=self.num_noise_dims,
+            modules=[
+                LinearStochasticDynamics(diagonal),
                 SigmoidDynamics(self.num_state_dims)
             ]
         )
 
     @property
     def global_lipschitz(self):
-        return self[0].global_lipschitz * self[3].global_lipschitz
+        return self[0].global_lipschitz * self[1].global_lipschitz
 
 
 class IdentityDynamics(Dynamics):
@@ -237,7 +251,7 @@ class DiagonalLinearSigmoidDynamics(Dynamics, Separable):
         self._diagonal = diagonal
 
         super().__init__(
-            LinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
+            LinearDiagonalDynamics(diagonal),
             SigmoidDynamics(self.num_dims)
         )
 
@@ -254,7 +268,7 @@ class LinearSigmoidDynamics(Dynamics, CompositionalStructure):
         self._diagonal = diagonal
 
         super().__init__(
-            LinearDiagonalDynamics(diagonal, min=-torch.inf, max=torch.inf),
+            LinearDiagonalDynamics(diagonal),
             SigmoidDynamics(self.num_dims)
         )
 
@@ -297,7 +311,7 @@ class MountainCarDynamics(Dynamics):
         )
 
         super().__init__(
-            bp.Parallel(linear_part, trig_part),
+            torch.nn.Sequential(bp.Parallel(linear_part, trig_part)),
             bp.VectorAdd(),
         )
 
@@ -375,7 +389,7 @@ def get_dynamics(dynamics_type: str, **kwargs):
         return AdditiveGaussianDynamics(MountainCarDynamics(**kwargs))
     elif dynamics_type == 'DubinsCarDynamics':
         return AdditiveGaussianDynamics(DubinsCarDynamics(**kwargs))
-    elif dynamics_type == 'SigmoidStochasticDynamics':
-        return SigmoidStochasticDynamics(**kwargs)
+    elif dynamics_type == 'LinearSigmoidStochasticDynamics':
+        return LinearSigmoidStochasticDynamics(**kwargs)
     else:
         raise ValueError(f"Unknown dynamics: {dynamics_type}")

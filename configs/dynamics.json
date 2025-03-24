@@ -109,7 +109,7 @@
             }
         }
     },
-    "SigmoidStochasticDynamics": {
+    "LinearSigmoidStochasticDynamics": {
         "options": {
             "0": {
                 "diagonal": [3.0, 1.5, 1.2, 0.5, 1.0, 0.9],
