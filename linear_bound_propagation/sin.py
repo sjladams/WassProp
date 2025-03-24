@@ -1,6 +1,8 @@
 import torch
 import bound_propagation as bp
 from .utils import NotLinearizable
+from .activation import assert_bound_order
+from bound_propagation.activation import sine_like_regimes
 
 __all__ = ['BoundSin']
 
@@ -71,13 +73,50 @@ class BoundSin(bp.BoundSin):
         if save_input_bounds:
             self.input_bounds = bounds
 
-        bounds = bp.IntervalBounds(bounds.region, self.module(bounds.lower), self.module(bounds.upper))
+        zero_width, half_period, (increasing, _), (decreasing, _), crossing_peak, crossing_trough = \
+            sine_like_regimes(bounds.lower, bounds.upper, period=self.period, zero_increasing=self.zero_increasing)
+
+        lower = torch.zeros_like(bounds.lower)
+        upper = torch.zeros_like(bounds.upper)
+
+        lower_act = self.module(bounds.lower)
+        upper_act = self.module(bounds.upper)
+
+        lower[zero_width] = torch.min(lower_act[zero_width], upper_act[zero_width])
+        upper[zero_width] = torch.max(lower_act[zero_width], upper_act[zero_width])
+
+        lower[half_period] = -1
+        upper[half_period] = 1
+
+        lower[increasing] = lower_act[increasing]
+        upper[increasing] = upper_act[increasing]
+
+        lower[decreasing] = upper_act[decreasing]
+        upper[decreasing] = lower_act[decreasing]
+
+        lower[crossing_peak] = torch.min(lower_act[crossing_peak], upper_act[crossing_peak])
+        upper[crossing_peak] = 1
+
+        lower[crossing_trough] = -1
+        upper[crossing_trough] = torch.max(lower_act[crossing_trough], upper_act[crossing_trough])
+
+        bounds = bp.IntervalBounds(bounds.region, lower, upper)
 
         intersection = self.module(intersection)
 
         return bounds, intersection
 
-    @bp.activation.assert_bound_order
+
+    def ibp_forward(self, bounds, save_relaxation=False, save_input_bounds=False):
+        if save_relaxation:
+            self.alpha_beta(preactivation=bounds)
+            self.bounded = True
+
+        if save_input_bounds:
+            self.input_bounds = bounds
+
+
+
     @assert_bound_order
     def strict_alpha_beta(self, preactivation, intersection):
         lower, upper = preactivation.lower, preactivation.upper
