@@ -26,7 +26,7 @@ def _linear_map_intersect_at_point(A, b, point, y):
     return (bias.abs() <= 1e-5).all()
 
 def linear_bounds_intersect_at_point(linear_bounds, point, y):
-    msg_tmpl = ("{} bound does not intersect at point {}.\n Note that this exception is a last. "
+    msg_tmpl = ("{} bound does not intersect at point {}.\n Note that this exception is a last resort. "
                 "Carefully check the method of BoundModules related to the strict procedure. Start with the "
                 "strict_alpha_beta of the Activation functions that you used")
     assert _linear_map_intersect_at_point(*linear_bounds.lower, point, y), msg_tmpl.format("Lower", point)
