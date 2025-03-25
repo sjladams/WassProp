@@ -17,6 +17,7 @@ def single_step(
         num_samples: int,
         num_locs: int,
         propagate_via_gmm: bool, # todo rename
+        w2_noise_dist: float = 0.,
         w2_p__q_global_lipschitz: float = 0.,
         w2_p__q_lagrangian_duality: float = 0.,
         run_lagrangian_duality: bool = True,
@@ -80,20 +81,21 @@ def single_step(
 
     w2_p1__q1_global_lipschitz = dynamics.global_lipschitz * (sign_q.w2 + w2_compr + w2_p__q_global_lipschitz)
     if isinstance(dynamics, AdditiveGaussianDynamics) and not propagate_via_gmm:
-        w2_p1__q1_global_lipschitz += sign_noise_dist.w2
+        w2_p1__q1_global_lipschitz += sign_noise_dist.w2 + w2_noise_dist
     elif not isinstance(dynamics, AdditiveGaussianDynamics):
-        w2_p1__q1_global_lipschitz += dynamics.global_lipschitz * sign_noise_dist.w2
+        w2_p1__q1_global_lipschitz += dynamics.global_lipschitz * (sign_noise_dist.w2 + w2_noise_dist)
 
     if run_lagrangian_duality:
         print(f"-- Lagrangian Duality --")
         if isinstance(dynamics, AdditiveGaussianDynamics):
             w2_p1__q1_lagrangian_duality = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
                 signature=sign_q, f=dynamics.state_dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr)
+            w2_p1__q1_lagrangian_duality += w2_noise_dist
             if not propagate_via_gmm:
                 w2_p1__q1_lagrangian_duality += sign_noise_dist.w2
         else:
             w2_p1__q1_lagrangian_duality = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-                signature=sign_cross, f=dynamics, w2_q__disc_q=sign_q.w2+sign_noise_dist.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr)
+                signature=sign_cross, f=dynamics, w2_q__disc_q=sign_q.w2+sign_noise_dist.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr + w2_noise_dist)
     else:
         w2_p1__q1_lagrangian_duality = torch.nan
 
@@ -146,10 +148,11 @@ def multi_step( # \todo kill gradients
         noise_dist: ds.MultivariateNormal,
         q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
         num_time_steps: int,
+        w2_p__q: float = 0.,
         **kwargs):
 
     # store wasserstein error bounds
-    w2_p1__q1_store = {0: dict(w2_p1__q1_global_lipschitz=0., w2_p1__q1_lagrangian_duality=0.)}
+    w2_p1__q1_store = {0: dict(w2_p1__q1_global_lipschitz=w2_p__q, w2_p1__q1_lagrangian_duality=w2_p__q)} # todo shift time indexing
     w2_q__sign_q_store = dict()
 
     # store trajectories
@@ -165,6 +168,7 @@ def multi_step( # \todo kill gradients
             p_samples=samples_store[k-1]['p1_samples'] if k-1 in samples_store else None,
             w2_p__q_global_lipschitz=w2_p1__q1_store[k]['w2_p1__q1_global_lipschitz'],
             w2_p__q_lagrangian_duality=w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'],
+            w2_noise_dist=w2_noise_dist,
             **kwargs
         )
         q = out['q1']
