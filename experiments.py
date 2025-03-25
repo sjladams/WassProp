@@ -149,6 +149,7 @@ def multi_step( # \todo kill gradients
         q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
         num_time_steps: int,
         w2_p__q: float = 0.,
+        w2_noise_dist: float = 0.,
         **kwargs):
 
     # store wasserstein error bounds
