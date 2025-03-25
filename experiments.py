@@ -1,13 +1,12 @@
 import ot
 import torch
-from copy import copy
 from typing import Union, List, Optional
 
 import discretize_distributions as ds
-import GMMWas
 import wasserstein
 from dynamics import Dynamics, AdditiveGaussianDynamics
 import propagation as prop
+from utils_distributions import compress
 
 
 def single_step(
