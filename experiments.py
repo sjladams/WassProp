@@ -153,7 +153,7 @@ def multi_step( # \todo kill gradients
         **kwargs):
 
     # store wasserstein error bounds
-    w2_p1__q1_store = {0: dict(w2_p1__q1_global_lipschitz=w2_p__q, w2_p1__q1_lagrangian_duality=w2_p__q)} # todo shift time indexing
+    w2_p1__q1_store = {-1: dict(w2_p1__q1_global_lipschitz=w2_p__q, w2_p1__q1_lagrangian_duality=w2_p__q)}
     w2_q__sign_q_store = dict()
 
     # store trajectories
@@ -167,14 +167,14 @@ def multi_step( # \todo kill gradients
             noise_dist=noise_dist,
             q=q,
             p_samples=samples_store[k-1]['p1_samples'] if k-1 in samples_store else None,
-            w2_p__q_global_lipschitz=w2_p1__q1_store[k]['w2_p1__q1_global_lipschitz'],
-            w2_p__q_lagrangian_duality=w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'],
+            w2_p__q_global_lipschitz=w2_p1__q1_store[k-1]['w2_p1__q1_global_lipschitz'],
+            w2_p__q_lagrangian_duality=w2_p1__q1_store[k-1]['w2_p1__q1_lagrangian_duality'],
             w2_noise_dist=w2_noise_dist,
             **kwargs
         )
         q = out['q1']
-        w2_p1__q1_store[k+1] = {key: value for key, value in out.items() if 'w2_p1__q1' in key}
-        w2_q__sign_q_store[k+1] = out['w2_q__sign_q']
+        w2_p1__q1_store[k] = {key: value for key, value in out.items() if 'w2_p1__q1' in key}
+        w2_q__sign_q_store[k] = out['w2_q__sign_q']
         samples_store[k] = {key: value for key, value in out.items() if 'samples' in key}
 
         print(
