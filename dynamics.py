@@ -425,9 +425,99 @@ class PiecewiseAffine4modes2dDynamics(Dynamics):
         global_lipschitz = []
         for mode in self[1].subnetworks:
             global_lipschitz.append(mode.global_lipschitz)
-
         return max(global_lipschitz)
-        # return self[1].global_lipschitz
+
+class FourModesOpenLoopDynamics(Dynamics):
+
+    def __init__(self, control: int = 1, **kwargs):
+
+        self.num_dims = 2
+
+        linear_part = IdentityDynamics(num_dims=2)
+
+        if control == 1:
+            trig_part = torch.nn.Sequential(
+                lbp.Linear(
+                    torch.tensor([
+                        [0.0, 1.0],
+                        [1.0, 0.0]
+                    ]),
+                    torch.tensor([0.0, torch.pi / 2])
+                    ),
+                bp.Sin(),
+                lbp.Linear(
+                    torch.tensor([
+                        [0.2, 0.0],
+                        [0.0, 0.4]
+                    ]),
+                    torch.tensor([0.5, 0.0])
+                ),
+            )
+        elif control == 2:
+            trig_part = torch.nn.Sequential(
+                lbp.Linear(
+                    torch.tensor([
+                        [0.0, 1.0],
+                        [1.0, 0.0]
+                    ]),
+                    torch.tensor([0.0, torch.pi / 2])
+                    ),
+                bp.Sin(),
+                lbp.Linear(
+                    torch.tensor([
+                        [0.2, 0.0],
+                        [0.0, 0.4]
+                    ]),
+                    torch.tensor([-0.5, 0.0])
+                ),
+            )
+        elif control==3:
+            trig_part = torch.nn.Sequential(
+                lbp.Linear(
+                    torch.tensor([
+                        [0.0, 1.0],
+                        [1.0, 0.0]
+                    ]),
+                    torch.tensor([torch.pi / 2, 0.0])
+                    ),
+                bp.Sin(),
+                lbp.Linear(
+                    torch.tensor([
+                        [0.4, 0.0],
+                        [0.0, 0.2]
+                    ]),
+                    torch.tensor([0.0, 0.5])
+                ),
+            )
+        elif control==4:
+            trig_part = torch.nn.Sequential(
+                lbp.Linear(
+                    torch.tensor([
+                        [0.0, 1.0],
+                        [1.0, 0.0]
+                    ]),
+                    torch.tensor([torch.pi / 2, 0.0])
+                    ),
+                bp.Sin(),
+                lbp.Linear(
+                    torch.tensor([
+                        [0.4, 0.0],
+                        [0.0, 0.2]
+                    ]),
+                    torch.tensor([0.0, -0.5])
+                ),
+            )
+        else:
+            raise Exception
+
+        super().__init__(
+            bp.Parallel(linear_part, trig_part),
+            bp.VectorAdd(),
+        )
+
+    @property
+    def global_lipschitz(self):
+        return 1.4
 
 
 def get_dynamics(dynamics_type: str, **kwargs):
@@ -451,6 +541,8 @@ def get_dynamics(dynamics_type: str, **kwargs):
         return AdditiveGaussianDynamics(MountainCarDynamics(**kwargs))
     elif dynamics_type == 'DubinsCarDynamics':
         return AdditiveGaussianDynamics(DubinsCarDynamics(**kwargs))
+    elif dynamics_type == 'FourModesOpenLoopDynamics':
+        return AdditiveGaussianDynamics(FourModesOpenLoopDynamics(**kwargs))
     elif dynamics_type == 'PiecewiseAffine4modes2dDynamics':
         return AdditiveGaussianDynamics(PiecewiseAffine4modes2dDynamics(**kwargs))
     elif dynamics_type == 'LinearSigmoidStochasticDynamics':
