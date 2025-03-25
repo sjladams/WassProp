@@ -167,7 +167,7 @@ def multi_step( # \todo kill gradients
             w2_p__q_lagrangian_duality=w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'],
             **kwargs
         )
-
+        q = out['q1']
         w2_p1__q1_store[k+1] = {key: value for key, value in out.items() if 'w2_p1__q1' in key}
         w2_q__sign_q_store[k+1] = out['w2_q__sign_q']
         samples_store[k] = {key: value for key, value in out.items() if 'samples' in key}
