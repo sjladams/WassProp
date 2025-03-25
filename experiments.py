@@ -37,13 +37,24 @@ def single_step(
             w2_compr = 0.
         else:
             if isinstance(q, ds.MixtureMultivariateNormal):
-                q = ds.unique_mixture_multivariate_normal(q)
-                if num_locs_after_compr >= q.num_components:
-                    w2_compr = 0.
+                if (q.component_distribution.covariance_matrix == q.component_distribution.covariance_matrix[0]).all():
+                    # We restrict the compressed distribution to a mixture with each component the covariance_matrix
+                    # of all components of the q
+                    q_core_org = ds.CategoricalFloat(probs=q.mixture_distribution.probs, locs=q.component_distribution.mean)
+                    q_core = ds.compress_categorical_floats(q_core_org, n_max=num_locs_after_compr)
+                    w2_compr = GMMWas.w2(q_core, q_core_org)
+                    q = ds.MixtureMultivariateNormal(
+                        mixture_distribution=torch.distributions.Categorical(probs=q_core.probs),
+                        component_distribution=
+                        ds.MultivariateNormal(loc=q_core.locs, covariance_matrix=noise_dist.covariance_matrix))
                 else:
-                    q_pre = copy(q)
-                    q = ds.compress_mixture_multivariate_normal(q, n_max=num_locs_after_compr)
-                    w2_compr = GMMWas.w2(q, q_pre)
+                    q = ds.unique_mixture_multivariate_normal(q)
+                    if num_locs_after_compr >= q.num_components:
+                        w2_compr = 0.
+                    else:
+                        q_pre = copy(q)
+                        q = ds.compress_mixture_multivariate_normal(q, n_max=num_locs_after_compr)
+                        w2_compr = GMMWas.w2(q, q_pre)
             elif isinstance(q, ds.CategoricalFloat):
                 q_pre = copy(q)
                 q = ds.compress_categorical_floats(q_pre, n_max=num_locs_after_compr)
