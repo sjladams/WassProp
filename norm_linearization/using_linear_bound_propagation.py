@@ -48,7 +48,40 @@ def test_strict_crown_ibp_nd(f, locs, l, u):
     lb_pos = f.strict_crown_ibp(bp.HyperRectangle(locs, torch.full_like(locs, u)), locs)
 
 if __name__ == "__main__":
-    ## 1D Illustration Clamp
+    ## illustration Boxed Identity
+    class PWA1dDynamics(torch.nn.Sequential):
+        def __init__(self):
+            super().__init__(lbp.Linear(torch.tensor([[1.0]])), lbp.BoxedIdentity(min=torch.tensor([1.5]), max=torch.tensor([3.5])))
+
+    loc = 0.5
+    inf = 8.0
+    region_width = 8.
+
+    test_strict_crown_ibp_1d(
+        f=lbp.factory.build(PWA1dDynamics()),
+        locs=torch.tensor([loc]).unsqueeze(0),
+        l=loc - inf,
+        u=loc + inf,
+        l_plot=loc - region_width,
+        u_plot=loc + region_width)
+
+    ## test Boxed Identity 2D
+    class PWA2dDynamics(torch.nn.Sequential):
+        def __init__(self):
+            super().__init__(lbp.Linear(torch.eye(2)), lbp.BoxedIdentity(min=-torch.ones(2), max=torch.ones(2)))
+
+    loc = 0.5
+    inf = 8.0
+    region_width = 8.
+
+    test_strict_crown_ibp_nd(
+        f=lbp.factory.build(PWA2dDynamics()),
+        locs=torch.tensor([loc, loc]).unsqueeze(0),
+        l=loc - inf,
+        u=loc + inf)
+
+
+    ## 1D Illustration Sigmoid
     class SigmoidDynamics(torch.nn.Sequential):
         def __init__(self):
             super().__init__(lbp.Linear(torch.tensor([[1.0]])), torch.nn.Sigmoid())
@@ -85,11 +118,11 @@ if __name__ == "__main__":
     ## 1D Illustration Saturation
     class SaturationDynamics(torch.nn.Sequential):
         def __init__(self):
-            super().__init__(lbp.Linear(torch.tensor([[0.9]])), bp.Clamp(min=-0.5, max=0.5))
+            super().__init__(lbp.Linear(torch.tensor([[0.9]])), bp.Clamp(min=-3.0, max=0.5))
 
-    loc = 1.0
+    loc = 0.0
     inf = 5.
-    region_width = 3.
+    region_width = 6.
 
     test_strict_crown_ibp_1d(
         f=lbp.factory.build(SaturationDynamics()),

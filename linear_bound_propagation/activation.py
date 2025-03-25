@@ -250,72 +250,94 @@ class BoundBoxedIdentity(bp.BoundActivation):
             max = max.view(*[1 for _ in range(self.alpha_lower.dim() - 1)], -1).expand_as(self.alpha_lower)
 
         # Flat lower
-        self.alpha_lower[flat_lower], self.beta_lower[flat_lower] = 0, 0
-        self.alpha_upper[flat_lower], self.beta_upper[flat_lower] = 0, 0
+        self.alpha_lower[flat_lower] = 0
+        self.alpha_upper[flat_lower] = 0
 
         # Flat upper
-        self.alpha_lower[flat_upper], self.beta_lower[flat_upper] = 0, 0
-        self.alpha_upper[flat_upper], self.beta_upper[flat_upper] = 0, 0
+        self.alpha_lower[flat_upper] = 0
+        self.alpha_upper[flat_upper] = 0
 
         # Slope
-        self.alpha_lower[slope], self.beta_lower[slope] = 1, 0
-        self.alpha_upper[slope], self.beta_upper[slope] = 1, 0
+        self.alpha_lower[slope] = 1
+        self.alpha_upper[slope] = 1
 
         z = (self(upper) - self(lower)) / (upper - lower)
 
         # Lower bend
         if min is not None:
-            # intersect at lower
+            # intersect at lower (left corner)
             lower_bend_left = lower_bend & at_lower
-            self.alpha_lower[lower_bend_left] = 0.
-            self.beta_lower[lower_bend_left] = act_lower[lower_bend_left]
-            self.alpha_upper[lower_bend_left] = z[lower_bend_left]
-            self.beta_upper[lower_bend_left] = act_lower[lower_bend_left] - lower[lower_bend_left] * z[lower_bend_left]
 
-            # intersect at upper
+            lower_bend_left_min = min[lower_bend_left] if torch.is_tensor(min) else torch.as_tensor(min)
+            self.alpha_lower[lower_bend_left] = lower_bend_left_min.clip(max=0.) / (lower_bend_left_min - lower[lower_bend_left])
+            self.alpha_upper[lower_bend_left] = lower_bend_left_min.clip(min=0.) / (lower_bend_left_min - lower[lower_bend_left])
+
+            # intersect at upper (right corner)
             lower_bend_right = lower_bend & at_upper
-            self.alpha_lower[lower_bend_right] = 1.
-            self.beta_lower[lower_bend_right] = act_upper[lower_bend_right] - upper[lower_bend_right] * 1.
-            self.alpha_upper[lower_bend_right] = z[lower_bend_right]
-            self.beta_upper[lower_bend_right] = act_upper[lower_bend_right] - upper[lower_bend_right] * z[
-                lower_bend_right]
+
+            lower_bend_right_min = min[lower_bend_right] if torch.is_tensor(min) else torch.as_tensor(min)
+            self.alpha_lower[lower_bend_right] = (act_upper[lower_bend_right] - lower_bend_right_min.clip(max=0.)) / (upper[lower_bend_right] - lower_bend_right_min)
+            self.alpha_upper[lower_bend_right] = upper[lower_bend_right] / (upper[lower_bend_right] - lower_bend_right_min)
+
+            # Correct for special cases:
+            lower_bend_neg_pos = lower_bend & (lower <= 0.) & (upper >= 0.)
+            self.alpha_upper[lower_bend_neg_pos] = z[lower_bend_neg_pos]
+
+            lower_bend_right_pos_pos = lower_bend_right & (lower >= 0.) & (upper >= 0.)
+            self.alpha_upper[lower_bend_right_pos_pos] = 1.
 
         # Upper bend
         if max is not None:
             # intersect at lower
             upper_bend_left = upper_bend & at_lower
-            self.alpha_upper[upper_bend_left] = 1.
-            self.beta_upper[upper_bend_left] = act_lower[upper_bend_left] - lower[upper_bend_left] * 1.
-            self.alpha_lower[upper_bend_left] = z[upper_bend_left]
-            self.beta_lower[upper_bend_left] = act_lower[upper_bend_left] - lower[upper_bend_left] * z[upper_bend_left]
+
+            upper_bend_left_max = max[upper_bend_left] if torch.is_tensor(max) else torch.as_tensor(max)
+            self.alpha_lower[upper_bend_left] = (upper_bend_left_max.clip(max=0.) - lower[upper_bend_left]) / (upper_bend_left_max - lower[upper_bend_left])
+            self.alpha_upper[upper_bend_left] = (upper_bend_left_max.clip(min=0.) - act_lower[upper_bend_left]) / (upper_bend_left_max - lower[upper_bend_left])
 
             # intersect at upper
             upper_bend_right = upper_bend & at_upper
 
             upper_bend_right_max = max[upper_bend_right] if torch.is_tensor(max) else torch.as_tensor(max)
+            self.alpha_lower[upper_bend_right] = - upper_bend_right_max.clip(max=0.) / (upper[upper_bend_right] - upper_bend_right_max)
+            self.alpha_upper[upper_bend_right] = - upper_bend_right_max.clip(min=0) / (upper[upper_bend_right] - upper_bend_right_max)
 
-            self.alpha_upper[upper_bend_right] = - upper_bend_right_max / (upper[upper_bend_right] - upper_bend_right_max)
-            self.beta_upper[upper_bend_right] = act_upper[upper_bend_right] - upper[upper_bend_right] * self.alpha_upper[upper_bend_right]
-            self.alpha_lower[upper_bend_right] = 0
-            self.beta_lower[upper_bend_right] = 0
+            # correct for special cases
+            upper_bend_pos_neg = upper_bend & (lower <= 0.) & (upper >= 0.)
+            self.alpha_lower[upper_bend_pos_neg] = z[upper_bend_pos_neg]
 
         # Full range
         if self.module.min is not None and self.module.max is not None:
-            self.alpha_lower[full_range] = 0.
-            self.beta_lower[full_range] = 0.
-
             # intersect at lower
             full_range_left = full_range & at_lower
 
-            self.alpha_upper[full_range_left] = z[full_range_left]
-            self.beta_upper[full_range_left] = act_upper[full_range_left] - upper[full_range_left] * z[
-                full_range_left]
+            full_range_left_min = min[full_range_left] if torch.is_tensor(min) else torch.as_tensor(min)
+            full_range_left_max = max[full_range_left] if torch.is_tensor(max) else torch.as_tensor(max)
+
+            self.alpha_lower[full_range_left] = full_range_left_min.clip(max=0.) / (full_range_left_min - lower[full_range_left])
+            self.alpha_upper[full_range_left] = full_range_left_max.clip(min=0.) / (full_range_left_max - lower[full_range_left])
+
+            # correction
+            full_range_left_pos = full_range_left & (lower > 0.)
+            full_range_left_pos_min = min[full_range_left_pos] if torch.is_tensor(min) else torch.as_tensor(min)
+            self.alpha_upper[full_range_left_pos] = full_range_left_pos_min / (full_range_left_pos_min - lower[full_range_left])
 
             # intersect at upper
             full_range_right = full_range & at_upper
 
+            full_range_right_min = min[full_range_right] if torch.is_tensor(min) else torch.as_tensor(min)
             full_range_right_max = max[full_range_right] if torch.is_tensor(max) else torch.as_tensor(max)
 
-            self.alpha_upper[full_range_right] = - full_range_right_max / (upper[full_range_right] - full_range_right_max)
-            self.beta_upper[full_range_right] = act_upper[full_range_right] - upper[full_range_right] * self.alpha_upper[full_range_right]
+            self.alpha_lower[full_range_right] = -full_range_right_min.clip(max=0) / (upper[full_range_right] - full_range_right_min)
+            self.alpha_upper[full_range_right] = -full_range_right_max.clip(min=0) / (upper[full_range_right] - full_range_right_max)
 
+            # correction
+            full_range_right_neg = full_range_right & (upper <= 0.)
+            full_range_right_neg_max = max[full_range_right_neg] if torch.is_tensor(max) else torch.as_tensor(max)
+            self.alpha_lower[full_range_right_neg] = -full_range_right_neg_max / (upper[full_range_right_neg] - full_range_right_neg_max)
+
+        self.beta_lower[at_lower] = act_lower[at_lower] - lower[at_lower] * self.alpha_lower[at_lower]
+        self.beta_upper[at_lower] = act_lower[at_lower] - lower[at_lower] * self.alpha_upper[at_lower]
+
+        self.beta_lower[at_upper] = act_upper[at_upper] - upper[at_upper] * self.alpha_lower[at_upper]
+        self.beta_upper[at_upper] = act_upper[at_upper] - upper[at_upper] * self.alpha_upper[at_upper]
