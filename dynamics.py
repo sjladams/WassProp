@@ -1,6 +1,7 @@
 import torch
 from typing import Union, Optional
 import bound_propagation as bp
+import math
 
 import linear_bound_propagation as lbp
 
@@ -369,19 +370,64 @@ class DubinsCarDynamics(Dynamics):
     def global_lipschitz(self):
         return 1 + self.h * self.velocity
 
+class PiecewiseAffineBLock(Dynamics):
+    def __init__(self, min, max, dynamics):
+        super().__init__(
+            lbp.BoxedIdentity(min=min, max=max),
+            dynamics
+        )
+
+    @property
+    def global_lipschitz(self):
+        return self[1].global_lipschitz
 
 class PiecewiseAffine4modes2dDynamics(Dynamics):
     num_dims = 2
-
     def __init__(self, **kwargs):
-        mode1 = BoundedLinearDynamics(
-            weight=[[1.0, 0.0], [0.0, 1.0]],
-            bias=[0.0, 0.0],
-            lower_bound=[-1.0, -1.0],
-            upper_bound=[1.0, 1.0]
+        def mat(theta, rho, delta):
+            theta = theta if torch.is_tensor(theta) else torch.as_tensor(theta)
+            rho = rho if torch.is_tensor(rho) else torch.as_tensor(rho)
+            delta = delta if torch.is_tensor(delta) else torch.as_tensor(delta)
+            return rho * torch.tensor([[torch.cos(theta), -torch.sin(theta)], [torch.sin(theta), torch.cos(theta)]]) + delta
+
+        theta = -math.pi / 2.
+        rho = 0.4
+        delta =  0.
+        mode1 = PiecewiseAffineBLock(min=-torch.ones(2), max=torch.zeros(2),
+                                     dynamics=LinearDynamics(
+                                         weight=mat(theta, rho, delta),
+                                         bias=torch.zeros(2))
+                                     )
+        mode2 = PiecewiseAffineBLock(min=torch.tensor([-1., 0.]), max=torch.tensor([0., 1.]),
+                                     dynamics=LinearDynamics(
+                                         weight=mat(theta, rho, -delta),
+                                         bias=torch.zeros(2))
+                                     )
+        mode3 = PiecewiseAffineBLock(min=torch.zeros(2), max=torch.ones(2),
+                                     dynamics=LinearDynamics(
+                                         weight=mat(theta, rho, delta),
+                                         bias=torch.zeros(2)))
+        mode4 = PiecewiseAffineBLock(min=torch.tensor([0., -1.]), max=torch.tensor([1.,0.]),
+                                     dynamics=LinearDynamics(
+                                         weight=mat(theta, rho, -delta),
+                                         bias=torch.zeros(2)))
+
+        super().__init__(
+            bp.Clamp(min=-torch.ones(2), max=torch.ones(2)),
+            bp.Parallel(mode1, mode2, mode3, mode4),
+            bp.VectorAdd(),
+            bp.VectorAdd()
+            # LinearDynamics(weight=torch.eye(2) * 1.5)
         )
 
+    @property
+    def global_lipschitz(self):
+        global_lipschitz = []
+        for mode in self[1].subnetworks:
+            global_lipschitz.append(mode.global_lipschitz)
 
+        return max(global_lipschitz)
+        # return self[1].global_lipschitz
 
 
 def get_dynamics(dynamics_type: str, **kwargs):
@@ -405,6 +451,8 @@ def get_dynamics(dynamics_type: str, **kwargs):
         return AdditiveGaussianDynamics(MountainCarDynamics(**kwargs))
     elif dynamics_type == 'DubinsCarDynamics':
         return AdditiveGaussianDynamics(DubinsCarDynamics(**kwargs))
+    elif dynamics_type == 'PiecewiseAffine4modes2dDynamics':
+        return AdditiveGaussianDynamics(PiecewiseAffine4modes2dDynamics(**kwargs))
     elif dynamics_type == 'LinearSigmoidStochasticDynamics':
         return LinearSigmoidStochasticDynamics(**kwargs)
     else:
