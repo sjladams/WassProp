@@ -65,7 +65,7 @@ def single_step(
 
     # Empirically approximate the state distribution
     q_samples = q.sample(torch.Size((num_samples,)))
-    p_samples = q_samples if p_samples is not None else q_samples
+    p_samples = p_samples if p_samples is not None else q_samples
     q1_samples = q1.sample(torch.Size((num_samples,)))
     noise_samples = noise_dist.sample(torch.Size((num_samples,)))
     p1_samples = dynamics(torch.cat((p_samples, noise_samples), dim=-1))
