@@ -79,31 +79,33 @@ class BoundClamp(bp.BoundClamp):
 
         # Lower bend
         if min is not None:
-            self.alpha_upper[lower_bend] = z[lower_bend]
-            self.beta_upper[lower_bend] = act_lower[lower_bend] - lower[lower_bend] * z[lower_bend]
-
             # intersect at lower
             lower_bend_left = lower_bend & at_lower
             self.alpha_lower[lower_bend_left] = 0.
             self.beta_lower[lower_bend_left] = act_lower[lower_bend_left]
+            self.alpha_upper[lower_bend_left] = z[lower_bend_left]
+            self.beta_upper[lower_bend_left] = act_lower[lower_bend_left] - lower[lower_bend_left] * z[lower_bend_left]
 
             # intersect at upper
             lower_bend_right = lower_bend & at_upper
             self.alpha_lower[lower_bend_right] = 1.
             self.beta_lower[lower_bend_right] = act_upper[lower_bend_right] - upper[lower_bend_right] * 1.
+            self.alpha_upper[lower_bend_right] = z[lower_bend_right]
+            self.beta_upper[lower_bend_right] = act_upper[lower_bend_right] - upper[lower_bend_right] * z[lower_bend_right]
 
         # Upper bend
         if max is not None:
-            self.alpha_lower[upper_bend] = z[upper_bend]
-            self.beta_lower[upper_bend] = act_lower[upper_bend] - lower[upper_bend] * z[upper_bend]
-
             # intersect at lower
             upper_bend_left = upper_bend & at_lower
+            self.alpha_lower[upper_bend_left] = z[upper_bend_left]
+            self.beta_lower[upper_bend_left] = act_lower[upper_bend_left] - lower[upper_bend_left] * z[upper_bend_left]
             self.alpha_upper[upper_bend_left] = 1.
             self.beta_upper[upper_bend_left] = act_lower[upper_bend_left] - lower[upper_bend_left] * 1.
 
             # intersect at upper
             upper_bend_right = upper_bend & at_upper
+            self.alpha_lower[upper_bend_right] = z[upper_bend_right]
+            self.beta_lower[upper_bend_right] = act_lower[upper_bend_right] - lower[upper_bend_right] * z[upper_bend_right]
             self.alpha_upper[upper_bend_right] = 0.
             self.beta_upper[upper_bend_right] = act_upper[upper_bend_right]
 
@@ -115,7 +117,7 @@ class BoundClamp(bp.BoundClamp):
             full_range_left_min = min[full_range_left] if torch.is_tensor(min) else torch.as_tensor(min)
             full_range_left_max = max[full_range_left] if torch.is_tensor(max) else torch.as_tensor(max)
 
-            z_full_range_left = (self(full_range_left_max) - self(full_range_left_min)) / (full_range_left_max - lower[full_range_left])
+            z_full_range_left = (full_range_left_max - full_range_left_min) / (full_range_left_max - lower[full_range_left])
 
             self.alpha_lower[full_range_left] = 0.
             self.beta_lower[full_range_left] = act_lower[full_range_left]
@@ -129,7 +131,7 @@ class BoundClamp(bp.BoundClamp):
             full_range_right_min = min[full_range_right] if torch.is_tensor(min) else torch.as_tensor(min)
             full_range_right_max = max[full_range_right] if torch.is_tensor(max) else torch.as_tensor(max)
 
-            z_full_range_right = (self(full_range_right_max) - self(full_range_right_min)) / (upper[full_range_right] - full_range_right_min)
+            z_full_range_right = (full_range_right_max - full_range_right_min) / (upper[full_range_right] - full_range_right_min)
 
             self.alpha_lower[full_range_right] = z_full_range_right
             self.beta_lower[full_range_right] = act_upper[full_range_right] - upper[full_range_right] * z_full_range_right

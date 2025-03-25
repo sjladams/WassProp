@@ -172,5 +172,15 @@
                 "variance_initial_dist": [0.1, 0.001]
             }
         }
+    },
+    "PiecewiseAffine4modes2dDynamics": {
+        "options": {
+            "0": {
+                "loc_noise_dist": [0.0, 0.0],
+                "variance_noise_dist": [0.0005, 0.00005],
+                "loc_initial_dist": [0.5, 0.5],
+                "variance_initial_dist": [0.0005, 0.0005]
+            }
+        }
     }
 }

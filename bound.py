@@ -3,9 +3,7 @@ import torch
 import bound_propagation as bp
 
 from dynamics import Dynamics, StochasticDynamics, Separable, CompositionalStructure
-from linear_bound_propagation import factory as linear_factory
-
-factory = bp.BoundModelFactory()
+from linear_bound_propagation import factory
 
 
 def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, locs: torch.Tensor) -> torch.Tensor:
@@ -38,7 +36,7 @@ def _global_lbp_sq_norm_fx_fc_quadrant(
         upper: torch.Tensor) -> torch.Tensor:
 
     input_bound = bp.HyperRectangle(lower, upper)
-    lb = linear_factory.build(f).strict_crown_ibp(input_bound, locs)
+    lb = factory.build(f).strict_crown_ibp(input_bound, locs)
 
     # From linear bounds to bounds on the norms:
     alpha = torch.max(
