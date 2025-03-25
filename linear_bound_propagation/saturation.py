@@ -117,7 +117,7 @@ class BoundClamp(bp.BoundClamp):
             full_range_left_min = min[full_range_left] if torch.is_tensor(min) else torch.as_tensor(min)
             full_range_left_max = max[full_range_left] if torch.is_tensor(max) else torch.as_tensor(max)
 
-            z_full_range_left = (self(full_range_left_max) - self(full_range_left_min)) / (full_range_left_max - lower[full_range_left])
+            z_full_range_left = (full_range_left_max - full_range_left_min) / (full_range_left_max - lower[full_range_left])
 
             self.alpha_lower[full_range_left] = 0.
             self.beta_lower[full_range_left] = act_lower[full_range_left]
@@ -131,7 +131,7 @@ class BoundClamp(bp.BoundClamp):
             full_range_right_min = min[full_range_right] if torch.is_tensor(min) else torch.as_tensor(min)
             full_range_right_max = max[full_range_right] if torch.is_tensor(max) else torch.as_tensor(max)
 
-            z_full_range_right = (self(full_range_right_max) - self(full_range_right_min)) / (upper[full_range_right] - full_range_right_min)
+            z_full_range_right = (full_range_right_max - full_range_right_min) / (upper[full_range_right] - full_range_right_min)
 
             self.alpha_lower[full_range_right] = z_full_range_right
             self.beta_lower[full_range_right] = act_upper[full_range_right] - upper[full_range_right] * z_full_range_right
