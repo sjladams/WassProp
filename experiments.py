@@ -32,35 +32,7 @@ def single_step(
     print(f"Global Lipschitz constant of f: {dynamics.global_lipschitz}")
 
     # Compress the mixture distribution
-    with torch.no_grad():
-        if isinstance(q, ds.MultivariateNormal) or num_locs_after_compr >= q.num_components:
-            w2_compr = 0.
-        else:
-            if isinstance(q, ds.MixtureMultivariateNormal):
-                if (q.component_distribution.covariance_matrix == q.component_distribution.covariance_matrix[0]).all():
-                    # We restrict the compressed distribution to a mixture with each component the covariance_matrix
-                    # of all components of the q
-                    q_core_org = ds.CategoricalFloat(probs=q.mixture_distribution.probs, locs=q.component_distribution.mean)
-                    q_core = ds.compress_categorical_floats(q_core_org, n_max=num_locs_after_compr)
-                    w2_compr = GMMWas.w2(q_core, q_core_org)
-                    q = ds.MixtureMultivariateNormal(
-                        mixture_distribution=torch.distributions.Categorical(probs=q_core.probs),
-                        component_distribution=
-                        ds.MultivariateNormal(loc=q_core.locs, covariance_matrix=noise_dist.covariance_matrix))
-                else:
-                    q = ds.unique_mixture_multivariate_normal(q)
-                    if num_locs_after_compr >= q.num_components:
-                        w2_compr = 0.
-                    else:
-                        q_pre = copy(q)
-                        q = ds.compress_mixture_multivariate_normal(q, n_max=num_locs_after_compr)
-                        w2_compr = GMMWas.w2(q, q_pre)
-            elif isinstance(q, ds.CategoricalFloat):
-                q_pre = copy(q)
-                q = ds.compress_categorical_floats(q_pre, n_max=num_locs_after_compr)
-                w2_compr = GMMWas.w2(q, q_pre)
-            else:
-                raise ValueError
+    q, w2_compr = compress(q, num_locs_after_compr)
 
     # Approximate the state distribution
     sign_q = ds.discretization_generator(q, num_locs)
