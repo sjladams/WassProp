@@ -173,12 +173,12 @@
             }
         }
     },
-    "PiecewiseAffine4modes2dDynamics": {
+    "SwitchedLinearDynamics": {
         "options": {
             "0": {
                 "loc_noise_dist": [0.0, 0.0],
-                "variance_noise_dist": [0.0005, 0.00005],
-                "loc_initial_dist": [0.75, 0.75],
+                "variance_noise_dist": [0.0009, 0.0009],
+                "loc_initial_dist": [-1.9, 1.8],
                 "variance_initial_dist": [0.0005, 0.0005]
             }
         }

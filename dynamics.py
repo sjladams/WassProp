@@ -3,6 +3,8 @@ from typing import Union, Optional
 import bound_propagation as bp
 import math
 
+from sympy.solvers.solveset import NonlinearError
+
 import linear_bound_propagation as lbp
 
 
@@ -392,6 +394,8 @@ class Spiral2dDynamics(Dynamics):
 
 class PiecewiseAffineBLock(Dynamics):
     def __init__(self, min, max, dynamics):
+        min = torch.as_tensor(min) if not torch.is_tensor(min) else min
+        max = torch.as_tensor(max) if not torch.is_tensor(max) else max
         super().__init__(
             lbp.BoxedIdentity(min=min, max=max),
             dynamics
@@ -405,61 +409,74 @@ class PiecewiseAffineBLock(Dynamics):
 class DoubleSpiral2dDynamics(Dynamics):
     num_dims = 2
     def __init__(self, **kwargs):
+        region = [[-2., -0.75], [2., 1.25]]
+
         weight_left = rot_mat(theta=math.pi / 8., rho=0.8, delta=0.)
         weight_right = rot_mat(theta=-math.pi / 8., rho=0.8, delta=0.)
         bias_left = (torch.eye(2) - weight_left) @ torch.tensor([-1.25, -1.0])
         bias_right = (torch.eye(2) - weight_right) @ torch.tensor([1.25, -1.0])
 
-        mode_left = PiecewiseAffineBLock(min=torch.tensor([-2., -0.75]), max=torch.tensor([0., 1.25]),
-                                         dynamics=LinearDynamics(weight=weight_left, bias=bias_left)
-                                         # dynamics =lbp.Identity(in_features=2)
-                                         )
-        mode_right = PiecewiseAffineBLock(min=torch.tensor([0., -0.75]), max=torch.tensor([2., 1.25]),
-                                          dynamics=LinearDynamics(weight=weight_right, bias=bias_right)
-                                          # dynamics =lbp.Identity(in_features=2)
-                                          )
+        mode_left = PiecewiseAffineBLock(min=torch.tensor(region[0]), max=torch.tensor([0., region[1][1]]),
+                                         dynamics=LinearDynamics(weight=weight_left, bias=bias_left))
+        mode_right = PiecewiseAffineBLock(min=torch.tensor([0., region[0][1]]), max=torch.tensor(region[1]),
+                                          dynamics=LinearDynamics(weight=weight_right, bias=bias_right))
 
         super().__init__(
-            bp.Clamp(min=torch.tensor([-2., -0.75]), max=torch.tensor([2., 1.25])),
+            bp.Clamp(min=torch.tensor(region[0]), max=torch.tensor(region[1])),
             bp.Parallel(mode_left, mode_right),
             bp.VectorAdd()
         )
 
     @property
     def global_lipschitz(self):
-        # global_lipschitz = []
-        # for mode in self[1].subnetworks:
-        #     global_lipschitz.append(mode.global_lipschitz)
-        # return max(global_lipschitz)
-        return 0.6
+        global_lipschitz = []
+        for mode in self[1].subnetworks:
+            global_lipschitz.append(mode.global_lipschitz)
+        return max(global_lipschitz)
 
 
-class PiecewiseAffine4modes2dDynamics(Dynamics):
+class SwitchedLinearDynamics(Dynamics): # \todo change name
     num_dims = 2
     def __init__(self, **kwargs):
-        theta = -math.pi / 8.
-        rho = 0.8
-        delta =  0.
+        region = [[-2., -2.], [2., 2.]]
 
-        weight1, bias1 = rot_mat(theta, rho, delta), torch.zeros(2)
-        weight2, bias2 = rot_mat(theta, rho, -delta), torch.zeros(2)
-        weight3, bias3 = rot_mat(theta, rho, delta), torch.zeros(2)
-        weight4, bias4 = rot_mat(theta, rho, -delta), torch.zeros(2)
+        mat1 = [[0.79, 0.035], [0., 0.825]]
+        mat2 = [[0.79, 0.175], [0., 0.825]]
+        mat3 = [[0.79, 0.], [0.175, 0.825]]
+        mat4 = [[1., 0.2], [-0.2, 1.]]
+        mat5 = [[1., -0.2], [0.2, 1.]]
+        redun_mat = torch.eye(2)
 
-        mode1 = PiecewiseAffineBLock(min=-torch.ones(2), max=torch.zeros(2),
-                                     dynamics=LinearDynamics(weight=weight1, bias=bias1))
-        mode2 = PiecewiseAffineBLock(min=torch.tensor([-1., 0.]), max=torch.tensor([0., 1.]),
-                                     dynamics=LinearDynamics(weight=weight2, bias=bias2))
-        mode3 = PiecewiseAffineBLock(min=torch.zeros(2), max=torch.ones(2),
-                                     dynamics=LinearDynamics(weight=weight3, bias=bias3))
-        mode4 = PiecewiseAffineBLock(min=torch.tensor([0., -1.]), max=torch.tensor([1.,0.]),
-                                     dynamics=LinearDynamics(weight=weight4, bias=bias4))
+        mid_block = PiecewiseAffineBLock(min=[-1., -1.], max=[1., 1.], dynamics=LinearDynamics(weight=redun_mat))
+
+        obs_right = PiecewiseAffineBLock(min=[1., 1.], max=[2., 2.], dynamics=LinearDynamics(weight=redun_mat))
+        mode2_right = PiecewiseAffineBLock(min=[1., 0.], max=[2., 1.], dynamics=LinearDynamics(weight=mat2))
+        mode5_right = PiecewiseAffineBLock(min=[1., -1.8], max=[2., 0.], dynamics=LinearDynamics(weight=mat5))
+        mode1_bottom = PiecewiseAffineBLock(min=[0., -2.], max=[2., -1.8], dynamics=LinearDynamics(weight=mat1))
+        mode4_bottom = PiecewiseAffineBLock(min=[0., -1.8], max=[1., -1.], dynamics=LinearDynamics(weight=mat4))
+        mode3 = PiecewiseAffineBLock(min=[0., 1.], max=[1., 2.], dynamics=LinearDynamics(weight=mat3))
+        mode2_bottom = PiecewiseAffineBLock(min=[-1., -2.], max=[0., -1.], dynamics=LinearDynamics(weight=mat2))
+        mode4_top = PiecewiseAffineBLock(min=[-1.8, 1.], max=[0., 1.8], dynamics=LinearDynamics(weight=mat4))
+        mode2_top = PiecewiseAffineBLock(min=[-2, 1.8], max=[0., 2.], dynamics=LinearDynamics(weight=mat2))
+        mode1_left = PiecewiseAffineBLock(min=[-2., 0.], max=[-1.8, 1.8], dynamics=LinearDynamics(weight=mat1))
+        mode5_left = PiecewiseAffineBLock(min=[-1.8, 0.], max=[-1., 1.], dynamics=LinearDynamics(weight=mat5))
+        mode2_left = PiecewiseAffineBLock(min=[-2., -1.], max=[-1., 0.], dynamics=LinearDynamics(weight=mat2))
+        obs_left = PiecewiseAffineBLock(min=[-2., -2.], max=[-1., -1.], dynamics=LinearDynamics(weight=redun_mat))
+
+        redun_mode = PiecewiseAffineBLock(min=region[0], max=region[1], dynamics=LinearDynamics(weight=torch.zeros((2,2))))
 
         super().__init__(
-            bp.Clamp(min=-torch.ones(2), max=torch.ones(2)),
-            bp.Parallel(mode1, mode2, mode3, mode4),
-            bp.VectorAdd(),
-            bp.VectorAdd()
+            bp.Clamp(min=torch.as_tensor(region[0]), max=torch.as_tensor(region[1])),
+            bp.Parallel(
+                obs_right, mode2_right, mode5_right, mode1_bottom,
+                mode4_bottom, mode3,
+                mode2_bottom, mode4_top, mode2_top,
+                mid_block,
+                mode1_left, mode5_left, mode2_left, obs_left,
+                redun_mode,
+                redun_mode
+            ),
+            bp.VectorAdd(), bp.VectorAdd(), bp.VectorAdd(), bp.VectorAdd()
         )
 
     @property
@@ -585,8 +602,8 @@ def get_dynamics(dynamics_type: str, **kwargs):
         return AdditiveGaussianDynamics(DubinsCarDynamics(**kwargs))
     elif dynamics_type == 'FourModesOpenLoopDynamics':
         return AdditiveGaussianDynamics(FourModesOpenLoopDynamics(**kwargs))
-    elif dynamics_type == 'PiecewiseAffine4modes2dDynamics':
-        return AdditiveGaussianDynamics(PiecewiseAffine4modes2dDynamics(**kwargs))
+    elif dynamics_type == 'SwitchedLinearDynamics':
+        return AdditiveGaussianDynamics(SwitchedLinearDynamics(**kwargs))
     elif dynamics_type == 'Spiral2dDynamics':
         return AdditiveGaussianDynamics(Spiral2dDynamics(**kwargs))
     elif dynamics_type == 'DoubleSpiral2dDynamics':
