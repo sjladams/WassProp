@@ -180,8 +180,11 @@ class BoxedIdentity(torch.nn.Module):
         self.min = min
         self.max = max
 
-    def forward(self, x):
-        mask = (x >= self.min) & (x <= self.max)
+    def forward(self, x, all=True):
+        if all:
+            mask = ((x >= self.min) & (x <= self.max)).all(dim=-1).unsqueeze(-1)
+        else:
+            mask = (x >= self.min) & (x <= self.max)
         return x * mask
 
 
@@ -201,9 +204,9 @@ class BoundBoxedIdentity(bp.BoundActivation):
         if save_input_bounds:
             self.input_bounds = bounds
 
-        bounds = bp.IntervalBounds(bounds.region, self.module(bounds.lower), self.module(bounds.upper))
+        bounds = bp.IntervalBounds(bounds.region, self.module(bounds.lower, all=False), self.module(bounds.upper, all=False))
 
-        intersection = self.module(intersection)
+        intersection = self.module(intersection, all=False)
 
         return bounds, intersection
 
@@ -234,7 +237,7 @@ class BoundBoxedIdentity(bp.BoundActivation):
         self.alpha_lower, self.beta_lower = torch.zeros_like(lower), torch.zeros_like(lower)
         self.alpha_upper, self.beta_upper = torch.zeros_like(lower), torch.zeros_like(lower)
 
-        act_lower, act_upper = self(lower), self(upper)
+        act_lower, act_upper = self.module(lower, all=False), self.module(upper, all=False)
 
         # Use upper and lower in the bias to account for a small numerical difference between lower and upper
         # which ought to be negligible, but may still be present due to torch.isclose.
@@ -261,7 +264,7 @@ class BoundBoxedIdentity(bp.BoundActivation):
         self.alpha_lower[slope] = 1
         self.alpha_upper[slope] = 1
 
-        z = (self(upper) - self(lower)) / (upper - lower)
+        z = (self.module(upper, all=False) - self.module(lower, all=False)) / (upper - lower)
 
         # Lower bend
         if min is not None:
