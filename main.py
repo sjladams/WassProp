@@ -43,7 +43,7 @@ if __name__ == '__main__':
         plot.plot_single_step(dynamics, w2_p1__q1_store)
 
     if run_multi_step:
-        w2_q__sign_q_store, w2_p1__q1_store, samples_store = multi_step(
+        w2_q__sign_q_store, w2_p1__q1_store, samples_store, q_store = multi_step(
             dynamics=dynamics,
             noise_dist=noise_dist,
             q=initial_dist,

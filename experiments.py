@@ -134,12 +134,11 @@ def multi_step( # \todo kill gradients
         w2_noise_dist: float = 0.,
         **kwargs):
 
-    # store wasserstein error bounds
+    # stores
     w2_p1__q1_store = {-1: dict(w2_p1__q1_global_lipschitz=w2_p__q, w2_p1__q1_lagrangian_duality=w2_p__q)}
     w2_q__sign_q_store = dict()
-
-    # store trajectories
     samples_store = dict()
+    q_store = {-1: q}
 
     # loop over time steps
     for k in range(num_time_steps):
@@ -158,6 +157,7 @@ def multi_step( # \todo kill gradients
         w2_p1__q1_store[k] = {key: value for key, value in out.items() if 'w2_p1__q1' in key}
         w2_q__sign_q_store[k] = out['w2_q__sign_q']
         samples_store[k] = {key: value for key, value in out.items() if 'samples' in key}
+        q_store[k] = q
 
         print(
             f"Bounds on W_2(p_{k+1}, q_{k+1}) via:\n"
@@ -166,4 +166,4 @@ def multi_step( # \todo kill gradients
             f"\t Lagrangian Duality: {out['w2_p1__q1_lagrangian_duality']:.4f}\n"
         )
 
-    return w2_q__sign_q_store, w2_p1__q1_store, samples_store
+    return w2_q__sign_q_store, w2_p1__q1_store, samples_store, q_store
