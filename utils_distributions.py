@@ -10,7 +10,14 @@ def get_initial_dist(loc_initial_dist: torch.Tensor, variance_initial_dist: torc
 
 
 def get_noise_dist(loc_noise_dist: torch.Tensor, variance_noise_dist: torch.Tensor):
-    return construct_diag_gaussian_dist(loc_noise_dist, variance_noise_dist)
+    if all(isinstance(i, list) for i in loc_noise_dist) and all(isinstance(i, list) for i in variance_noise_dist):
+        return ds.MixtureMultivariateNormal(
+            mixture_distribution=torch.distributions.Categorical(probs=torch.ones(len(loc_noise_dist))),
+            component_distribution=ds.MultivariateNormal(
+                loc=torch.as_tensor(loc_noise_dist),
+                covariance_matrix=torch.diag_embed(torch.as_tensor(variance_noise_dist))))
+    else:
+        return construct_diag_gaussian_dist(loc_noise_dist, variance_noise_dist)
 
 
 def construct_diag_gaussian_dist(loc_dist: Union[list, torch.Tensor], variance_dist: Union[list, torch.Tensor]):
@@ -78,10 +85,13 @@ def compress(
     return q, w2_compr
 
 
-def sample_from_ambiguity_set(center: ds.MultivariateNormal, w2: float, num_samples: int): # \todo generalize to CategoricalFloat and MixtureMultivariateNormal distributions
+def sample_from_ambiguity_set(center: ds.MultivariateNormal, w2: float, num_samples: int):
     if w2 == 0.:
         return center.sample(torch.Size((num_samples,)))
     else:
+        assert isinstance(center, ds.MultivariateNormal), (
+            ValueError('Only implemented for MultivariateNormal distributions')) # \todo generalize to CategoricalFloat and MixtureMultivariateNormal distributions
+
         # sample sqrt(num_samples) vectors from standard normal distribution
         vec = torch.randn(int(num_samples**0.5), center.mean.shape[-1])
 
