@@ -2,6 +2,7 @@ import torch
 from typing import Union, Optional
 import bound_propagation as bp
 import math
+import os
 
 from sympy.solvers.solveset import NonlinearError
 
@@ -583,7 +584,7 @@ class NeuralPendulumDynamics(Dynamics, CompositionalStructure):
     def __init__(self, **kwargs):
         self.num_dims = 2
 
-        state_dict = torch.load('cdc_experiments/data/model_weights_pendulum.pth')
+        state_dict = torch.load(f'{os.getcwd()}{os.sep}data{os.sep}model_weights_pendulum.pth')
 
         weight_fc1 = state_dict["fc1.weight"]
         bias_fc1 = state_dict["fc1.bias"]
