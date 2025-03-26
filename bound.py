@@ -76,7 +76,7 @@ def global_lbp_sq_norm_fx_fc_component(
     """
 
     if isinstance(f, LinearDynamics):
-        return f.global_lipschitz**2 * torch.ones(locs.size(0))
+        return f.global_lipschitz**2 * torch.ones(locs.shape[:-1])
     else:
         quadrants = generate_quadrants(
             num_dims=f.num_dims,
