@@ -152,7 +152,7 @@ def multi_step(
             dynamics=dynamics,
             noise_dist=noise_dist,
             q=q,
-            p_samples=samples_store[k-1]['p1_samples'] if k-1 in samples_store else None,
+            p_samples=samples_store[k-1]['p1_samples'],
             w2_p__q_global_lipschitz=w2_p1__q1_store[k-1]['w2_p1__q1_global_lipschitz'],
             w2_p__q_lagrangian_duality=w2_p1__q1_store[k-1]['w2_p1__q1_lagrangian_duality'],
             w2_noise_dist=w2_noise_dist,
