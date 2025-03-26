@@ -436,7 +436,7 @@ class DoubleSpiral2dDynamics(Dynamics):
         return max(global_lipschitz)
 
 
-class SwitchedLinearDynamics(Dynamics): # \todo change name
+class SwitchedLinearDynamics(Dynamics):
     num_dims = 2
     def __init__(self, **kwargs):
         region = [[-2., -2.], [2., 2.]]

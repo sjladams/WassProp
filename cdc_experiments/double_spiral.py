@@ -1,6 +1,6 @@
 import torch
 
-from experiments import multi_step, single_step_w2_options
+from experiments import multi_step
 from dynamics import get_dynamics
 import plot
 

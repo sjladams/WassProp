@@ -22,7 +22,7 @@ def single_step(
         run_lagrangian_duality: bool = True,
         run_empirical: bool = False,
         p_samples: Optional[torch.Tensor] = None,
-        size_after_compr: Optional[int] = None):  # \todo rename num_comps_after_compr
+        size_after_compr: Optional[int] = None):
 
     if size_after_compr is None:
         size_after_compr = num_locs
@@ -125,7 +125,8 @@ def single_step_w2_options(
     return w2_q__sign_q_store, w2_p1__q1_store
 
 
-def multi_step( # \todo kill gradients
+@torch.no_grad()
+def multi_step(
         dynamics: Dynamics,
         noise_dist: ds.MultivariateNormal,
         q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
