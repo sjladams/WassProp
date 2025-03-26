@@ -569,11 +569,11 @@ class NeuralPendulumDynamics(Dynamics, CompositionalStructure):
         state_dict = torch.load('cdc_experiments/data/model_weights_pendulum.pth')
 
         weight_fc1 = state_dict["fc1.weight"]
-        bias_fc1 = torch.tensor(state_dict["fc1.bias"])
+        bias_fc1 = state_dict["fc1.bias"]
         weight_fc2 = state_dict["fc2.weight"]
-        bias_fc2 = torch.tensor(state_dict["fc2.bias"])
+        bias_fc2 = state_dict["fc2.bias"]
         weight_fc3 = state_dict["fc3.weight"]
-        bias_fc3 = torch.tensor(state_dict["fc3.bias"])
+        bias_fc3 = state_dict["fc3.bias"]
 
         super().__init__(
             LinearDynamics(weight_fc1, bias_fc1),
