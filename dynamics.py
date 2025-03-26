@@ -602,9 +602,7 @@ class NeuralPendulumDynamics(Dynamics, CompositionalStructure):
 
     @property
     def global_lipschitz(self):
-        return 1.0 #TODO: Change
-
-
+        return torch.tensor([module.global_lipschitz for module in self]).prod()
 
 
 def get_dynamics(dynamics_type: str, **kwargs):
