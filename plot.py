@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
 import numpy as np
 import torch
 from scipy.stats import norm
@@ -94,57 +95,132 @@ def plot_single_step(dynamics, w2_p1__q1_store: dict):
 
 
 @torch.no_grad()
-def plot_multi_step(dynamics, samples: dict, type: str = "Undefined"):
+def plot_multi_step(dynamics, samples: dict, layout: str = "hist"):
 
     colors = plt.cm.tab10(np.linspace(0, 1, len(samples.keys())))
 
     time_steps = list(samples.keys())
-    time_steps = [time_steps[0], time_steps[-1]] # Get initial and final time steps
+    # time_steps = [time_steps[0], time_steps[-1]] # Get initial and final time steps
 
     if dynamics.num_state_dims >= 2:
         p_samples = torch.stack([samples[k]['p1_samples'] for k in samples.keys()])
         q_samples = torch.stack([samples[k]['q1_samples'] for k in samples.keys()])
 
-        fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(24, 36))
-        for k in time_steps:
-
-            # Plot using hist2d with color intensity indicating the density
-            ax[0][0].hist2d(p_samples[k,:,0], p_samples[k,:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
-            ax[0][1].hist2d(q_samples[k,:,0], q_samples[k,:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
-
-            # Plot only first dimension
-            ax[1][0].hist(p_samples[k,:,0], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
-            ax[1][1].hist(q_samples[k, :, 0], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
-
-            # Plot only second dimension
-            ax[2][0].hist(p_samples[k, :, 1], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
-            ax[2][1].hist(q_samples[k, :, 1], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
-
-        ax[0][0].set_title(r'$\mathbb{P}_{x_t}$ (actual distr.)')
-        ax[0][1].set_title(r'$\hat{\mathbb{P}}_{x_t}$ (our approx.)')
-
-        ax[0][0].set_xlabel(r'$x^{(0)}$')
-        ax[0][1].set_xlabel(r'$x^{(0)}$')
-        ax[0][0].set_ylabel(r'$x^{(1)}$')
-
-        ax[1][0].set_xlabel(r'$x^{(0)}$')
-        ax[1][1].set_xlabel(r'$x^{(0)}$')
-        ax[1][0].set_ylabel('Frequency')
-
-        ax[2][0].set_xlabel(r'$x^{(1)}$')
-        ax[2][1].set_xlabel(r'$x^{(1)}$')
-        ax[2][0].set_ylabel('Frequency')
-
-        ax[0][0].grid(True)
-        ax[0][1].grid(True)
-
-        ax[0][0].axis('equal')
-        ax[0][1].axis('equal')
-
-        for ax in fig.axes:
+        if layout == "scatter":
+            fig, ax = plt.subplots(figsize=(12, 12))
+            for k in time_steps:
+                ax.scatter(p_samples[k,:,0], p_samples[k,:,1], label=rf'$t={k+1}$')
             ax.legend(loc='upper left')
+            ax.set_xlim([-1., 1.])
+            ax.set_ylim([-1., 1.])
+        elif layout == "hist":
+            fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(24, 36))
+            for k in time_steps:
+
+                # Plot using hist2d with color intensity indicating the density
+                ax[0][0].hist2d(p_samples[k,:,0], p_samples[k,:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
+                ax[0][1].hist2d(q_samples[k,:,0], q_samples[k,:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
+
+                # Plot only first dimension
+                ax[1][0].hist(p_samples[k,:,0], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
+                ax[1][1].hist(q_samples[k, :, 0], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
+
+                # Plot only second dimension
+                ax[2][0].hist(p_samples[k, :, 1], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
+                ax[2][1].hist(q_samples[k, :, 1], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
+
+            ax[0][0].set_title(r'$\mathbb{P}_{x_t}$ (actual distr.)')
+            ax[0][1].set_title(r'$\hat{\mathbb{P}}_{x_t}$ (our approx.)')
+
+            ax[0][0].set_xlabel(r'$x^{(0)}$')
+            ax[0][1].set_xlabel(r'$x^{(0)}$')
+            ax[0][0].set_ylabel(r'$x^{(1)}$')
+
+            ax[1][0].set_xlabel(r'$x^{(0)}$')
+            ax[1][1].set_xlabel(r'$x^{(0)}$')
+            ax[1][0].set_ylabel('Frequency')
+
+            ax[2][0].set_xlabel(r'$x^{(1)}$')
+            ax[2][1].set_xlabel(r'$x^{(1)}$')
+            ax[2][0].set_ylabel('Frequency')
+
+            ax[0][0].grid(True)
+            ax[0][1].grid(True)
+
+            ax[0][0].axis('equal')
+            ax[0][1].axis('equal')
+
+            for ax in fig.axes:
+                ax.legend(loc='upper left')
+        else:
+            raise NotImplementedError
 
         #plt.savefig(rf'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\{type}.pdf', format='pdf')
         plt.show()
     else:
         raise NotImplementedError
+
+
+@torch.no_grad()
+def plot_2d_ambiguity_balls(samples: dict, w2_p1__q1_store: dict, q_store, step_size: int = 1, xlim: list = None, ylim: list = None):
+    time_steps = list(samples.keys())[::step_size]
+    cmap = plt.cm.coolwarm
+    colors = [cmap(i / (len(time_steps) - 1)) for i in range(len(time_steps))]
+
+    for tag in ['p1_samples', 'q1_samples']:
+        fig, ax = plt.subplots(figsize=(6 * (xlim[1] - xlim[0]), 6 * (ylim[1] - ylim[0])))
+        for k in time_steps:
+            for i in range(q_store[k].num_components):
+                ambiguity_set = Circle(q_store[k].component_distribution.mean[i], w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'], color=colors[k], fill=False, lw=2, alpha=0.1)
+                ax.add_patch(ambiguity_set)
+
+            # ambiguity_set = Circle(q_store[k].mean, w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'], color=colors[k], fill=False, lw=2)
+            # ax.add_patch(ambiguity_set)
+
+            ax.scatter(samples[k][tag][:, 0], samples[k][tag][:,1], color=colors[k], s=16, alpha=0.5)
+
+        # ax.legend(loc='upper left')
+        ax.set_xlabel(r'$x_1$')
+        ax.set_ylabel(r'$x_2$')
+        plt.xlim(xlim) if xlim is not None else None
+        plt.ylim(ylim) if ylim is not None else None
+        ax.set_xticks([])  # Disable x-axis ticks
+        ax.set_yticks([])  # Disable y-axis ticks
+        ax.set_title(f'{'True' if tag == 'p1_samples' else 'Approximate'} Distributions') # Samples from ..  with approximate ambiguity sets
+        plt.show()
+
+
+@torch.no_grad()
+def plot_2d_dynamics(f, xlim: list = None, ylim: list = None):
+    xlim = [-1, 1] if xlim is None else xlim
+    ylim = [-1, 1] if ylim is None else ylim
+
+    x = torch.linspace(xlim[0], xlim[1], 10 * int(xlim[1] - xlim[0]))
+    y = torch.linspace(ylim[0], ylim[1], 10 * int(ylim[1] - ylim[0]))
+    X, Y = torch.meshgrid(x, y, indexing="ij")
+    grid_points = torch.stack([X.flatten(), Y.flatten()], dim=1)  # Shape (N, 2)
+
+    with torch.no_grad():
+        next_states = f.state_dynamics(grid_points)
+        deltas = next_states - grid_points
+
+    plt.figure(figsize=(6 * (xlim[1] - xlim[0]), 6 * (ylim[1] - ylim[0])))
+    plt.quiver(
+        grid_points[:, 0].numpy(),  # X coordinates
+        grid_points[:, 1].numpy(),  # Y coordinates
+        deltas[:, 0].numpy(),  # U: delta X
+        deltas[:, 1].numpy(),  # V: delta Y
+        angles='xy', scale_units='xy',
+        scale=1, width=0.003
+    )
+    (plt.xlim(xlim), plt.xticks([])) if xlim is not None else None
+    (plt.ylim(ylim), plt.yticks([])) if ylim is not None else None
+
+    plt.xlabel(r'$x_1$')
+    plt.ylabel(r'$x_2$')
+    plt.title('Discrete Dynamics as Vector Field')
+    # plt.grid(True)
+    # plt.tight_layout()
+    plt.show()
+
+
