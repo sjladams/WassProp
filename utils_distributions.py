@@ -76,3 +76,32 @@ def compress(
         else:
             raise ValueError
     return q, w2_compr
+
+
+def sample_from_ambiguity_set(center: ds.MultivariateNormal, w2: float, num_samples: int): # \todo generalize to CategoricalFloat and MixtureMultivariateNormal distributions
+    if w2 == 0.:
+        return center.sample(torch.Size((num_samples,)))
+    else:
+        # sample sqrt(num_samples) vectors from standard normal distribution
+        vec = torch.randn(int(num_samples**0.5), center.mean.shape[-1])
+
+        # scale vectors to have length w2
+        vec = (vec / vec.norm(dim=1, keepdim=True)) * w2
+
+        # sample radii
+        r = torch.rand(int(num_samples**0.5)).pow(1 / center.mean.shape[-1]).unsqueeze(1)
+
+        # scale vectors by radii
+        vec = r * vec
+
+        # create sqrt(num_samples) distributions of type center with the means perturbed by the scaled vectors
+        perturbed_center = ds.MultivariateNormal(
+            loc=center.mean.unsqueeze(-2) + vec,
+            covariance_matrix=center.covariance_matrix
+        )
+
+        # take sqrt(num_samples) samples from perturbed distributions
+        samples = perturbed_center.sample(torch.Size((int(num_samples**0.5),)))
+        return samples.flatten(start_dim=-3, end_dim=-2)
+
+

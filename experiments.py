@@ -6,7 +6,7 @@ import discretize_distributions as ds
 import wasserstein
 from dynamics import Dynamics, AdditiveGaussianDynamics
 import propagation as prop
-from utils_distributions import compress
+from utils_distributions import compress, sample_from_ambiguity_set
 
 
 def single_step(
@@ -50,7 +50,7 @@ def single_step(
     q_samples = q.sample(torch.Size((num_samples,)))
     p_samples = p_samples if p_samples is not None else q_samples
     q1_samples = q1.sample(torch.Size((num_samples,)))
-    noise_samples = noise_dist.sample(torch.Size((num_samples,)))
+    noise_samples = sample_from_ambiguity_set(noise_dist, w2_noise_dist, num_samples)
     p1_samples = dynamics(torch.cat((p_samples, noise_samples), dim=-1))
 
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
@@ -131,6 +131,7 @@ def multi_step(
         noise_dist: ds.MultivariateNormal,
         q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
         num_time_steps: int,
+        num_samples: int,
         w2_p__q: float = 0.,
         w2_noise_dist: float = 0.,
         **kwargs):
@@ -138,8 +139,11 @@ def multi_step(
     # stores
     w2_p1__q1_store = {-1: dict(w2_p1__q1_global_lipschitz=w2_p__q, w2_p1__q1_lagrangian_duality=w2_p__q)}
     w2_q__sign_q_store = dict()
-    samples_store = dict()
     q_store = {-1: q}
+
+    # initialize empirical distributions
+    samples_store = {-1: {'p1_samples': sample_from_ambiguity_set(q, w2_p__q, num_samples),
+                          'q1_samples': sample_from_ambiguity_set(q, 0., num_samples)}}
 
     # loop over time steps
     for k in range(num_time_steps):
@@ -152,6 +156,7 @@ def multi_step(
             w2_p__q_global_lipschitz=w2_p1__q1_store[k-1]['w2_p1__q1_global_lipschitz'],
             w2_p__q_lagrangian_duality=w2_p1__q1_store[k-1]['w2_p1__q1_lagrangian_duality'],
             w2_noise_dist=w2_noise_dist,
+            num_samples=num_samples,
             **kwargs
         )
         q = out['q1']
