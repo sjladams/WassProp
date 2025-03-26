@@ -2,7 +2,7 @@ from typing import Union
 import torch
 import bound_propagation as bp
 
-from dynamics import Dynamics, StochasticDynamics, Separable, CompositionalStructure
+from dynamics import Dynamics, StochasticDynamics, Separable, CompositionalStructure, LinearDynamics
 from linear_bound_propagation import factory
 
 
@@ -74,6 +74,9 @@ def global_lbp_sq_norm_fx_fc_component(
     :param f: dynamics
     :param locs: batch of c's with shape (num_locs, num_dims)
     """
+
+    if isinstance(f, LinearDynamics):
+        return f.global_lipschitz**2 * torch.ones(locs.size(0))
 
     quadrants = generate_quadrants(
         num_dims=f.num_dims,

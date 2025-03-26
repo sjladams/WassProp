@@ -578,6 +578,34 @@ class FourModesOpenLoopDynamics(Dynamics):
     def global_lipschitz(self):
         return 1.4
 
+class NeuralPendulumDynamics(Dynamics, CompositionalStructure):
+
+    def __init__(self, **kwargs):
+        self.num_dims = 2
+
+        state_dict = torch.load('cdc_experiments/data/model_weights_pendulum.pth')
+
+        weight_fc1 = state_dict["fc1.weight"]
+        bias_fc1 = state_dict["fc1.bias"]
+        weight_fc2 = state_dict["fc2.weight"]
+        bias_fc2 = state_dict["fc2.bias"]
+        weight_fc3 = state_dict["fc3.weight"]
+        bias_fc3 = state_dict["fc3.bias"]
+
+        super().__init__(
+            LinearDynamics(weight_fc1, bias_fc1),
+            SigmoidDynamics(bias_fc1.size(0)),
+            LinearDynamics(weight_fc2, bias_fc2),
+            SigmoidDynamics(bias_fc2.size(0)),
+            LinearDynamics(weight_fc3, bias_fc3)
+        )
+
+    @property
+    def global_lipschitz(self):
+        return 1.0 #TODO: Change
+
+
+
 
 def get_dynamics(dynamics_type: str, **kwargs):
     if dynamics_type == 'LinearDynamics':
@@ -608,6 +636,8 @@ def get_dynamics(dynamics_type: str, **kwargs):
         return AdditiveGaussianDynamics(Spiral2dDynamics(**kwargs))
     elif dynamics_type == 'DoubleSpiral2dDynamics':
         return AdditiveGaussianDynamics(DoubleSpiral2dDynamics(**kwargs))
+    elif dynamics_type == 'NeuralPendulumDynamics':
+        return AdditiveGaussianDynamics(NeuralPendulumDynamics(**kwargs))
     elif dynamics_type == 'LinearSigmoidStochasticDynamics':
         return LinearSigmoidStochasticDynamics(**kwargs)
     else:
