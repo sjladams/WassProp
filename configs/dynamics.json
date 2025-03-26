@@ -207,9 +207,9 @@
         "options": {
             "0": {
                 "loc_noise_dist": [0.0, 0.0],
-                "variance_noise_dist": [0.0005, 0.00005],
+                "variance_noise_dist": [0.01, 0.005],
                 "loc_initial_dist": [0.1, -0.5],
-                "variance_initial_dist": [0.0005, 0.0005]
+                "variance_initial_dist": [0.001, 0.005]
             }
         }
     }
