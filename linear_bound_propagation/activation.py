@@ -204,7 +204,12 @@ class BoundBoxedIdentity(bp.BoundActivation):
         if save_input_bounds:
             self.input_bounds = bounds
 
-        bounds = bp.IntervalBounds(bounds.region, self.module(bounds.lower, all=False), self.module(bounds.upper, all=False))
+        act_lower, act_upper =  self.module(bounds.lower, all=False),self.module(bounds.upper, all=False)
+        mask = act_lower >= act_upper
+        act_lower[mask] = 0.
+        act_upper[mask] = 0.
+
+        bounds = bp.IntervalBounds(bounds.region, act_lower, act_upper)
 
         intersection = self.module(intersection, all=False)
 
@@ -323,7 +328,7 @@ class BoundBoxedIdentity(bp.BoundActivation):
             # correction
             full_range_left_pos = full_range_left & (lower > 0.)
             full_range_left_pos_min = min[full_range_left_pos] if torch.is_tensor(min) else torch.as_tensor(min)
-            self.alpha_upper[full_range_left_pos] = full_range_left_pos_min / (full_range_left_pos_min - lower[full_range_left])
+            self.alpha_upper[full_range_left_pos] = full_range_left_pos_min / (full_range_left_pos_min - lower[full_range_left_pos])
 
             # intersect at upper
             full_range_right = full_range & at_upper
