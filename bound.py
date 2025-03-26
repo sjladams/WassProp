@@ -77,26 +77,23 @@ def global_lbp_sq_norm_fx_fc_component(
 
     if isinstance(f, LinearDynamics):
         return f.global_lipschitz**2 * torch.ones(locs.size(0))
+    else:
+        quadrants = generate_quadrants(
+            num_dims=f.num_dims,
+            only_pos_and_neg=isinstance(f, Separable)
+        )
 
-    quadrants = generate_quadrants(
-        num_dims=f.num_dims,
-        only_pos_and_neg=isinstance(f, Separable)
-    )
+        inf = 1e2 # bound_propagation does not support inf, instead use a large value
+        quadrants = quadrants.clip(-inf, inf)
 
-    inf = 1e2 # bound_propagation does not support inf, instead use a large value
-    quadrants = quadrants.clip(-inf, inf)
+        num_locs = locs.shape[-2]
+        quadrants = quadrants.unsqueeze(-2).repeat(1, 1, num_locs, 1) + locs
 
-    num_locs = locs.shape[-2]
-    quadrants = quadrants.unsqueeze(-2).repeat(1, 1, num_locs, 1) + locs
+        alphas = torch.zeros(len(quadrants), num_locs).fill_(torch.nan)
+        for idx, quadrant in enumerate(quadrants):
+            alphas[idx] = _global_lbp_sq_norm_fx_fc_quadrant(f, locs, quadrant[0], quadrant[1])
 
-    alphas = torch.zeros(len(quadrants), num_locs).fill_(torch.nan)
-    for idx, quadrant in enumerate(quadrants):
-        alphas[idx] = _global_lbp_sq_norm_fx_fc_quadrant(f, locs, quadrant[0], quadrant[1])
-
-    alpha = alphas.max(dim=0).values.clamp(min=0., max=f.global_lipschitz**2)
-
-    return alpha
-
+        return alphas.max(dim=0).values.clamp(min=0., max=f.global_lipschitz**2)
 
 
 def generate_quadrants(num_dims, only_pos_and_neg: bool = False) -> torch.Tensor:
