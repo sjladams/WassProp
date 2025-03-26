@@ -22,16 +22,16 @@ def single_step(
         run_lagrangian_duality: bool = True,
         run_empirical: bool = False,
         p_samples: Optional[torch.Tensor] = None,
-        num_locs_after_compr: Optional[int] = None):
+        size_after_compr: Optional[int] = None):  # \todo rename num_comps_after_compr
 
-    if num_locs_after_compr is None:
-        num_locs_after_compr = num_locs
+    if size_after_compr is None:
+        size_after_compr = num_locs
 
     # Initialize System Dynamics
     print(f"Global Lipschitz constant of f: {dynamics.global_lipschitz}")
 
     # Compress the mixture distribution
-    q, w2_compr = compress(q, num_locs_after_compr)
+    q, w2_compr = compress(q, size_after_compr)
 
     # Approximate the state distribution
     sign_q = ds.discretization_generator(q, num_locs)

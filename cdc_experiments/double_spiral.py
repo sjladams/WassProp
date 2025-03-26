@@ -14,7 +14,7 @@ if __name__ == '__main__':
         dynamics_type = "DoubleSpiral2dDynamics",
         dynamics_setting = 0,
         num_locs = 10,
-        num_locs_after_compr=10,
+        size_after_compr=10,
         num_samples = 100,
         lr = 0.01,
         num_iterations = 100,
@@ -41,7 +41,7 @@ if __name__ == '__main__':
         propagate_via_gmm=True,
         num_samples=args.num_samples,
         num_locs=args.num_locs,
-        num_locs_after_compr=args.num_locs_after_compr
+        size_after_compr=args.size_after_compr
     )
 
     plot.plot_2d_ambiguity_balls(samples_store, w2_p1__q1_store, q_store, xlim=xlim, ylim=ylim)

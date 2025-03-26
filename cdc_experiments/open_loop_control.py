@@ -13,7 +13,7 @@ if __name__ == '__main__':
         dynamics_type="FourModesOpenLoopDynamics",
         dynamics_setting = 0,
         num_locs = 100,
-        num_locs_after_compr=100,
+        size_after_compr=100,
         num_samples = 1000,
         plot = False
     )
@@ -44,7 +44,7 @@ if __name__ == '__main__':
             num_samples=args.num_samples,
             num_locs=args.num_locs,
             propagate_via_gmm=True,
-            num_locs_after_compr=args.num_locs_after_compr,
+            size_after_compr=args.size_after_compr,
             w2_p__q_global_lipschitz=w2_p1__q1_store[k-1]['w2_p1__q1_global_lipschitz'],
             w2_p__q_lagrangian_duality=w2_p1__q1_store[k-1]['w2_p1__q1_lagrangian_duality'],
             p_samples=samples_store[k - 1]['p1_samples'] if k - 1 in samples_store else None,

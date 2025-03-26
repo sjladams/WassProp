@@ -25,7 +25,7 @@ def parse_arguments(
         lr: float = 0.01,
         num_iterations: int = 1000,
         plot: bool = False,
-        num_locs_after_compr: Optional[int] = None,
+        size_after_compr: Optional[int] = None,
 ):
     parser = argparse.ArgumentParser(description='Setup experiments for dynamics.')
     parser.add_argument('--dynamics_type',
@@ -41,9 +41,9 @@ def parse_arguments(
                         type=int,
                         default=num_locs,
                         help='Size of discretization grid.')
-    parser.add_argument('--num_locs_after_compr',
+    parser.add_argument('--size_after_compr',
                         type=int,
-                        default=num_locs if num_locs_after_compr is None else num_locs_after_compr,
+                        default=num_locs if size_after_compr is None else size_after_compr,
                         help='Size of discretization grid after compression operation')
     parser.add_argument('--num_samples',
                         type=int,

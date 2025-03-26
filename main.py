@@ -17,7 +17,7 @@ if __name__ == '__main__':
         dynamics_type = "SigmoidDynamics",
         dynamics_setting = 0,
         num_locs = 10,
-        num_locs_after_compr=1,
+        size_after_compr=1,
         num_samples = 1000,
         lr = 0.01,
         num_iterations = 1000,
@@ -53,5 +53,5 @@ if __name__ == '__main__':
             propagate_via_gmm=False,
             num_samples=args.num_samples,
             num_locs=args.num_locs,
-            num_locs_after_compr=args.num_locs_after_compr
+            size_after_compr=args.size_after_compr
         )
