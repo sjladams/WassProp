@@ -8,21 +8,21 @@ class BoundSequential(bp.BoundSequential):
 
     def strict_crown_ibp(self, region, intersection, bound_lower=True, bound_upper=True):
         out_size = self.propagate_size(region.size(-1))
-        self.strict_ibp_relax(region, intersection)
+        _, y_intersection = self.strict_ibp_relax(region, intersection)
 
         linear_bounds = self.initial_linear_bounds(region, out_size, lower=bound_lower, upper=bound_upper)
         linear_bounds = self.crown_backward(linear_bounds, False)
 
         self.clear_relaxation()
 
-        linear_bounds_intersect_at_point(linear_bounds, intersection, self.module(intersection))
+        linear_bounds_intersect_at_point(linear_bounds, intersection, y_intersection)
 
         return linear_bounds
 
     @torch.no_grad()
     def strict_ibp_relax(self, region, intersection):
         bounds = region.bounding_hyperrect()
-        self.strict_ibp_forward(bounds, intersection, save_relaxation=True)
+        return self.strict_ibp_forward(bounds, intersection, save_relaxation=True)
 
     def strict_ibp_forward(self, bounds, intersection, save_relaxation=False, save_input_bounds=False):
         for module in self.bound_sequential:
