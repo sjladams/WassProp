@@ -584,7 +584,7 @@ class NeuralPendulumDynamics(Dynamics, CompositionalStructure):
     def __init__(self, **kwargs):
         self.num_dims = 2
 
-        state_dict = torch.load(f'{os.getcwd()}{os.sep}data{os.sep}model_weights_pendulum.pth')
+        state_dict = torch.load(f'{os.getcwd()}{os.sep}data{os.sep}model_weights_pendulum.pth',weights_only=True)
 
         weight_fc1 = state_dict["fc1.weight"]
         bias_fc1 = state_dict["fc1.bias"]
