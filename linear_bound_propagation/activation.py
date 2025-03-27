@@ -3,7 +3,7 @@ import bound_propagation as bp
 from functools import wraps
 from .utils import NotLinearizable
 
-__all__ = ['BoundSigmoid', 'BoundIdentity', 'BoxedIdentity', 'BoundBoxedIdentity']
+__all__ = ['BoundSigmoid', 'BoundIdentity', 'BoxedIdentity', 'BoundBoxedIdentity', 'BoundTanh']
 
 def assert_bound_order(func, position=0, keyword='preactivation'):
     @wraps(func)
@@ -161,6 +161,10 @@ class BoundSigmoid(bp.BoundSigmoid):
             # Slope has to attach to (intersection, sigma(intersection))
             add_linear(self.alpha_lower, self.beta_lower, mask=implicit, a=self.derivative(d), x=intersection, y=inter_act, a_mask=False)
 
+
+class BoundTanh(BoundSigmoid):
+    def derivative(self, x):
+        return 1 - torch.tanh(x) ** 2
 
 
 class BoundIdentity(bp.activation.BoundIdentity):

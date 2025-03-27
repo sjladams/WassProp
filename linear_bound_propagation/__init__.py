@@ -3,7 +3,7 @@ import torch
 
 from .arithmetic import MultScalar, AddScalar, Sum
 from .linear import BoundLinear, Linear, Identity
-from .activation import BoundSigmoid, BoundIdentity, BoxedIdentity, BoundBoxedIdentity
+from .activation import BoundSigmoid, BoundIdentity, BoxedIdentity, BoundBoxedIdentity, BoundTanh
 from .saturation import BoundClamp
 from .sin import BoundSin
 from .sequential import BoundSequential
@@ -20,6 +20,7 @@ factory.register(torch.nn.Identity, BoundIdentity)
 factory.register(bp.Parallel, BoundParallel)
 factory.register(bp.VectorAdd, BoundVectorAdd)
 factory.register(BoxedIdentity, BoundBoxedIdentity)
+factory.register(torch.nn.Tanh, BoundTanh)
 
 __all__ = [
     'MultScalar',
