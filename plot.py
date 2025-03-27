@@ -215,7 +215,7 @@ def plot_2d_ambiguity_balls(samples: Union[dict, list], w2_p1__q1_store: Union[d
         plt.tight_layout()
 
         if save_by is not None:
-            plt.savefig(f"{os.getcwd()}{os.sep}results{os.sep}{save_by}_path_{"true" if tag == "p1_samples" else "appr"}.pdf", format='pdf')
+            plt.savefig(f"{os.getcwd()}{os.sep}results{os.sep}{save_by}_path_{'true' if tag == 'p1_samples' else 'appr'}.pdf", format='pdf')
         else:
             plt.show()
 
