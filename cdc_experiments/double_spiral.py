@@ -21,9 +21,12 @@ if __name__ == '__main__':
         plot = False
     )
 
-    xlim, ylim = [-2., 2.], [-0.75, 1.25]
+    xlim, ylim = [-1.9, 1.9], [-0.75, 1.25]
+    figsize = (14, 8)
+    save_by = "double_spiral"
+    # save_by = None
     dynamics = get_dynamics(**vars(args))
-    plot.plot_2d_dynamics(dynamics, xlim=xlim, ylim=ylim)
+    plot.plot_2d_dynamics(dynamics, xlim=xlim, ylim=ylim, figsize=figsize, scale=1, save_by=save_by)
     print(f"global lipschitz: {dynamics.global_lipschitz}")
     # raise RuntimeError("DEBUG STOP")
     initial_dist = get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
@@ -35,7 +38,7 @@ if __name__ == '__main__':
         dynamics=dynamics,
         noise_dist=noise_dist,
         q=initial_dist,
-        num_time_steps=20,
+        num_time_steps=10,
         run_lagrangian_duality=True,
         run_empirical=False,
         propagate_via_gmm=True,
@@ -44,4 +47,4 @@ if __name__ == '__main__':
         size_after_compr=args.size_after_compr
     )
 
-    plot.plot_2d_ambiguity_balls(samples_store, w2_p1__q1_store, q_store, xlim=xlim, ylim=ylim)
+    plot.plot_2d_ambiguity_balls(samples_store, w2_p1__q1_store, q_store, xlim=xlim, ylim=ylim, figsize=figsize, save_by=save_by)
