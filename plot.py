@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from scipy.stats import norm
 import os
+from copy import copy
 
 plt.style.use('seaborn-v0_8-bright')
 
@@ -163,7 +164,9 @@ def plot_multi_step(dynamics, samples: dict, layout: str = "hist"):
 
 
 @torch.no_grad()
-def plot_2d_ambiguity_balls(samples: dict, w2_p1__q1_store: dict, q_store, step_size: int = 1,
+def plot_2d_ambiguity_balls(samples: dict, w2_p1__q1_store: dict, q_store,
+                            patch_creator = None, text_creator = None,
+                            step_size: int = 1,
                             xlim: list = None, ylim: list = None, figsize: tuple = None, save_by: str = None):
     xlim = [-1, 1] if xlim is None else xlim
     ylim = [-1, 1] if ylim is None else ylim
@@ -175,6 +178,14 @@ def plot_2d_ambiguity_balls(samples: dict, w2_p1__q1_store: dict, q_store, step_
 
     for tag in ['p1_samples', 'q1_samples']:
         fig, ax = plt.subplots(figsize=figsize)
+
+        if patch_creator is not None:
+            for patch in patch_creator():
+                plt.gca().add_patch(patch)
+        if text_creator is not None:
+            for text in text_creator():
+                plt.text(**text)
+
         for k in time_steps:
             q = q_store[k+1]['q_compr']
             if isinstance(q, ds.MixtureMultivariateNormal):
@@ -200,7 +211,11 @@ def plot_2d_ambiguity_balls(samples: dict, w2_p1__q1_store: dict, q_store, step_
 
 
 @torch.no_grad()
-def plot_2d_dynamics(f, xlim: list = None, ylim: list = None, scale: float = 1.0, figsize: tuple = None, save_by: str = None):
+def plot_2d_dynamics(
+        f, patch_creator = None, text_creator = None,
+        xlim: list = None, ylim: list = None, scale: float = 1.0, figsize: tuple = None, save_by: str = None
+):
+
     xlim = [-1, 1] if xlim is None else xlim
     ylim = [-1, 1] if ylim is None else ylim
     figsize = figsize if figsize is not None else (6 * (xlim[1] - xlim[0]), 6 * (ylim[1] - ylim[0]))
@@ -224,6 +239,13 @@ def plot_2d_dynamics(f, xlim: list = None, ylim: list = None, scale: float = 1.0
         scale=scale,
         width=0.003
     )
+    if patch_creator is not None:
+        for patch in patch_creator():
+            plt.gca().add_patch(patch)
+    if text_creator is not None:
+        for text in text_creator():
+            plt.text(**text)
+
     (plt.xlim(xlim), plt.xticks([])) if xlim is not None else None
     (plt.ylim(ylim), plt.yticks([])) if ylim is not None else None
 
