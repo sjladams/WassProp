@@ -163,19 +163,20 @@ def plot_multi_step(dynamics, samples: dict, layout: str = "hist"):
 
 @torch.no_grad()
 def plot_2d_ambiguity_balls(samples: dict, w2_p1__q1_store: dict, q_store, step_size: int = 1, xlim: list = None, ylim: list = None):
-    time_steps = list(q_store.keys())[::step_size]
+    time_steps = list(q_store.keys())[::step_size][:-1] # remove last time step, as compressed q not available
     cmap = plt.cm.coolwarm
     colors = [cmap(i / (len(time_steps) - 1)) for i in range(len(time_steps))]
 
     for tag in ['p1_samples', 'q1_samples']:
         fig, ax = plt.subplots(figsize=(6 * (xlim[1] - xlim[0]), 6 * (ylim[1] - ylim[0])))
         for k in time_steps:
-            if isinstance(q_store[k]['q1'], ds.MixtureMultivariateNormal):
-                for i in range(q_store[k]['q1'].num_components):
-                    ambiguity_set = Circle(q_store[k]['q1'].component_distribution.mean[i], w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'], color=colors[k+1], fill=False, lw=2, alpha=0.5)
+            q = q_store[k+1]['q_compr']
+            if isinstance(q, ds.MixtureMultivariateNormal):
+                for i in range(q.num_components):
+                    ambiguity_set = Circle(q.component_distribution.mean[i], w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'], color=colors[k+1], fill=False, lw=2, alpha=0.5)
                     ax.add_patch(ambiguity_set)
             else:
-                ambiguity_set = Circle(q_store[k]['q1'].mean, w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'], color=colors[k+1], fill=False, lw=2, alpha=0.5)
+                ambiguity_set = Circle(q.mean, w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'], color=colors[k+1], fill=False, lw=2, alpha=0.5)
                 ax.add_patch(ambiguity_set)
 
             ax.scatter(samples[k][tag][:, 0], samples[k][tag][:,1], color=colors[k+1], s=16, alpha=0.5)
