@@ -34,7 +34,7 @@ if __name__ == '__main__':
         dynamics=dynamics,
         noise_dist=noise_dist,
         q=initial_dist,
-        num_time_steps=100,
+        num_time_steps=20,
         run_lagrangian_duality=True,
         run_empirical=False,
         propagate_via_gmm=True,
