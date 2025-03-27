@@ -89,6 +89,7 @@ def single_step(
         w2_p1__q1_global_lipschitz=w2_p1__q1_global_lipschitz,
         w2_p1__q1_lagrangian_duality=w2_p1__q1_lagrangian_duality,
         q1=q1,
+        q_comp=q,
         q1_samples=q1_samples,
         p1_samples=p1_samples
     )
@@ -141,7 +142,7 @@ def multi_step(
     # stores
     w2_p1__q1_store = {-1: dict(w2_p1__q1_global_lipschitz=w2_p__q, w2_p1__q1_lagrangian_duality=w2_p__q)}
     w2_q__sign_q_store = dict()
-    q_store = {-1: q}
+    q_store = {-1: {'q1': q}}
 
     # initialize empirical distributions
     samples_store = {-1: {'p1_samples': sample_from_ambiguity_set(q, w2_p__q, num_samples),
@@ -153,7 +154,7 @@ def multi_step(
         out = single_step(
             dynamics=dynamics,
             noise_dist=noise_dist,
-            q=q,
+            q=q_store[k-1]['q1'],
             p_samples=samples_store[k-1]['p1_samples'],
             w2_p__q_global_lipschitz=w2_p1__q1_store[k-1]['w2_p1__q1_global_lipschitz'],
             w2_p__q_lagrangian_duality=w2_p1__q1_store[k-1]['w2_p1__q1_lagrangian_duality'],
@@ -161,11 +162,10 @@ def multi_step(
             num_samples=num_samples,
             **kwargs
         )
-        q = out['q1']
         w2_p1__q1_store[k] = {key: value for key, value in out.items() if 'w2_p1__q1' in key}
         w2_q__sign_q_store[k] = out['w2_q__sign_q']
         samples_store[k] = {key: value for key, value in out.items() if 'samples' in key}
-        q_store[k] = q
+        q_store[k] = dict(q1=out['q1'], q_compr=out['q_comp'])
 
         print(
             f"Bounds on W_2(p_{k+1}, q_{k+1}) via:\n"
