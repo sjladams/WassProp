@@ -2,3 +2,4 @@
 .env
 *.xml
 /.idea/DUQviaWasserstein.iml
+/cdc_experiments/results/
