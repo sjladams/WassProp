@@ -5,7 +5,8 @@ import numpy as np
 import torch
 from scipy.stats import norm
 import os
-from copy import copy
+from typing import Union
+from matplotlib.ticker import MaxNLocator
 
 plt.style.use('seaborn-v0_8-bright')
 
@@ -164,7 +165,7 @@ def plot_multi_step(dynamics, samples: dict, layout: str = "hist"):
 
 
 @torch.no_grad()
-def plot_2d_ambiguity_balls(samples: dict, w2_p1__q1_store: dict, q_store,
+def plot_2d_ambiguity_balls(samples: Union[dict, list], w2_p1__q1_store: Union[dict, list], q_store: Union[dict, list],
                             patch_creator = None, text_creator = None,
                             step_size: int = 1,
                             xlim: list = None, ylim: list = None, figsize: tuple = None, save_by: str = None):
@@ -172,9 +173,11 @@ def plot_2d_ambiguity_balls(samples: dict, w2_p1__q1_store: dict, q_store,
     ylim = [-1, 1] if ylim is None else ylim
     figsize = figsize if figsize is not None else (6 * (xlim[1] - xlim[0]), 6 * (ylim[1] - ylim[0]))
 
-    time_steps = list(q_store.keys())[::step_size][:-1] # remove last time step, as compressed q not available
-    cmap = plt.cm.coolwarm
-    colors = [cmap(i / (len(time_steps) - 1)) for i in range(len(time_steps))]
+    if isinstance(samples, list) and isinstance(w2_p1__q1_store, list) and isinstance(q_store, list):
+        samples_options, w2_p1__q1_store_options, q_store_options = samples, w2_p1__q1_store, q_store
+    else:
+        samples_options, w2_p1__q1_store_options, q_store_options = [samples], [w2_p1__q1_store], [q_store]
+
 
     for tag in ['p1_samples', 'q1_samples']:
         fig, ax = plt.subplots(figsize=figsize)
@@ -186,23 +189,30 @@ def plot_2d_ambiguity_balls(samples: dict, w2_p1__q1_store: dict, q_store,
             for text in text_creator():
                 plt.text(**text)
 
-        for k in time_steps:
-            q = q_store[k+1]['q_compr']
-            if isinstance(q, ds.MixtureMultivariateNormal):
-                for i in range(q.num_components):
-                    ambiguity_set = Circle(q.component_distribution.mean[i], w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'], color=colors[k+1], fill=False, lw=2, alpha=0.5)
-                    ax.add_patch(ambiguity_set)
-            else:
-                ambiguity_set = Circle(q.mean, w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'], color=colors[k+1], fill=False, lw=2, alpha=0.5)
+        for samples, w2_p1__q1_store, q_store in zip(samples_options, w2_p1__q1_store_options, q_store_options):
+            time_steps = list(q_store.keys())[::step_size][:-1]
+            cmap = plt.cm.coolwarm
+            colors = [cmap(i / (len(time_steps) - 1)) for i in range(len(time_steps))]
+
+            for k in time_steps:
+                q = q_store[k+1]['q_compr']
+                # if isinstance(q, ds.MixtureMultivariateNormal):
+                #     for i in range(q.num_components):
+                #         ambiguity_set = Circle(q.component_distribution.mean[i], w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'], color=colors[k+1], fill=False, lw=2, alpha=0.5)
+                #         ax.add_patch(ambiguity_set)
+                # else:
+                ax.scatter(samples[k][tag][:, 0], samples[k][tag][:, 1], color=colors[k + 1], s=16, alpha=0.5)
+
+                ambiguity_set = Circle(q.mean, w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'], color=colors[k+1], fill=False, lw=2, alpha=1.0)
                 ax.add_patch(ambiguity_set)
 
-            ax.scatter(samples[k][tag][:, 0], samples[k][tag][:,1], color=colors[k+1], s=16, alpha=0.5)
-
-        # ax.legend(loc='upper left')
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         ax.set_xlabel(r'$x_1$')
         ax.set_ylabel(r'$x_2$')
-        (plt.xlim(xlim), plt.xticks([])) if xlim is not None else None
-        (plt.ylim(ylim), plt.yticks([])) if ylim is not None else None
+        plt.xlim(xlim) if xlim is not None else None
+        plt.ylim(ylim) if ylim is not None else None
+        plt.tight_layout()
 
         if save_by is not None:
             plt.savefig(f"{os.getcwd()}{os.sep}results{os.sep}{save_by}_path_{"true" if tag == "p1_samples" else "appr"}.pdf", format='pdf')
@@ -246,11 +256,16 @@ def plot_2d_dynamics(
         for text in text_creator():
             plt.text(**text)
 
-    (plt.xlim(xlim), plt.xticks([])) if xlim is not None else None
-    (plt.ylim(ylim), plt.yticks([])) if ylim is not None else None
+    plt.xlim(xlim) if xlim is not None else None
+    plt.ylim(ylim) if ylim is not None else None
+
+    plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
+    plt.gca().yaxis.set_major_locator(MaxNLocator(integer=True))
 
     plt.xlabel(r'$x_1$')
     plt.ylabel(r'$x_2$')
+
+    plt.tight_layout()
     if save_by is not None:
         plt.savefig(f"{os.getcwd()}{os.sep}results{os.sep}{save_by}_dynamics.pdf", format='pdf')
     else:

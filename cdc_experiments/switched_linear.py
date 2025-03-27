@@ -30,40 +30,27 @@ def text_creator():
     ]
 
 
-if __name__ == '__main__':
-    torch.manual_seed(0)
-
-    configs = {
-        0: dict(dynamics_setting= 0, num_time_step=8, save_by="upper_left"),
-        1: dict(dynamics_setting=2, num_time_step=10, save_by="lower_right"),
-    }
-
-    config = configs[1]
-
+def run(config):
     args = parse_arguments(
-        dynamics_type = "SwitchedLinearDynamics",
-        dynamics_setting = config['dynamics_setting'],
-        num_locs = 100,
+        dynamics_type="SwitchedLinearDynamics",
+        dynamics_setting=config['dynamics_setting'],
+        num_locs=100,
         size_after_compr=10,
-        num_samples = 100,
-        lr = 0.01,
-        num_iterations = 100,
-        plot = False
+        num_samples=100,
+        lr=0.01,
+        num_iterations=100,
+        plot=False
     )
-    xlim, ylim = [-2., 2.], [-2., 2.]
-    figsize = (12, 12)
-    save_by = "switched_linear"
-    # save_by = None
 
     dynamics = get_dynamics(**vars(args))
-    plot.plot_2d_dynamics(dynamics, patch_creator=patch_creator, text_creator=text_creator,
-                          xlim=xlim, ylim=ylim, figsize=figsize, scale=1., save_by=save_by)
-    print(f"global lipschitz: {dynamics.global_lipschitz}")
+    # plot.plot_2d_dynamics(dynamics, patch_creator=patch_creator, text_creator=text_creator,
+    #                       xlim=xlim, ylim=ylim, figsize=figsize, scale=None, save_by=save_by)
+    # print(f"global lipschitz: {dynamics.global_lipschitz}")
     # raise RuntimeError("DEBUG STOP")
     initial_dist = get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
     noise_dist = get_noise_dist(args.loc_noise_dist, args.variance_noise_dist)
 
-    w2_q__sign_q_store, w2_p1__q1_store, samples_store, q_store = multi_step(
+    _, w2_p1__q1_store, samples_store, q_store = multi_step(
         w2_p__q=0.01,
         w2_noise_dist=0.0001,
         dynamics=dynamics,
@@ -77,6 +64,29 @@ if __name__ == '__main__':
         num_locs=args.num_locs,
         size_after_compr=args.size_after_compr
     )
+    return w2_p1__q1_store, samples_store, q_store
 
-    plot.plot_2d_ambiguity_balls(samples_store, w2_p1__q1_store, q_store, patch_creator=patch_creator, text_creator=text_creator,
-                                 xlim=xlim, ylim=ylim, figsize=figsize, save_by=f"{save_by}_{config['save_by']}")
+
+if __name__ == '__main__':
+    torch.manual_seed(0)
+
+    configs = {
+        0: dict(dynamics_setting= 0, num_time_step=8, save_by="upper_left"),
+        1: dict(dynamics_setting=2, num_time_step=10, save_by="lower_right"),
+    }
+
+    samples_options, w2_p1__q1_options, q_options = list(), list(), list()
+    for idx in configs:
+        w2_p1__q1_store, samples, q_store = run(configs[idx])
+        samples_options.append(samples)
+        w2_p1__q1_options.append(w2_p1__q1_store)
+        q_options.append(q_store)
+
+    xlim, ylim = [-2., 2.], [-2., 2.]
+    figsize = (12, 12)
+    save_by = f"switched_linear_combined"
+    # save_by = None
+
+    plot.plot_2d_ambiguity_balls(samples_options, w2_p1__q1_options, q_options, patch_creator=patch_creator, text_creator=text_creator,
+                                 xlim=xlim, ylim=ylim, figsize=figsize, save_by=save_by)
+
