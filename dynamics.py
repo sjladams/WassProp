@@ -448,20 +448,23 @@ class SwitchedLinearDynamics(Dynamics):
         mat5 = [[1., -0.2], [0.2, 1.]]
         redun_mat = torch.eye(2)
 
-        mid_block = PiecewiseAffineBLock(min=[-1., -1.], max=[1., 1.], dynamics=LinearDynamics(weight=redun_mat))
+        mid_region = [[-0.8, -0.8],[0.8, 0.8]]
+        mid_block = PiecewiseAffineBLock(min=mid_region[0], max=mid_region[1], dynamics=LinearDynamics(weight=redun_mat))
 
         obs_right = PiecewiseAffineBLock(min=[1., 1.], max=[2., 2.], dynamics=LinearDynamics(weight=redun_mat))
-        mode2_right = PiecewiseAffineBLock(min=[1., 0.], max=[2., 1.], dynamics=LinearDynamics(weight=mat2))
-        mode5_right = PiecewiseAffineBLock(min=[1., -1.8], max=[2., 0.], dynamics=LinearDynamics(weight=mat5))
+        mode2_right = PiecewiseAffineBLock(min=[mid_region[1][0], 0.25], max=[2., 1.], dynamics=LinearDynamics(weight=mat2))
+        mode5_right = PiecewiseAffineBLock(min=[mid_region[1][0], -1.], max=[2., 0.25], dynamics=LinearDynamics(weight=mat5))
         mode1_bottom = PiecewiseAffineBLock(min=[0., -2.], max=[2., -1.8], dynamics=LinearDynamics(weight=mat1))
-        mode4_bottom = PiecewiseAffineBLock(min=[0., -1.8], max=[1., -1.], dynamics=LinearDynamics(weight=mat4))
-        mode3 = PiecewiseAffineBLock(min=[0., 1.], max=[1., 2.], dynamics=LinearDynamics(weight=mat3))
-        mode2_bottom = PiecewiseAffineBLock(min=[-1., -2.], max=[0., -1.], dynamics=LinearDynamics(weight=mat2))
-        mode4_top = PiecewiseAffineBLock(min=[-1.8, 1.], max=[0., 1.8], dynamics=LinearDynamics(weight=mat4))
-        mode2_top = PiecewiseAffineBLock(min=[-2, 1.8], max=[0., 2.], dynamics=LinearDynamics(weight=mat2))
+        mode4_bottom = PiecewiseAffineBLock(min=[0., -1.8], max=[2., -1.], dynamics=LinearDynamics(weight=mat4))
+        mode3 = PiecewiseAffineBLock(min=[0.3, mid_region[1][1]], max=[1., 2.], dynamics=LinearDynamics(weight=mat1)) # \todo crux
+        mode2_bottom = PiecewiseAffineBLock(min=[-0.6, -2.], max=[0., mid_region[0][1]], dynamics=LinearDynamics(weight=mat2))
+        mode1_bottom_left = PiecewiseAffineBLock(min=[-1., -2.], max=[-0.6, mid_region[0][1]], dynamics=LinearDynamics(weight=mat1))
+
+        mode4_top = PiecewiseAffineBLock(min=[-1.8, 1.], max=[0.3, 1.8], dynamics=LinearDynamics(weight=mat4))
+        mode2_top = PiecewiseAffineBLock(min=[-2, 1.8], max=[0.3, 2.], dynamics=LinearDynamics(weight=mat2))
         mode1_left = PiecewiseAffineBLock(min=[-2., 0.], max=[-1.8, 1.8], dynamics=LinearDynamics(weight=mat1))
-        mode5_left = PiecewiseAffineBLock(min=[-1.8, 0.], max=[-1., 1.], dynamics=LinearDynamics(weight=mat5))
-        mode2_left = PiecewiseAffineBLock(min=[-2., -1.], max=[-1., 0.], dynamics=LinearDynamics(weight=mat2))
+        mode5_left = PiecewiseAffineBLock(min=[-1.8, 0.], max=[mid_region[0][0], 1.], dynamics=LinearDynamics(weight=mat5))
+        mode2_left = PiecewiseAffineBLock(min=[-2., -1.], max=[mid_region[0][0], 0.], dynamics=LinearDynamics(weight=mat2))
         obs_left = PiecewiseAffineBLock(min=[-2., -2.], max=[-1., -1.], dynamics=LinearDynamics(weight=redun_mat))
 
         redun_mode = PiecewiseAffineBLock(min=region[0], max=region[1], dynamics=LinearDynamics(weight=torch.zeros((2,2))))
@@ -471,10 +474,9 @@ class SwitchedLinearDynamics(Dynamics):
             bp.Parallel(
                 obs_right, mode2_right, mode5_right, mode1_bottom,
                 mode4_bottom, mode3,
-                mode2_bottom, mode4_top, mode2_top,
+                mode2_bottom, mode1_bottom_left, mode4_top, mode2_top,
                 mid_block,
                 mode1_left, mode5_left, mode2_left, obs_left,
-                redun_mode,
                 redun_mode
             ),
             bp.VectorAdd(), bp.VectorAdd(), bp.VectorAdd(), bp.VectorAdd()
