@@ -170,12 +170,12 @@ def plot_2d_ambiguity_balls(samples: dict, w2_p1__q1_store: dict, q_store, step_
     for tag in ['p1_samples', 'q1_samples']:
         fig, ax = plt.subplots(figsize=(6 * (xlim[1] - xlim[0]), 6 * (ylim[1] - ylim[0])))
         for k in time_steps:
-            if isinstance(q_store[k], ds.MixtureMultivariateNormal):
-                for i in range(q_store[k].num_components):
-                    ambiguity_set = Circle(q_store[k].component_distribution.mean[i], w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'], color=colors[k+1], fill=False, lw=2, alpha=0.5)
+            if isinstance(q_store[k]['q1'], ds.MixtureMultivariateNormal):
+                for i in range(q_store[k]['q1'].num_components):
+                    ambiguity_set = Circle(q_store[k]['q1'].component_distribution.mean[i], w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'], color=colors[k+1], fill=False, lw=2, alpha=0.5)
                     ax.add_patch(ambiguity_set)
             else:
-                ambiguity_set = Circle(q_store[k].mean, w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'], color=colors[k+1], fill=False, lw=2, alpha=0.5)
+                ambiguity_set = Circle(q_store[k]['q1'].mean, w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'], color=colors[k+1], fill=False, lw=2, alpha=0.5)
                 ax.add_patch(ambiguity_set)
 
             ax.scatter(samples[k][tag][:, 0], samples[k][tag][:,1], color=colors[k+1], s=16, alpha=0.5)
@@ -192,12 +192,12 @@ def plot_2d_ambiguity_balls(samples: dict, w2_p1__q1_store: dict, q_store, step_
 
 
 @torch.no_grad()
-def plot_2d_dynamics(f, xlim: list = None, ylim: list = None):
+def plot_2d_dynamics(f, xlim: list = None, ylim: list = None, scale: float = 1.0):
     xlim = [-1, 1] if xlim is None else xlim
     ylim = [-1, 1] if ylim is None else ylim
 
-    x = torch.linspace(xlim[0], xlim[1], 10 * int(xlim[1] - xlim[0]))
-    y = torch.linspace(ylim[0], ylim[1], 10 * int(ylim[1] - ylim[0]))
+    x = torch.linspace(xlim[0], xlim[1], 5 * int(xlim[1] - xlim[0]))
+    y = torch.linspace(ylim[0], ylim[1], 5 * int(ylim[1] - ylim[0]))
     X, Y = torch.meshgrid(x, y, indexing="ij")
     grid_points = torch.stack([X.flatten(), Y.flatten()], dim=1)  # Shape (N, 2)
 
@@ -212,7 +212,8 @@ def plot_2d_dynamics(f, xlim: list = None, ylim: list = None):
         deltas[:, 0].numpy(),  # U: delta X
         deltas[:, 1].numpy(),  # V: delta Y
         angles='xy', scale_units='xy',
-        scale=1, width=0.003
+        scale=scale,
+        width=0.003
     )
     (plt.xlim(xlim), plt.xticks([])) if xlim is not None else None
     (plt.ylim(ylim), plt.yticks([])) if ylim is not None else None
