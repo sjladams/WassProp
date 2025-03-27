@@ -4,6 +4,7 @@ from matplotlib.patches import Circle
 import numpy as np
 import torch
 from scipy.stats import norm
+import os
 
 plt.style.use('seaborn-v0_8-bright')
 
@@ -162,13 +163,18 @@ def plot_multi_step(dynamics, samples: dict, layout: str = "hist"):
 
 
 @torch.no_grad()
-def plot_2d_ambiguity_balls(samples: dict, w2_p1__q1_store: dict, q_store, step_size: int = 1, xlim: list = None, ylim: list = None):
+def plot_2d_ambiguity_balls(samples: dict, w2_p1__q1_store: dict, q_store, step_size: int = 1,
+                            xlim: list = None, ylim: list = None, figsize: tuple = None, save_by: str = None):
+    xlim = [-1, 1] if xlim is None else xlim
+    ylim = [-1, 1] if ylim is None else ylim
+    figsize = figsize if figsize is not None else (6 * (xlim[1] - xlim[0]), 6 * (ylim[1] - ylim[0]))
+
     time_steps = list(q_store.keys())[::step_size][:-1] # remove last time step, as compressed q not available
     cmap = plt.cm.coolwarm
     colors = [cmap(i / (len(time_steps) - 1)) for i in range(len(time_steps))]
 
     for tag in ['p1_samples', 'q1_samples']:
-        fig, ax = plt.subplots(figsize=(6 * (xlim[1] - xlim[0]), 6 * (ylim[1] - ylim[0])))
+        fig, ax = plt.subplots(figsize=figsize)
         for k in time_steps:
             q = q_store[k+1]['q_compr']
             if isinstance(q, ds.MixtureMultivariateNormal):
@@ -184,18 +190,20 @@ def plot_2d_ambiguity_balls(samples: dict, w2_p1__q1_store: dict, q_store, step_
         # ax.legend(loc='upper left')
         ax.set_xlabel(r'$x_1$')
         ax.set_ylabel(r'$x_2$')
-        plt.xlim(xlim) if xlim is not None else None
-        plt.ylim(ylim) if ylim is not None else None
-        ax.set_xticks([])  # Disable x-axis ticks
-        ax.set_yticks([])  # Disable y-axis ticks
-        ax.set_title(f'{"True" if tag == "p1_samples" else "Approximate"} Distributions') # Samples from ..  with approximate ambiguity sets
-        plt.show()
+        (plt.xlim(xlim), plt.xticks([])) if xlim is not None else None
+        (plt.ylim(ylim), plt.yticks([])) if ylim is not None else None
+
+        if save_by is not None:
+            plt.savefig(f"{os.getcwd()}{os.sep}results{os.sep}{save_by}_path_{"true" if tag == "p1_samples" else "appr"}.pdf", format='pdf')
+        else:
+            plt.show()
 
 
 @torch.no_grad()
-def plot_2d_dynamics(f, xlim: list = None, ylim: list = None, scale: float = 1.0):
+def plot_2d_dynamics(f, xlim: list = None, ylim: list = None, scale: float = 1.0, figsize: tuple = None, save_by: str = None):
     xlim = [-1, 1] if xlim is None else xlim
     ylim = [-1, 1] if ylim is None else ylim
+    figsize = figsize if figsize is not None else (6 * (xlim[1] - xlim[0]), 6 * (ylim[1] - ylim[0]))
 
     x = torch.linspace(xlim[0], xlim[1], 5 * int(xlim[1] - xlim[0]))
     y = torch.linspace(ylim[0], ylim[1], 5 * int(ylim[1] - ylim[0]))
@@ -206,7 +214,7 @@ def plot_2d_dynamics(f, xlim: list = None, ylim: list = None, scale: float = 1.0
         next_states = f.state_dynamics(grid_points)
         deltas = next_states - grid_points
 
-    plt.figure(figsize=(6 * (xlim[1] - xlim[0]), 6 * (ylim[1] - ylim[0])))
+    plt.figure(figsize=figsize)
     plt.quiver(
         grid_points[:, 0].numpy(),  # X coordinates
         grid_points[:, 1].numpy(),  # Y coordinates
@@ -221,9 +229,9 @@ def plot_2d_dynamics(f, xlim: list = None, ylim: list = None, scale: float = 1.0
 
     plt.xlabel(r'$x_1$')
     plt.ylabel(r'$x_2$')
-    plt.title('Discrete Dynamics as Vector Field')
-    # plt.grid(True)
-    # plt.tight_layout()
-    plt.show()
+    if save_by is not None:
+        plt.savefig(f"{os.getcwd()}{os.sep}results{os.sep}{save_by}_dynamics.pdf", format='pdf')
+    else:
+        plt.show()
 
 
