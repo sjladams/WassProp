@@ -247,6 +247,16 @@ class SigmoidDynamics(Dynamics, Separable):
         return 0.25
 
 
+class TanhDynamics(Dynamics, Separable):
+    def __init__(self, num_dims: int = 1, **kwargs):
+        super().__init__(torch.nn.Tanh())
+        self.num_dims = num_dims
+
+    @property
+    def global_lipschitz(self):
+        return 1.0
+
+
 class DiagonalLinearSigmoidDynamics(Dynamics, Separable):
     def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
         if isinstance(diagonal, list):
@@ -583,10 +593,10 @@ class FourModesOpenLoopDynamics(Dynamics):
 
 class NeuralPendulumDynamics(Dynamics, CompositionalStructure):
 
-    def __init__(self, **kwargs):
+    def __init__(self, activation: str='sigmoid', **kwargs):
         self.num_dims = 2
 
-        state_dict = torch.load(f'{os.getcwd()}{os.sep}data{os.sep}model_weights_pendulum.pth',weights_only=True)
+        state_dict = torch.load(f'{os.getcwd()}{os.sep}data{os.sep}{activation}_model_weights_pendulum.pth',weights_only=True)
 
         weight_fc1 = state_dict["fc1.weight"]
         bias_fc1 = state_dict["fc1.bias"]
@@ -595,11 +605,16 @@ class NeuralPendulumDynamics(Dynamics, CompositionalStructure):
         weight_fc3 = state_dict["fc3.weight"]
         bias_fc3 = state_dict["fc3.bias"]
 
+        if activation == 'sigmoid':
+            ActivationDynamics = SigmoidDynamics
+        elif activation == 'tanh':
+            ActivationDynamics = TanhDynamics
+
         super().__init__(
             LinearDynamics(weight_fc1, bias_fc1),
-            SigmoidDynamics(bias_fc1.size(0)),
+            ActivationDynamics(bias_fc1.size(0)),
             LinearDynamics(weight_fc2, bias_fc2),
-            SigmoidDynamics(bias_fc2.size(0)),
+            ActivationDynamics(bias_fc2.size(0)),
             LinearDynamics(weight_fc3, bias_fc3)
         )
 

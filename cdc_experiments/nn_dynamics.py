@@ -12,9 +12,9 @@ if __name__ == '__main__':
 
     args = parse_arguments(
         dynamics_type = "NeuralPendulumDynamics",
-        dynamics_setting = 0,
+        dynamics_setting = 2,
         num_locs = 10,
-        size_after_compr=2,
+        size_after_compr=5,
         num_samples = 100,
         lr = 0.01,
         num_iterations = 100,
@@ -29,8 +29,8 @@ if __name__ == '__main__':
     noise_dist = get_noise_dist(args.loc_noise_dist, args.variance_noise_dist)
 
     w2_q__sign_q_store, w2_p1__q1_store, samples_store, q_store = multi_step(
-        w2_p__q= 0.1,
-        w2_noise_dist= 0.01,
+        w2_p__q= 0.0,
+        w2_noise_dist= 0.0,
         dynamics=dynamics,
         noise_dist=noise_dist,
         q=initial_dist,
