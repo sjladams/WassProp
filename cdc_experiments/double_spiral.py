@@ -4,12 +4,11 @@ from experiments import multi_step
 from dynamics import get_dynamics
 import plot
 
-from utils import parse_arguments
+from utils import parse_arguments, save_csv
 from utils_distributions import get_initial_dist, get_noise_dist
+from quantitative_analysis import hyper_params_analysis, boundary_cond_analysis
 
-if __name__ == '__main__':
-    torch.manual_seed(0)
-
+def illustrate():
     args = parse_arguments(
         dynamics_type = "DoubleSpiral2dDynamics",
         dynamics_setting = 0,
@@ -48,3 +47,26 @@ if __name__ == '__main__':
     )
 
     plot.plot_2d_ambiguity_balls(samples_store, w2_p1__q1_store, q_store, xlim=xlim, ylim=ylim, figsize=figsize, save_by=save_by)
+
+
+if __name__ == '__main__':
+    torch.manual_seed(0)
+
+    illustrate()
+
+    args = parse_arguments(
+        dynamics_type = "DoubleSpiral2dDynamics",
+        dynamics_setting = 0,
+        num_locs = 10,
+        size_after_compr=10,
+        num_samples = 100,
+        lr = 0.01,
+        num_iterations = 100,
+        plot = False
+    )
+    name = "double_spiral"
+
+    hyper_params_analysis(args, name)
+    boundary_cond_analysis(args, name)
+
+
