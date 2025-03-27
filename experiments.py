@@ -62,9 +62,11 @@ def single_step(
         w2_p1__q1_empirical = torch.nan
 
     w2_p1__q1_global_lipschitz = dynamics.global_lipschitz * (sign_q.w2 + w2_compr + w2_p__q_global_lipschitz)
-    if isinstance(dynamics, AdditiveGaussianDynamics) and not propagate_via_gmm:
-        w2_p1__q1_global_lipschitz += sign_noise_dist.w2 + w2_noise_dist
-    elif not isinstance(dynamics, AdditiveGaussianDynamics):
+    if isinstance(dynamics, AdditiveGaussianDynamics):
+        w2_p1__q1_global_lipschitz += w2_noise_dist
+        if not propagate_via_gmm:
+            w2_p1__q1_global_lipschitz += sign_noise_dist.w2
+    else:
         w2_p1__q1_global_lipschitz += dynamics.global_lipschitz * (sign_noise_dist.w2 + w2_noise_dist)
 
     if run_lagrangian_duality:
