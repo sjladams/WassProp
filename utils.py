@@ -2,6 +2,7 @@ import json
 import argparse
 from typing import Optional
 import os
+import csv
 
 dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -72,3 +73,10 @@ def parse_arguments(
 
     args.__dict__.update(vars(dynamics_params))
     return args
+
+
+def save_csv(store: dict, path: str):
+    with open(f"{path}.csv", 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=store[0].keys(),delimiter=';')
+        writer.writeheader()
+        writer.writerows(store)
