@@ -189,7 +189,19 @@
             "0": {
                 "loc_noise_dist": [0.0, 0.0],
                 "variance_noise_dist": [0.0009, 0.0009],
-                "loc_initial_dist": [-1.9, 1.8],
+                "loc_initial_dist": [-1.8, 1.9],
+                "variance_initial_dist": [0.0005, 0.0005]
+            },
+            "1": {
+                "loc_noise_dist": [0.0, 0.0],
+                "variance_noise_dist": [0.0009, 0.0009],
+                "loc_initial_dist": [-1.6, 1.5],
+                "variance_initial_dist": [0.0005, 0.0005]
+            },
+            "2": {
+                "loc_noise_dist": [0.0, 0.0],
+                "variance_noise_dist": [0.0009, 0.0009],
+                "loc_initial_dist": [1.6, -1.9],
                 "variance_initial_dist": [0.0005, 0.0005]
             }
         }
@@ -224,7 +236,7 @@
             },
             "1": {
                 "loc_noise_dist": [0.0, 0.0],
-                "variance_noise_dist": [0.01, 0.005],
+                "variance_noise_dist": [0.0001, 0.0005],
                 "loc_initial_dist": [-1.5, 0.8],
                 "variance_initial_dist": [0.001, 0.005]
             }
