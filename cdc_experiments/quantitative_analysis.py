@@ -10,15 +10,11 @@ from utils_distributions import get_initial_dist, get_noise_dist
 FOLDER = f"{os.getcwd()}{os.sep}results"
 
 
-def hyper_params_analysis(args, name: str):
+def hyper_params_analysis(args, name: str, num_time_steps: int = 20, w2_p__q=0.01, w2_noise_dist=0.01):
     hyper_params_options = dict(
         num_locs=[10, 100, 1000],
         size_after_compr=[1, 5, 10]
     )
-
-    num_time_steps = 20
-    w2_p__q = 0.01
-    w2_noise_dist = 0.01
 
     tag = f"{name}_locs={hyper_params_options['num_locs']}_compr={hyper_params_options['size_after_compr']}_steps={num_time_steps}_w2_p__q={w2_p__q}_w2_noise={w2_noise_dist}"
 
@@ -53,14 +49,11 @@ def hyper_params_analysis(args, name: str):
     save_csv(store, f"{FOLDER}{os.sep}{tag}")
 
 
-def boundary_cond_analysis(args, name: str):
+def boundary_cond_analysis(args, name: str, num_time_steps: int = 20, num_locs=100, size_after_compr=5):
     hyper_params_options = dict(
         w2_p__q=[0.001, 0.01, 0.1],
         w2_noise_dist=[0.001, 0.01, 0.1]
     )
-    num_time_steps = 20
-    num_locs = 100
-    size_after_compr = 5
 
     tag = f"{name}_locs={num_locs}_compr={size_after_compr}_steps={num_time_steps}_w2_p__q={hyper_params_options['w2_p__q']}_w2_noise={hyper_params_options['w2_noise_dist']}"
 
