@@ -31,7 +31,7 @@ def illustrate():
     noise_dist = get_noise_dist(args.loc_noise_dist, args.variance_noise_dist)
 
     w2_q__sign_q_store, w2_p1__q1_store, samples_store, q_store = multi_step(
-        w2_p__q= 0.01,
+        w2_p__q= 0.001,
         w2_noise_dist= 0.001,
         dynamics=dynamics,
         noise_dist=noise_dist,
