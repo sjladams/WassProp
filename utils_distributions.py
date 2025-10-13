@@ -2,7 +2,7 @@ import torch
 import discretize_distributions.distributions as dd_dists
 from typing import Union
 from copy import copy
-import GMMWas
+import ot
 
 
 def get_initial_dist(loc_initial_dist: torch.Tensor, variance_initial_dist: torch.Tensor):
@@ -59,7 +59,7 @@ def compress_compress_categorical_floats(
     else:
         q_pre = copy(q)
         q = dd_dists.compress_categorical_floats(q_pre, n_max=size_after_compr)
-        w2_compr = GMMWas.w2(q, q_pre)
+        w2_compr = ot.solve_sample(X_a=q.locs, a=q.probs, X_b=q_pre.locs, b=q_pre.probs).value.sqrt()
     return q, w2_compr
 
 
