@@ -1,5 +1,5 @@
 import torch
-import discretize_distributions as ds
+import discretize_distributions.distributions as dd_dists
 from typing import Union
 from copy import copy
 import GMMWas
@@ -11,9 +11,9 @@ def get_initial_dist(loc_initial_dist: torch.Tensor, variance_initial_dist: torc
 
 def get_noise_dist(loc_noise_dist: torch.Tensor, variance_noise_dist: torch.Tensor):
     if all(isinstance(i, list) for i in loc_noise_dist) and all(isinstance(i, list) for i in variance_noise_dist):
-        return ds.MixtureMultivariateNormal(
+        return dd_dists.MixtureMultivariateNormal(
             mixture_distribution=torch.distributions.Categorical(probs=torch.ones(len(loc_noise_dist))),
-            component_distribution=ds.MultivariateNormal(
+            component_distribution=dd_dists.MultivariateNormal(
                 loc=torch.as_tensor(loc_noise_dist),
                 covariance_matrix=torch.diag_embed(torch.as_tensor(variance_noise_dist))))
     else:
@@ -23,7 +23,7 @@ def get_noise_dist(loc_noise_dist: torch.Tensor, variance_noise_dist: torch.Tens
 def construct_diag_gaussian_dist(loc_dist: Union[list, torch.Tensor], variance_dist: Union[list, torch.Tensor]):
     loc_dist = torch.as_tensor(loc_dist)
     covariance_dist = torch.diag(torch.as_tensor(variance_dist))
-    return ds.MultivariateNormal(loc=loc_dist, covariance_matrix=covariance_dist)
+    return dd_dists.MultivariateNormal(loc=loc_dist, covariance_matrix=covariance_dist)
 
 
 def cross_product(state_signature, noise_signature):
@@ -44,52 +44,52 @@ def sum_discrete_distributions(state_signature, noise_signature):
 
     d = state_signature.locs.size(-1)
 
-    sum_locs = ( state_signature.locs.unsqueeze(1) + noise_signature.locs.unsqueeze(0) ).view(-1, d)
+    sum_locs = ( state_signature.locs.unsqueeze(1) + noise_signature.locs.unsqueeze(0) ).reshape(-1, d)
     sum_probs = ( state_signature.probs.unsqueeze(1) * noise_signature.probs.unsqueeze(0) ).view(-1)
 
     return sum_probs, sum_locs
 
 @torch.no_grad()
 def compress(
-        q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal, ds.CategoricalFloat],
+        q: Union[dd_dists.MultivariateNormal, dd_dists.MixtureMultivariateNormal, dd_dists.CategoricalFloat],
         size_after_compr: int
 ):
-    if isinstance(q, ds.MultivariateNormal) or size_after_compr >= q.num_components:
+    if isinstance(q, dd_dists.MultivariateNormal) or size_after_compr >= q.num_components:
         w2_compr = 0.
     else:
-        if isinstance(q, ds.MixtureMultivariateNormal):
+        if isinstance(q, dd_dists.MixtureMultivariateNormal):
             if (q.component_distribution.covariance_matrix == q.component_distribution.covariance_matrix[0]).all():
                 # We restrict the compressed distribution to a mixture with each component the covariance_matrix
                 # of all components of the q
-                q_core_org = ds.CategoricalFloat(probs=q.mixture_distribution.probs, locs=q.component_distribution.mean)
-                q_core = ds.compress_categorical_floats(q_core_org, n_max=size_after_compr)
+                q_core_org = dd_dists.CategoricalFloat(probs=q.mixture_distribution.probs, locs=q.component_distribution.mean)
+                q_core = dd_dists.compress_categorical_floats(q_core_org, n_max=size_after_compr)
                 w2_compr = GMMWas.w2(q_core, q_core_org)
-                q = ds.MixtureMultivariateNormal(
+                q = dd_dists.MixtureMultivariateNormal(
                     mixture_distribution=torch.distributions.Categorical(probs=q_core.probs),
-                    component_distribution=ds.MultivariateNormal(
+                    component_distribution=dd_dists.MultivariateNormal(
                         loc=q_core.locs, covariance_matrix=q.component_distribution.covariance_matrix[0]))
             else:
-                q = ds.unique_mixture_multivariate_normal(q)
+                q = dd_dists.unique_mixture_multivariate_normal(q)
                 if size_after_compr >= q.num_components:
                     w2_compr = 0.
                 else:
                     q_pre = copy(q)
-                    q = ds.compress_mixture_multivariate_normal(q, n_max=size_after_compr)
+                    q = dd_dists.compress_mixture_multivariate_normal(q, n_max=size_after_compr)
                     w2_compr = GMMWas.w2(q, q_pre)
-        elif isinstance(q, ds.CategoricalFloat):
+        elif isinstance(q, dd_dists.CategoricalFloat):
             q_pre = copy(q)
-            q = ds.compress_categorical_floats(q_pre, n_max=size_after_compr)
+            q = dd_dists.compress_categorical_floats(q_pre, n_max=size_after_compr)
             w2_compr = GMMWas.w2(q, q_pre)
         else:
             raise ValueError
     return q, w2_compr
 
 
-def sample_from_ambiguity_set(center: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal], w2: float, num_samples: int):
+def sample_from_ambiguity_set(center: Union[dd_dists.MultivariateNormal, dd_dists.MixtureMultivariateNormal], w2: float, num_samples: int):
     if w2 == 0.:
         return center.sample(torch.Size((num_samples,)))
     else:
-        assert isinstance(center, (ds.MultivariateNormal, ds.MixtureMultivariateNormal)), (
+        assert isinstance(center, (dd_dists.MultivariateNormal, dd_dists.MixtureMultivariateNormal)), (
             ValueError('Only implemented for (mixtures of) MultivariateNormal distributions'))
 
         # sample sqrt(num_samples) vectors from standard normal distribution
@@ -105,17 +105,17 @@ def sample_from_ambiguity_set(center: Union[ds.MultivariateNormal, ds.MixtureMul
         vec = r * vec
 
         # create sqrt(num_samples) distributions of type center with the means perturbed by the scaled vectors
-        if isinstance(center, ds.MultivariateNormal):
-            perturbed_center = ds.MultivariateNormal(
+        if isinstance(center, dd_dists.MultivariateNormal):
+            perturbed_center = dd_dists.MultivariateNormal(
                 loc=center.mean.unsqueeze(-2) + vec,
                 covariance_matrix=center.covariance_matrix
             )
-        elif isinstance(center, ds.MixtureMultivariateNormal):
+        elif isinstance(center, dd_dists.MixtureMultivariateNormal):
             weighted_vec = vec.unsqueeze(-2).expand(-1, center.num_components, -1) * center.mixture_distribution.probs.unsqueeze(0).unsqueeze(-1)
-            perturbed_center = ds.MixtureMultivariateNormal(
+            perturbed_center = dd_dists.MixtureMultivariateNormal(
                 mixture_distribution=torch.distributions.Categorical(
                     probs=center.mixture_distribution.probs.unsqueeze(0).expand(vec.shape[0], -1)),
-                component_distribution=ds.MultivariateNormal(
+                component_distribution=dd_dists.MultivariateNormal(
                     loc=center.component_distribution.mean.unsqueeze(-3) + weighted_vec,
                     covariance_matrix=center.component_distribution.covariance_matrix))
         else:

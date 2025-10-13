@@ -2,7 +2,8 @@ import ot
 import torch
 from typing import Union, List, Optional
 
-import discretize_distributions as ds
+import discretize_distributions as dd
+import discretize_distributions.distributions as dd_dists
 import wasserstein
 from dynamics import Dynamics, AdditiveGaussianDynamics
 import propagation as prop
@@ -11,11 +12,11 @@ from utils_distributions import compress, sample_from_ambiguity_set
 
 def single_step(
         dynamics: Dynamics,
-        noise_dist: ds.MultivariateNormal,
-        q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal, ds.CategoricalFloat],
+        noise_dist: dd_dists.MultivariateNormal,
+        q: Union[dd_dists.MultivariateNormal, dd_dists.MixtureMultivariateNormal, dd_dists.CategoricalFloat],
         num_samples: int,
         num_locs: int,
-        propagate_via_gmm: bool, # todo rename
+        propagate_via_gmm: bool, # TODO rename
         w2_noise_dist: float = 0.,
         w2_p__q_global_lipschitz: float = 0.,
         w2_p__q_lagrangian_duality: float = 0.,
@@ -34,17 +35,31 @@ def single_step(
     q, w2_compr = compress(q, size_after_compr)
 
     # Approximate the state distribution
-    sign_q = ds.discretization_generator(q, num_locs)
-
-    # Propagate
-    if isinstance(dynamics, AdditiveGaussianDynamics) and propagate_via_gmm:
-        q1 = prop.propagate_additive_gaussian_noise(dynamics, noise_dist, sign_q)
-    else:
-        sign_noise_dist = ds.discretization_generator(noise_dist, num_locs)
-        if isinstance(dynamics, AdditiveGaussianDynamics):
-            q1 = prop.propagate_additive_discrete_noise(dynamics, sign_noise_dist, sign_q)
+    if isinstance(q, dd_dists.CategoricalFloat):
+        if q.num_components > num_locs:
+            raise NotImplementedError("The discrete distribution q has more components than num_locs")
         else:
-            sign_cross, q1 = prop.propagate_general_discrete_noise(dynamics, sign_noise_dist, sign_q)
+            disc_q = q
+            w2_q__disc_q = torch.tensor(0.)
+    else:
+        scheme_q = dd.generate_scheme(
+            dist=q, 
+            scheme_size=num_locs if isinstance(q, dd_dists.MultivariateNormal) else num_locs * q.num_components,
+            per_mode=False
+        )
+        disc_q, w2_q__disc_q = dd.discretize(q, scheme_q)
+
+    # Propagate # TODO improve this
+    if isinstance(dynamics, AdditiveGaussianDynamics) and propagate_via_gmm:
+        q1 = prop.propagate_additive_gaussian_noise(dynamics, noise_dist, disc_q)
+    else:
+        scheme_noise_dist = dd.generate_scheme(dist=noise_dist, scheme_size=num_locs, per_mode=False)
+        sign_noise_dist, w2_noise_dist__disc_noise_dist = dd.discretize(noise_dist, scheme_noise_dist)
+
+        if isinstance(dynamics, AdditiveGaussianDynamics):
+            q1 = prop.propagate_additive_discrete_noise(dynamics, sign_noise_dist, disc_q)
+        else:
+            q1 = prop.propagate_general_discrete_noise(dynamics, sign_noise_dist, disc_q)
 
     # Empirically approximate the state distribution
     q_samples = q.sample(torch.Size((num_samples,)))
@@ -61,30 +76,40 @@ def single_step(
     else:
         w2_p1__q1_empirical = torch.nan
 
-    w2_p1__q1_global_lipschitz = dynamics.global_lipschitz * (sign_q.w2 + w2_compr + w2_p__q_global_lipschitz)
+    w2_p1__q1_global_lipschitz = dynamics.global_lipschitz * (w2_q__disc_q + w2_compr + w2_p__q_global_lipschitz)
     if isinstance(dynamics, AdditiveGaussianDynamics):
         w2_p1__q1_global_lipschitz += w2_noise_dist
         if not propagate_via_gmm:
-            w2_p1__q1_global_lipschitz += sign_noise_dist.w2
+            w2_p1__q1_global_lipschitz += w2_noise_dist__disc_noise_dist
     else:
-        w2_p1__q1_global_lipschitz += dynamics.global_lipschitz * (sign_noise_dist.w2 + w2_noise_dist)
+        w2_p1__q1_global_lipschitz += dynamics.global_lipschitz * (w2_noise_dist__disc_noise_dist + w2_noise_dist)
 
     if run_lagrangian_duality:
         print(f"-- Lagrangian Duality --")
         if isinstance(dynamics, AdditiveGaussianDynamics):
             w2_p1__q1_lagrangian_duality = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-                signature=sign_q, f=dynamics.state_dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr)
+                q=q,
+                disc_q=disc_q, 
+                f=dynamics.state_dynamics, 
+                w2_q__disc_q=w2_q__disc_q, 
+                w2_p__q=w2_p__q_lagrangian_duality + w2_compr
+            )
             w2_p1__q1_lagrangian_duality += w2_noise_dist
             if not propagate_via_gmm:
-                w2_p1__q1_lagrangian_duality += sign_noise_dist.w2
+                w2_p1__q1_lagrangian_duality += w2_noise_dist__disc_noise_dist
         else:
             w2_p1__q1_lagrangian_duality = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-                signature=sign_cross, f=dynamics, w2_q__disc_q=sign_q.w2+sign_noise_dist.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr + w2_noise_dist)
+                q=q,
+                disc_q=disc_q,
+                f=dynamics, 
+                w2_q__disc_q=w2_q__disc_q+sign_noise_dist.w2, 
+                w2_p__q=w2_p__q_lagrangian_duality + w2_compr + w2_noise_dist
+            )
     else:
         w2_p1__q1_lagrangian_duality = torch.nan
 
     return dict(
-        w2_q__sign_q=sign_q.w2,
+        w2_q__disc_q=w2_q__disc_q,
         w2_p1__q1_empirical=w2_p1__q1_empirical,
         w2_p1__q1_global_lipschitz=w2_p1__q1_global_lipschitz,
         w2_p1__q1_lagrangian_duality=w2_p1__q1_lagrangian_duality,
@@ -104,7 +129,7 @@ def single_step_w2_options(
 
     # store wasserstein error bounds
     w2_p1__q1_store = dict()
-    w2_q__sign_q_store = dict()
+    w2_q__disc_q_store = dict()
 
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
     for w2_p__q in w2_p__q_options:
@@ -116,23 +141,23 @@ def single_step_w2_options(
             **kwargs
         )
         w2_p1__q1_store[w2_p__q] = {key: value for key, value in out.items() if 'w2_p1__q1' in key}
-        w2_q__sign_q_store[w2_p__q] = out['w2_q__sign_q']
+        w2_q__disc_q_store[w2_p__q] = out['w2_q__disc_q']
 
         print(
             f"Bounds on W_2(f#p, f#disc#q) for W_2(p,q) = {w2_p__q} and "
-            f"W_2(q_0, Delta_C#q_0) = {out['w2_q__sign_q']:.4f} via:\n"
+            f"W_2(q_0, Delta_C#q_0) = {out['w2_q__disc_q']:.4f} via:\n"
             f"\t Global Lipschitz: {out['w2_p1__q1_global_lipschitz']:.4f}\n"
             f"\t Empirical: {out['w2_p1__q1_empirical']:.4f}\n"
             f"\t Lagrangian Duality: {out['w2_p1__q1_lagrangian_duality']:.4f}\n")
 
-    return w2_q__sign_q_store, w2_p1__q1_store
+    return w2_q__disc_q_store, w2_p1__q1_store
 
 
 @torch.no_grad()
 def multi_step(
         dynamics: Dynamics,
-        noise_dist: ds.MultivariateNormal,
-        q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
+        noise_dist: dd_dists.MultivariateNormal,
+        q: Union[dd_dists.MultivariateNormal, dd_dists.MixtureMultivariateNormal],
         num_time_steps: int,
         num_samples: int,
         w2_p__q: float = 0.,
@@ -141,7 +166,7 @@ def multi_step(
 
     # stores
     w2_p1__q1_store = {-1: dict(w2_p1__q1_global_lipschitz=w2_p__q, w2_p1__q1_lagrangian_duality=w2_p__q)}
-    w2_q__sign_q_store = dict()
+    w2_q__disc_q_store = dict()
     q_store = {-1: {'q1': q}}
 
     # initialize empirical distributions
@@ -163,7 +188,7 @@ def multi_step(
             **kwargs
         )
         w2_p1__q1_store[k] = {key: value for key, value in out.items() if 'w2_p1__q1' in key}
-        w2_q__sign_q_store[k] = out['w2_q__sign_q']
+        w2_q__disc_q_store[k] = out['w2_q__disc_q']
         samples_store[k] = {key: value for key, value in out.items() if 'samples' in key}
         q_store[k] = dict(q1=out['q1'], q_compr=out['q_comp'])
 
@@ -174,4 +199,4 @@ def multi_step(
             f"\t Lagrangian Duality: {out['w2_p1__q1_lagrangian_duality']:.4f}\n"
         )
 
-    return w2_q__sign_q_store, w2_p1__q1_store, samples_store, q_store
+    return w2_q__disc_q_store, w2_p1__q1_store, samples_store, q_store
