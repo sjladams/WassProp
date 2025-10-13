@@ -1,5 +1,32 @@
 *.pyc
 .env
 *.xml
-/.idea/DUQviaWasserstein.iml
-/cdc_experiments/results/
+
+# Byte-compiled / optimized / DLL files
+**/__pycache__/
+*.py[cod]
+*.so
+
+# IDEs and editors
+.vscode/
+.idea/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+.env/
+.venv/
+venv/
+
+# Test files
+tests/
+playground/
+
+## Results files
+**/results/
