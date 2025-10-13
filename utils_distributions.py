@@ -50,38 +50,16 @@ def sum_discrete_distributions(state_signature, noise_signature):
     return sum_probs, sum_locs
 
 @torch.no_grad()
-def compress(
-        q: Union[dd_dists.MultivariateNormal, dd_dists.MixtureMultivariateNormal, dd_dists.CategoricalFloat],
+def compress_compress_categorical_floats(
+        q: dd_dists.CategoricalFloat,
         size_after_compr: int
 ):
-    if isinstance(q, dd_dists.MultivariateNormal) or size_after_compr >= q.num_components:
+    if size_after_compr >= q.num_components:
         w2_compr = 0.
     else:
-        if isinstance(q, dd_dists.MixtureMultivariateNormal):
-            if (q.component_distribution.covariance_matrix == q.component_distribution.covariance_matrix[0]).all():
-                # We restrict the compressed distribution to a mixture with each component the covariance_matrix
-                # of all components of the q
-                q_core_org = dd_dists.CategoricalFloat(probs=q.mixture_distribution.probs, locs=q.component_distribution.mean)
-                q_core = dd_dists.compress_categorical_floats(q_core_org, n_max=size_after_compr)
-                w2_compr = GMMWas.w2(q_core, q_core_org)
-                q = dd_dists.MixtureMultivariateNormal(
-                    mixture_distribution=torch.distributions.Categorical(probs=q_core.probs),
-                    component_distribution=dd_dists.MultivariateNormal(
-                        loc=q_core.locs, covariance_matrix=q.component_distribution.covariance_matrix[0]))
-            else:
-                q = dd_dists.unique_mixture_multivariate_normal(q)
-                if size_after_compr >= q.num_components:
-                    w2_compr = 0.
-                else:
-                    q_pre = copy(q)
-                    q = dd_dists.compress_mixture_multivariate_normal(q, n_max=size_after_compr)
-                    w2_compr = GMMWas.w2(q, q_pre)
-        elif isinstance(q, dd_dists.CategoricalFloat):
-            q_pre = copy(q)
-            q = dd_dists.compress_categorical_floats(q_pre, n_max=size_after_compr)
-            w2_compr = GMMWas.w2(q, q_pre)
-        else:
-            raise ValueError
+        q_pre = copy(q)
+        q = dd_dists.compress_categorical_floats(q_pre, n_max=size_after_compr)
+        w2_compr = GMMWas.w2(q, q_pre)
     return q, w2_compr
 
 
