@@ -10,9 +10,10 @@ from tensors import check_mat_diag
 
 
 def get_fn_sq_w2_f_q__f_disc_q(
-        q: dd_dists.MultivariateNormal,
-        disc_q: dd_dists.CategoricalFloat,
-        f: dynamics.Dynamics) -> Callable:
+    q: dd_dists.MultivariateNormal,
+    disc_q: dd_dists.CategoricalFloat,
+    f: dynamics.Dynamics
+) -> Callable:
     if not isinstance(q, dd_dists.MultivariateNormal):
         raise NotImplementedError("Only implemented for q being of the class MultivariateNormal")
 
@@ -34,14 +35,12 @@ def get_fn_sq_w2_f_q__f_disc_q(
 
 # ----- W_2(f#p, f#disc#q) for Lagrangian Duality approach -----
 def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
-        disc_q: dd_dists.CategoricalFloat,
-        f: dynamics.Dynamics,
-        w2_q__disc_q: float,
-        w2_p__q: float)-> Callable:
+    disc_q: dd_dists.CategoricalFloat,
+    f: dynamics.Dynamics,
+    w2_p__disc_q: Union[float, torch.Tensor]
+) -> Callable:
 
     def fn_sq_w2_f_p__f_disc_q_lagrangian_duality(**kwargs):
-        w2_p__disc_q = w2_p__q + w2_q__disc_q
-
         alpha = global_lbp_sq_norm_fx_fc(f, disc_q.locs)
         beta = global_ibp_sq_norm_fx_fc(f, disc_q.locs)
 
@@ -60,20 +59,16 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
 
 
 def compute_w2_f_p__f_disc_q_lagrangian_duality(
-        q: Union[dd_dists.MultivariateNormal, dd_dists.MixtureMultivariateNormal, dd_dists.CategoricalFloat],
-        disc_q: dd_dists.CategoricalFloat,
-        f: dynamics.Dynamics,
-        w2_q__disc_q: float,
-        w2_p__q: float):
+    disc_q: dd_dists.CategoricalFloat,
+    f: dynamics.Dynamics,
+    w2_p__disc_q: Union[float, torch.Tensor]
+) -> torch.Tensor:
+        
+    ## TODO Implement Theorem 5.2 for the case where w2_p__q == 0 and isinstance(q, dd_dists.MixtureMultivariateNormal) 
+    # using get_fn_sq_w2_f_q__f_disc_q, which requires computing, or pulling the sq_l2_norm during the discretizaiton operation
 
-    if w2_p__q == 0 and isinstance(q, dd_dists.MultivariateNormal):
-        fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(disc_q, f, w2_q__disc_q, w2_p__q)
-        w2 = fn_sq_w2_f_p__f_disc_q().sqrt()
-
-        # fn_sq_w2_f_q__f_disc_q = get_fn_sq_w2_f_q__f_disc_q(q, disc_q, f)
-        # w2 = fn_sq_w2_f_q__f_disc_q().sqrt()
-    else:
-        fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(disc_q, f, w2_q__disc_q, w2_p__q)
-        w2 = fn_sq_w2_f_p__f_disc_q().sqrt()
+    fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(disc_q, f, w2_p__disc_q)
+    w2 = fn_sq_w2_f_p__f_disc_q().sqrt()
 
     return w2
+
