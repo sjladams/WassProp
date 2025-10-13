@@ -2,6 +2,7 @@ import json
 import argparse
 from typing import Optional
 import os
+import csv
 
 dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -12,25 +13,20 @@ def load_json(filename: str):
     return data
 
 
-def param_handler(param_name: str, dataset_name: str, num_dims: int, setting_tag: int = None):
+def param_handler(param_name: str, dataset_name: str, setting_tag: int = None):
     params = load_json(param_name)[dataset_name]
-    if "dimensions" in params:
-        return params["dimensions"][str(num_dims)]["options"][str(setting_tag)]
-    else:
-        return params["options"][str(setting_tag)]
+    return argparse.Namespace(**params["options"][str(setting_tag)])
 
 
 def parse_arguments(
         dynamics_type: str = 'ChaoticDynamics',
-        num_dims: int = 1,
         dynamics_setting: int = 0,
         num_locs: int = 10,
         num_samples: int = 1000,
         lr: float = 0.01,
         num_iterations: int = 1000,
         plot: bool = False,
-        optimize_locs: bool = False,
-        num_locs_after_compr: Optional[int] = None,
+        size_after_compr: Optional[int] = None,
 ):
     parser = argparse.ArgumentParser(description='Setup experiments for dynamics.')
     parser.add_argument('--dynamics_type',
@@ -38,10 +34,6 @@ def parse_arguments(
                         choices=['GaussianDynamics1d', 'ChaoticDynamics', 'LinearDynamics'],
                         default=dynamics_type,
                         help='Type of dynamics to use.')
-    parser.add_argument('--num_dims',
-                        type=int,
-                        default=num_dims,
-                        help='Number of dimensions of the dynamics')
     parser.add_argument('--dynamics_setting',
                         type=int,
                         default=dynamics_setting,
@@ -50,14 +42,10 @@ def parse_arguments(
                         type=int,
                         default=num_locs,
                         help='Size of discretization grid.')
-    parser.add_argument('--num_locs_after_compr',
+    parser.add_argument('--size_after_compr',
                         type=int,
-                        default=num_locs if num_locs_after_compr is None else num_locs_after_compr,
+                        default=num_locs if size_after_compr is None else size_after_compr,
                         help='Size of discretization grid after compression operation')
-    parser.add_argument('--optimize_locs',
-                        type=bool,
-                        default=optimize_locs,
-                        help='Allow to optimize the signature locations w.r.t. W2(p,q) using gradient descent')
     parser.add_argument('--num_samples',
                         type=int,
                         default=num_samples,
@@ -75,23 +63,20 @@ def parse_arguments(
                         default=num_iterations,
                         help='Number of iterations.')
 
-    return parser.parse_args()
+    args = parser.parse_args()
 
-
-def load_params(args):
     dynamics_params = param_handler(
         param_name="dynamics",
         dataset_name=args.dynamics_type,
-        num_dims=args.num_dims,
         setting_tag=args.dynamics_setting
     )
 
-    return {"dynamics_type": args.dynamics_type,  # \todo just transform args to dict and merge with dynamics_params, current implementation requires to include every argument in the argument parser explicitly in here
-            "num_samples": args.num_samples,
-            "num_locs": args.num_locs,
-            "num_locs_after_compr": args.num_locs_after_compr,
-            "lr": args.lr,
-            "num_iterations": args.num_iterations,
-            "optimize_locs": args.optimize_locs,
-            "plot": args.plot,
-            **dynamics_params}
+    args.__dict__.update(vars(dynamics_params))
+    return args
+
+
+def save_csv(store: dict, path: str):
+    with open(f"{path}.csv", 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=store[0].keys(),delimiter=';')
+        writer.writeheader()
+        writer.writerows(store)

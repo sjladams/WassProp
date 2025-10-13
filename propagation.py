@@ -10,16 +10,31 @@ def propagate_additive_gaussian_noise(
         noise_dist: ds.MultivariateNormal,
         sign_state_dist: ds.CategoricalFloat
 ):
-    assert isinstance(dynamics, AdditiveGaussianDynamics) and isinstance(noise_dist, ds.MultivariateNormal), \
-        ValueError('Only supports additive Gaussian noise')
+    assert (isinstance(dynamics, AdditiveGaussianDynamics) and
+            isinstance(noise_dist, (ds.MultivariateNormal, ds.MixtureMultivariateNormal))), (
+        ValueError('Only supports additive (mixtures of) Gaussian noise'))
 
-    return ds.MixtureMultivariateNormal(
-        mixture_distribution=torch.distributions.Categorical(
-            probs=sign_state_dist.probs),
-        component_distribution=ds.MultivariateNormal(
-            loc=dynamics.state_dynamics(sign_state_dist.locs) + noise_dist.loc,
-            covariance_matrix=noise_dist.covariance_matrix
-        ))
+    if isinstance(noise_dist, ds.MultivariateNormal):
+        return ds.MixtureMultivariateNormal(
+            mixture_distribution=torch.distributions.Categorical(
+                probs=sign_state_dist.probs),
+            component_distribution=ds.MultivariateNormal(
+                loc=dynamics.state_dynamics(sign_state_dist.locs) + noise_dist.loc,
+                covariance_matrix=noise_dist.covariance_matrix
+            ))
+    elif isinstance(noise_dist, ds.MixtureMultivariateNormal):
+        probs, locs, covs = list(), list(), list()
+        for i in range(noise_dist.num_components):
+            probs.append(sign_state_dist.probs * noise_dist.mixture_distribution.probs[i])
+            locs.append(dynamics.state_dynamics(sign_state_dist.locs) + noise_dist.component_distribution.loc[i])
+            covs.append(noise_dist.component_distribution.covariance_matrix[i].expand(sign_state_dist.num_components, -1, -1))
+
+        return ds.MixtureMultivariateNormal(
+            mixture_distribution=torch.distributions.Categorical(probs=torch.cat(probs)),
+            component_distribution=ds.MultivariateNormal(
+                loc=torch.cat(locs),
+                covariance_matrix=torch.cat(covs)
+            ))
 
 
 def propagate_additive_discrete_noise(

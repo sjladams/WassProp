@@ -3,11 +3,11 @@ import wasserstein
 from utils_distributions import get_initial_dist
 from dynamics import get_dynamics
 import plot
-from utils import load_params, parse_arguments
+from utils import parse_arguments
 import discretize_distributions as ds
 
 
-def quantization_example(dynamics_type, num_dims, dyn_setting, nums_locs):
+def quantization_example(dynamics_type, dyn_setting, nums_locs):
 
     signatures, bounds = [], []
 
@@ -15,15 +15,13 @@ def quantization_example(dynamics_type, num_dims, dyn_setting, nums_locs):
 
         args = parse_arguments(
             dynamics_type=dynamics_type,
-            num_dims=num_dims,
             dynamics_setting=dyn_setting,
             num_locs=num_locs,
             num_locs_after_compr=num_locs,
         )
-        params = load_params(args)
 
-        dynamics = get_dynamics(**params)
-        distribution = get_initial_dist(**params)
+        dynamics = get_dynamics(**vars(args))
+        distribution =  get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
 
         signature = ds.discretization_generator(distribution, num_locs)
         w2 = signature.w2
@@ -39,8 +37,7 @@ if __name__ == '__main__':
     torch.manual_seed(0)
 
     dynamics_type = 'SigmoidDynamics'
-    num_dims = 1
     nums_locs = [5, 10, 100]
     dyn_setting = 0
 
-    quantization_example(dynamics_type, num_dims, dyn_setting, nums_locs)
+    quantization_example(dynamics_type, dyn_setting, nums_locs)

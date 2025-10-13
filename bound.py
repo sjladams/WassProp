@@ -1,86 +1,42 @@
-from typing import Optional
+from typing import Union
 import torch
 import bound_propagation as bp
 
-from dynamics import LinearDiagonalDynamics, LinearDiagonalBoundedDynamics, AdditiveGaussianDynamics
-from regions import HyperRectangularVoronoiPartition
-from linear_bound_propagation import SqNorm, factory as linear_factory
-from optimize import minimize_with_adam
-from tensors import check_mat_diag
-
-factory = bp.BoundModelFactory()
+from dynamics import Dynamics, StochasticDynamics, Separable, CompositionalStructure, LinearDynamics
+from linear_bound_propagation import factory
 
 
-class SqNormFxSubFz(torch.nn.Sequential):
-    def __init__(self, f):
-        super().__init__(
-            bp.Parallel(f, f, split_size=f.num_dims),
-            bp.VectorSub(),
-            SqNorm(f.num_state_dims if hasattr(f, 'num_state_dims') else f.num_dims)
-        )
-
-
-@torch.no_grad()
-def local_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, vp: HyperRectangularVoronoiPartition) -> bp.IntervalBounds:
+def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, locs: torch.Tensor) -> torch.Tensor:
     """
-    find matrix B such that ||f(x) - f(c_i)||^2 leq B^{(ik)} for all x in region [l_k, u_k] and c_i the loc
-     of region R_i
-
-    :param f: dynamics
-    :param vp: VoronoiPartition
-
-    """
-    sq_norm_fx_z = factory.build(SqNormFxSubFz(f))
-
-    l = replace_inf_with(replace_neginf_with(vp.lower))   # \TODO check why this is needed:
-    u = replace_inf_with(replace_neginf_with(vp.upper))
-
-    l_locs = torch.cat((l.unsqueeze(-3).repeat(vp.num_locs, 1, 1), vp.locs.unsqueeze(-2).repeat(1, vp.num_locs, 1)), dim=-1)
-    u_locs = torch.cat((u.unsqueeze(-3).repeat(vp.num_locs, 1, 1), vp.locs.unsqueeze(-2).repeat(1, vp.num_locs, 1)), dim=-1)
-
-    return sq_norm_fx_z.ibp(bp.HyperRectangle(l_locs, u_locs))
-
-
-def replace_inf_with(tensor: torch.Tensor, value: float=1e6):
-    return tensor.masked_fill(torch.isinf(tensor), value)
-
-def replace_neginf_with(tensor, value=-1e6):
-    return tensor.masked_fill(torch.isneginf(tensor), value)
-
-
-def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, locs: torch.Tensor) -> bp.IntervalBounds:
-    """
-    find vector b such that ||f(x) - f(c_i)||^2 leq b_i for all x  and c_i the loc of region R_i
+    find vector b such that ||f(x) - f(c_i)||^2 leq beta_i for all x  and c_i the loc of region R_i
 
     :param f: dynamics
     :param locs: c_i's
     """
-    num_locs = locs.shape[-2]
+    inf = 1e6 # bound_propagation does not support inf, instead use a large value
 
-    sq_norm_fx_z = factory.build(SqNormFxSubFz(f))
+    l = torch.full_like(locs, -inf)
+    u = torch.full_like(locs, inf)
 
-    l = torch.ones(num_locs, f.num_dims).fill_(-torch.inf)
-    u = torch.ones(num_locs, f.num_dims).fill_(torch.inf)
+    # Alternative (cleaner) implementation:
+    ibp_bounds_f = factory.build(f).ibp(bp.HyperRectangle(l, u))
+    f_c = f(locs)
+    beta = torch.max(
+        torch.linalg.vector_norm(ibp_bounds_f.lower - f_c, dim=-1, ord=2).pow(2),
+        torch.linalg.vector_norm(ibp_bounds_f.upper - f_c, dim=-1, ord=2).pow(2)
+    )
 
-    l = replace_inf_with(replace_neginf_with(l))  # \TODO check why this is needed:
-    u = replace_inf_with(replace_neginf_with(u))
-
-    l_locs = torch.cat((l, locs), dim=-1)
-    u_locs = torch.cat((u, locs), dim=-1)
-
-    ibp_bound = sq_norm_fx_z.ibp(bp.HyperRectangle(l_locs, u_locs))
-    return ibp_bound
+    return beta
 
 
 def _global_lbp_sq_norm_fx_fc_quadrant(
-        f: torch.nn.Sequential,
+        f: Union[StochasticDynamics, Dynamics],
         locs: torch.Tensor,
         lower: torch.Tensor,
-        upper: torch.Tensor,
-        independent_dims: bool = False) -> torch.Tensor:
+        upper: torch.Tensor) -> torch.Tensor:
 
     input_bound = bp.HyperRectangle(lower, upper)
-    lb = linear_factory.build(f).crown_ibp_point(input_bound, locs)
+    lb = factory.build(f).strict_crown_ibp(input_bound, locs)
 
     # From linear bounds to bounds on the norms:
     alpha = torch.max(
@@ -92,10 +48,8 @@ def _global_lbp_sq_norm_fx_fc_quadrant(
 
 
 def global_lbp_sq_norm_fx_fc(
-        f: torch.nn.Sequential,
-        locs: torch.Tensor,
-        use_lbp: bool = True,
-        beta: Optional[torch.Tensor] = None) -> torch.Tensor:
+        f: Union[StochasticDynamics, Dynamics],
+        locs: torch.Tensor) -> torch.Tensor:
     """
     find vector a such that ||f(x) - f(c_i)||^2 leq a_i||x-c_i||^2 for all x and c_i the loc of region R_i
 
@@ -103,62 +57,74 @@ def global_lbp_sq_norm_fx_fc(
     :param locs: batch of c's with shape (num_locs, num_dims)
     """
 
-    num_locs = locs.shape[-2]
-    num_dims = locs.shape[-1]
+    if isinstance(f, CompositionalStructure):
+        alphas = []
+        for component in f.children():
+            alphas.append(global_lbp_sq_norm_fx_fc_component(component, locs))
+            locs = component(locs)
+        return torch.stack(alphas, dim=-1).prod(dim=-1)
+    else:
+        return global_lbp_sq_norm_fx_fc_component(f, locs)
 
-    if beta is None:
-        beta = torch.zeros(num_locs)
 
-    if use_lbp:
-        # quadrants of shape (nr_quadrants, 2, num_locs, num_dims)
-        if isinstance(f, (LinearDiagonalDynamics, LinearDiagonalBoundedDynamics, )):
-            # If the dynamics is separable, then we only have to the positive and negative quadrants
-            quadrants = torch.stack((
-                torch.stack((torch.ones(num_locs, num_dims).fill_(-torch.inf), locs)),
-                torch.stack((locs, torch.ones(num_locs, num_dims).fill_(torch.inf)))
-            ))
-            independent_dims = True
-        else:
-            # else, we have to consider all quadrants:
-            # Generate all combinations of signs (+1 and -1) for each dimension
-            signs = torch.cartesian_prod(*[torch.tensor([-1, 1]) for _ in range(num_dims)])
+def global_lbp_sq_norm_fx_fc_component(
+        f: Union[StochasticDynamics, Dynamics],
+        locs: torch.Tensor) -> torch.Tensor:
+    """
+    :param f: dynamics
+    :param locs: batch of c's with shape (num_locs, num_dims)
+    """
 
-            # Compute lower and upper bounds for each quadrant
-            lower = torch.where(signs==-1, torch.full_like(signs, -torch.inf, dtype=locs.dtype), torch.zeros_like(signs, dtype=locs.dtype))
-            upper = torch.where(signs==1, torch.full_like(signs, torch.inf, dtype=locs.dtype), torch.zeros_like(signs, dtype=locs.dtype))
+    if isinstance(f, LinearDynamics):
+        return f.global_lipschitz**2 * torch.ones(locs.shape[:-1])
+    else:
+        quadrants = generate_quadrants(
+            num_dims=f.num_dims,
+            only_pos_and_neg=isinstance(f, Separable)
+        )
 
-            # Stack lower and upper bounds into shape (nr_quadrants, 2, n)
-            quadrants = torch.stack([lower, upper], dim=1)
-            quadrants = quadrants.unsqueeze(-2).repeat(1, 1, num_locs, 1) + locs
+        inf = 1e2 # bound_propagation does not support inf, instead use a large value
+        quadrants = quadrants.clip(-inf, inf)
 
-            independent_dims = False
+        num_locs = locs.shape[-2]
+        quadrants = quadrants.unsqueeze(-2).repeat(1, 1, num_locs, 1) + locs
 
         alphas = torch.zeros(len(quadrants), num_locs).fill_(torch.nan)
         for idx, quadrant in enumerate(quadrants):
-            alphas[idx] = _global_lbp_sq_norm_fx_fc_quadrant(f, locs, quadrant[0], quadrant[1], independent_dims )
+            alphas[idx] = _global_lbp_sq_norm_fx_fc_quadrant(f, locs, quadrant[0], quadrant[1])
 
-        alpha = alphas.max(dim=0).values.clamp(min=0., max=f.global_lipschitz**2)
+        return alphas.max(dim=0).values.clamp(min=0., max=f.global_lipschitz**2)
+
+
+def generate_quadrants(num_dims, only_pos_and_neg: bool = False) -> torch.Tensor:
+    """
+    :param only_pos_and_neg:
+    :return: quadrants of shape (nr_quadrants, 2, num_dims)
+    """
+    if only_pos_and_neg:
+        # If the dynamics is separable, then we only have to the positive and negative quadrants
+        quadrants = torch.stack((
+            torch.stack((torch.full( (num_dims,), -torch.inf), torch.zeros(num_dims))),
+            torch.stack((torch.zeros(num_dims), torch.full((num_dims,), torch.inf)))
+        ))
     else:
-        # below we use a non-formal optimization based method. Using the bound-propagation package result in very-
-        # conservative results
+        # else, we have to consider all quadrants:
+        # Generate all combinations of signs (+1 and -1) for each dimension
+        signs = torch.cartesian_prod(*[torch.tensor([-1, 1]) for _ in range(num_dims)])
 
-        def compute_local_lipschitz(x):
-            local_lipschitz = ((f(x) - f(locs)).pow(2).sum(-1) - beta) / (x - locs).pow(2).sum(-1)
-            local_lipschitz = torch.nan_to_num(local_lipschitz, nan=f.global_lipschitz ** 2)
-            return local_lipschitz
-
-        def objective(x):
-            return - compute_local_lipschitz(x).sum() # or take mean?
-
-        x_opt, losses = minimize_with_adam(
-            objective,
-            param=(locs.clone().detach() + torch.randn_like(locs)).requires_grad_(True),
-            lr=0.01,
-            num_iterations=5000,
-            tolerance=1e-8,
-            print_progress=True
+        # Compute lower and upper bounds for each quadrant
+        lower = torch.where(
+            signs == torch.tensor(-1),
+            torch.full_like(signs, -torch.inf, dtype=torch.float32),
+            torch.zeros_like(signs)
+        )
+        upper = torch.where(
+            signs == torch.tensor(1),
+            torch.full_like(signs, torch.inf, dtype=torch.float32),
+            torch.zeros_like(signs)
         )
 
-        alpha = compute_local_lipschitz(x_opt).detach().clamp(min=0., max=f.global_lipschitz**2)
+        # Stack lower and upper bounds into shape (nr_quadrants, 2, n)
+        quadrants = torch.stack([lower, upper], dim=1)
 
-    return alpha
+    return quadrants

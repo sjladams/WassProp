@@ -6,7 +6,7 @@ from utils_distributions import get_initial_dist
 from dynamics import get_dynamics
 import plot
 from regions import HyperRectangularVoronoiPartition
-from utils import load_params, parse_arguments
+from utils import parse_arguments
 from torch.distributions import Normal
 import discretize_distributions as ds
 
@@ -47,8 +47,7 @@ def gaussian_hypercube_prob(dist, lower, upper):
 
     return probabilities
 
-def compare_quantization_operators(dynamics_type, num_dims, dyn_setting, nums_locs):
-
+def compare_quantization_operators(dynamics_type, dyn_setting, nums_locs):
     signatures_optimal, bounds_optimal = [], []
     signatures_uniform, bounds_uniform = [], []
 
@@ -56,14 +55,12 @@ def compare_quantization_operators(dynamics_type, num_dims, dyn_setting, nums_lo
 
         args = parse_arguments(
             dynamics_type=dynamics_type,
-            num_dims=num_dims,
             dynamics_setting=dyn_setting,
             num_locs=num_locs,
             num_locs_after_compr=num_locs,
         )
-        params = load_params(args)
-        dynamics = get_dynamics(**params)
-        initial_dist = get_initial_dist(**params)
+        dynamics = get_dynamics(**vars(args))
+        initial_dist = get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
 
         # Compute signature and quantization error for our approach
         signature = ds.discretization_generator(initial_dist, num_locs)
@@ -80,7 +77,7 @@ def compare_quantization_operators(dynamics_type, num_dims, dyn_setting, nums_lo
         voronoi_partition = HyperRectangularVoronoiPartition(locs)
 
         alpha = global_lbp_sq_norm_fx_fc(dynamics.state_dynamics, locs)
-        beta = global_ibp_sq_norm_fx_fc(dynamics.state_dynamics, locs).upper.squeeze(-1)
+        beta = global_ibp_sq_norm_fx_fc(dynamics.state_dynamics, locs)
 
         sq_norm_2nd_moment = wasserstein.compute_sq_l2_norm(initial_dist, voronoi_partition, locs)
         probs = gaussian_hypercube_prob(initial_dist, voronoi_partition.lower, voronoi_partition.upper)
@@ -95,11 +92,11 @@ def compare_quantization_operators(dynamics_type, num_dims, dyn_setting, nums_lo
     print(f'Uniform grid: {bounds_uniform}')
 
 if __name__ == '__main__':
+    raise NotImplementedError('deprecated compute_sq_l2_norm')
     torch.manual_seed(0)
 
-    dynamics_type = 'LinearDiagonalBoundedDynamics'
-    num_dims = 1
+    dynamics_type = 'DiagonalLinearBoundedDynamics'
     nums_locs = [5, 10, 100, 1000]
     dyn_setting = 0
 
-    compare_quantization_operators(dynamics_type, num_dims, dyn_setting, nums_locs)
+    compare_quantization_operators(dynamics_type, dyn_setting, nums_locs)

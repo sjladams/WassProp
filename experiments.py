@@ -1,13 +1,12 @@
 import ot
 import torch
-from copy import copy
 from typing import Union, List, Optional
 
 import discretize_distributions as ds
-import GMMWas
 import wasserstein
 from dynamics import Dynamics, AdditiveGaussianDynamics
 import propagation as prop
+from utils_distributions import compress, sample_from_ambiguity_set
 
 
 def single_step(
@@ -17,39 +16,22 @@ def single_step(
         num_samples: int,
         num_locs: int,
         propagate_via_gmm: bool, # todo rename
+        w2_noise_dist: float = 0.,
         w2_p__q_global_lipschitz: float = 0.,
         w2_p__q_lagrangian_duality: float = 0.,
         run_lagrangian_duality: bool = True,
         run_empirical: bool = False,
         p_samples: Optional[torch.Tensor] = None,
-        num_locs_after_compr: Optional[int] = None,
-        **kwargs):
+        size_after_compr: Optional[int] = None):
 
-    if num_locs_after_compr is None:
-        num_locs_after_compr = num_locs
+    if size_after_compr is None:
+        size_after_compr = num_locs
 
     # Initialize System Dynamics
     print(f"Global Lipschitz constant of f: {dynamics.global_lipschitz}")
 
     # Compress the mixture distribution
-    with torch.no_grad():
-        if isinstance(q, ds.MultivariateNormal) or num_locs_after_compr >= q.num_components:
-            w2_compr = 0.
-        else:
-            if isinstance(q, ds.MixtureMultivariateNormal):
-                q = ds.unique_mixture_multivariate_normal(q)
-                if num_locs_after_compr >= q.num_components:
-                    w2_compr = 0.
-                else:
-                    q_pre = copy(q)
-                    q = ds.compress_mixture_multivariate_normal(q, n_max=num_locs_after_compr)
-                    w2_compr = GMMWas.w2(q, q_pre)
-            elif isinstance(q, ds.CategoricalFloat):
-                q_pre = copy(q)
-                q = ds.compress_categorical_floats(q_pre, n_max=num_locs_after_compr)
-                w2_compr = GMMWas.w2(q, q_pre)
-            else:
-                raise ValueError
+    q, w2_compr = compress(q, size_after_compr)
 
     # Approximate the state distribution
     sign_q = ds.discretization_generator(q, num_locs)
@@ -66,9 +48,9 @@ def single_step(
 
     # Empirically approximate the state distribution
     q_samples = q.sample(torch.Size((num_samples,)))
-    p_samples = q_samples if p_samples is not None else q_samples
+    p_samples = p_samples if p_samples is not None else q_samples
     q1_samples = q1.sample(torch.Size((num_samples,)))
-    noise_samples = noise_dist.sample(torch.Size((num_samples,)))
+    noise_samples = sample_from_ambiguity_set(noise_dist, w2_noise_dist, num_samples)
     p1_samples = dynamics(torch.cat((p_samples, noise_samples), dim=-1))
 
     #### Compute W_2(p_1, q_1) = W_2(f#p_k, f#\Delta_C#q_k)
@@ -80,19 +62,24 @@ def single_step(
         w2_p1__q1_empirical = torch.nan
 
     w2_p1__q1_global_lipschitz = dynamics.global_lipschitz * (sign_q.w2 + w2_compr + w2_p__q_global_lipschitz)
-    if isinstance(dynamics, AdditiveGaussianDynamics) and not propagate_via_gmm:
-        w2_p1__q1_global_lipschitz += sign_noise_dist.w2
+    if isinstance(dynamics, AdditiveGaussianDynamics):
+        w2_p1__q1_global_lipschitz += w2_noise_dist
+        if not propagate_via_gmm:
+            w2_p1__q1_global_lipschitz += sign_noise_dist.w2
+    else:
+        w2_p1__q1_global_lipschitz += dynamics.global_lipschitz * (sign_noise_dist.w2 + w2_noise_dist)
 
     if run_lagrangian_duality:
         print(f"-- Lagrangian Duality --")
         if isinstance(dynamics, AdditiveGaussianDynamics):
             w2_p1__q1_lagrangian_duality = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-                signature=sign_q, f=dynamics.state_dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
+                signature=sign_q, f=dynamics.state_dynamics, w2_q__disc_q=sign_q.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr)
+            w2_p1__q1_lagrangian_duality += w2_noise_dist
             if not propagate_via_gmm:
                 w2_p1__q1_lagrangian_duality += sign_noise_dist.w2
         else:
             w2_p1__q1_lagrangian_duality = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-                signature=sign_cross, f=dynamics, w2_q__disc_q=sign_q.w2+sign_noise_dist.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr, **kwargs)
+                signature=sign_cross, f=dynamics, w2_q__disc_q=sign_q.w2+sign_noise_dist.w2, w2_p__q=w2_p__q_lagrangian_duality + w2_compr + w2_noise_dist)
     else:
         w2_p1__q1_lagrangian_duality = torch.nan
 
@@ -102,6 +89,7 @@ def single_step(
         w2_p1__q1_global_lipschitz=w2_p1__q1_global_lipschitz,
         w2_p1__q1_lagrangian_duality=w2_p1__q1_lagrangian_duality,
         q1=q1,
+        q_comp=q,
         q1_samples=q1_samples,
         p1_samples=p1_samples
     )
@@ -140,26 +128,25 @@ def single_step_w2_options(
     return w2_q__sign_q_store, w2_p1__q1_store
 
 
-def multi_step( # \todo kill gradients
+@torch.no_grad()
+def multi_step(
         dynamics: Dynamics,
         noise_dist: ds.MultivariateNormal,
         q: Union[ds.MultivariateNormal, ds.MixtureMultivariateNormal],
         num_time_steps: int,
-        optimize_locs: bool = False,
+        num_samples: int,
+        w2_p__q: float = 0.,
+        w2_noise_dist: float = 0.,
         **kwargs):
 
-    if optimize_locs:
-        raise NotImplementedError("Optimization of the signature locations is not yet implemented for multi_step.")
-
-    # Initialize w2_p__q error:
-    w2_bounds = {0: {'global_lipschitz': 0., 'lagrangian_duality': 0.}}
-
-    # store wasserstein error bounds
-    w2_p1__q1_store = {0: dict(w2_p1__q1_global_lipschitz=0., w2_p1__q1_lagrangian_duality=0.)}
+    # stores
+    w2_p1__q1_store = {-1: dict(w2_p1__q1_global_lipschitz=w2_p__q, w2_p1__q1_lagrangian_duality=w2_p__q)}
     w2_q__sign_q_store = dict()
+    q_store = {-1: {'q1': q}}
 
-    # store trajectories
-    samples_store = dict()
+    # initialize empirical distributions
+    samples_store = {-1: {'p1_samples': sample_from_ambiguity_set(q, w2_p__q, num_samples),
+                          'q1_samples': sample_from_ambiguity_set(q, 0., num_samples)}}
 
     # loop over time steps
     for k in range(num_time_steps):
@@ -167,16 +154,18 @@ def multi_step( # \todo kill gradients
         out = single_step(
             dynamics=dynamics,
             noise_dist=noise_dist,
-            q=q,
-            p_samples=samples_store[k-1]['p1_samples'] if k-1 in samples_store else None,
-            w2_p__q_global_lipschitz=w2_p1__q1_store[k]['w2_p1__q1_global_lipschitz'],
-            w2_p__q_lagrangian_duality=w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'],
+            q=q_store[k-1]['q1'],
+            p_samples=samples_store[k-1]['p1_samples'],
+            w2_p__q_global_lipschitz=w2_p1__q1_store[k-1]['w2_p1__q1_global_lipschitz'],
+            w2_p__q_lagrangian_duality=w2_p1__q1_store[k-1]['w2_p1__q1_lagrangian_duality'],
+            w2_noise_dist=w2_noise_dist,
+            num_samples=num_samples,
             **kwargs
         )
-
-        w2_p1__q1_store[k+1] = {key: value for key, value in out.items() if 'w2_p1__q1' in key}
-        w2_q__sign_q_store[k+1] = out['w2_q__sign_q']
+        w2_p1__q1_store[k] = {key: value for key, value in out.items() if 'w2_p1__q1' in key}
+        w2_q__sign_q_store[k] = out['w2_q__sign_q']
         samples_store[k] = {key: value for key, value in out.items() if 'samples' in key}
+        q_store[k] = dict(q1=out['q1'], q_compr=out['q_comp'])
 
         print(
             f"Bounds on W_2(p_{k+1}, q_{k+1}) via:\n"
@@ -185,4 +174,4 @@ def multi_step( # \todo kill gradients
             f"\t Lagrangian Duality: {out['w2_p1__q1_lagrangian_duality']:.4f}\n"
         )
 
-    return w2_q__sign_q_store, w2_p1__q1_store, samples_store
+    return w2_q__sign_q_store, w2_p1__q1_store, samples_store, q_store
