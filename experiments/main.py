@@ -12,18 +12,15 @@ from experiments.utils import get_initial_dist, get_noise_dist
 if __name__ == '__main__':
     torch.manual_seed(0)
 
-    run_single_step = True
-    run_multi_step = False
+    run_single_step = False
+    run_multi_step = True
 
     args = parse_arguments(
         dynamics_type = "SigmoidDynamics",
         dynamics_setting = 0,
         num_locs = 10,
-        size_after_compr=1,
         num_samples = 1000,
-        lr = 0.01,
-        num_iterations = 1000,
-        plot = False
+        save=False
     )
 
     dynamics = get_dynamics(**vars(args))
@@ -35,13 +32,13 @@ if __name__ == '__main__':
         for method in ['global_lipschitz', 'lagrangian_duality']:
             store[method] = dict()
             for w2_p__q in [0., 0.1, 0.5, 1.0, 1.5, 2.0]:
-                print(f"\n ------ W_2(p,q) = {w2_p__q} ------ \n")
+                print(f" ------ W_2(p,q) = {w2_p__q} ------")
                 store[method][w2_p__q] = single_step(
                     dynamics=dynamics,
                     q=AmbiguitySet(initial_dist, w2_p__q),
                     noise=AmbiguitySet(noise_dist, 0.),
                     num_locs=args.num_locs,
-                    use_lagrangian_duality=True
+                    use_lagrangian_duality=method == 'lagrangian_duality'
                 ).w2
 
         plot.plot_single_step(dynamics, store)

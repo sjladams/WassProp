@@ -1,35 +1,51 @@
 import torch
-from experiments import multi_step
-from utils_distributions import get_noise_dist, get_initial_dist
-from dynamics import get_dynamics
-import experiments.plot as plot
-from experiments.utils import parse_arguments
 
-def multistep_approximation(dynamics_type, dyn_setting, num_locs):
+from propagation import multi_step, multi_step_empirical, SampledPath
+from dynamics import get_dynamics
+from utils_distributions import AmbiguitySet
+
+import experiments.plot as plot
+from experiments.handlers import parse_arguments
+import experiments.utils as utils
+
+
+def multistep_approximation(dynamics_type, setting, num_locs):
     args = parse_arguments(
         dynamics_type=dynamics_type,
-        dynamics_setting=dyn_setting,
+        dynamics_setting=setting,
         num_locs=num_locs,
-        # num_locs_after_compr=num_locs,
-        num_samples=5000
+        num_samples=500
     )
+
+    num_time_steps = 10
 
     dynamics = get_dynamics(**vars(args))
-    initial_dist = get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
-    noise_dist = get_noise_dist(args.loc_noise_dist, args.variance_noise_dist)
+    initial_dist = utils.get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
+    noise_dist = utils.get_noise_dist(args.loc_noise_dist, args.variance_noise_dist)
 
-    _, _, samples = multi_step(
-        dynamics=dynamics,
-        noise_dist=noise_dist,
-        q=initial_dist,
-        num_time_steps=10,
-        run_lagrangian_duality=True,
-        run_empirical=True,
-        propagate_via_gmm=False,
-        num_samples=args.num_samples,
-        num_locs=args.num_locs
+    q = AmbiguitySet(initial_dist, 0.1)
+    noise = AmbiguitySet(noise_dist, 0.0)
+
+    path = multi_step(
+        dynamics=dynamics, 
+        q=q, 
+        noise=noise,
+        num_time_steps=num_time_steps,
+        use_lagrangian_duality=True,
+        num_locs=args.num_locs,
     )
-    plot.plot_multi_step(dynamics, samples, type=dynamics_type)
+
+    true_samples = multi_step_empirical(
+        dynamics=dynamics,
+        p_emp=q.sample(args.num_samples),
+        noise=noise,
+        num_time_steps=num_time_steps,
+        num_samples=args.num_samples,
+    )
+    approx_samples = SampledPath({k: path.at(k).sample(args.num_samples) for k in path.ordered_indices})
+
+    plot.plot_multi_step(dynamics=dynamics, true_samples=true_samples, approx_samples=approx_samples)
+
 
 if __name__ == '__main__':
     torch.manual_seed(0)

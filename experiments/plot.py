@@ -27,7 +27,7 @@ COLORS_HIST = [
     ]
 
 @torch.no_grad()
-def plot_signatures(f, initial_dist, signatures, bounds):
+def plot_signatures(f, initial_dist, signatures, bounds):  # TODO to be updated
     X = torch.linspace(-3, 3, int(1e3)).unsqueeze(-1)
     Y = f(X)
 
@@ -82,7 +82,7 @@ def plot_signatures(f, initial_dist, signatures, bounds):
     plt.show()
 
 @torch.no_grad()
-def plot_single_step(dynamics, w2_p1__q1_store: dict):
+def plot_single_step(dynamics, w2_p1__q1_store: dict): # TODO to be updated
     methods = list(w2_p1__q1_store.keys())
     w2_p__q_options = list(w2_p1__q1_store[methods[0]].keys())
 
@@ -100,70 +100,63 @@ def plot_single_step(dynamics, w2_p1__q1_store: dict):
 
 
 @torch.no_grad()
-def plot_multi_step(dynamics, samples: dict, layout: str = "hist"):
+def plot_multi_step(dynamics, true_samples: SampledPath, approx_samples: SampledPath, layout: str = "hist"):
+    if not dynamics.num_state_dims in [1, 2]:
+        raise NotImplementedError("Only implemented for 1D and 2D dynamics")
 
-    colors = plt.cm.tab10(np.linspace(0, 1, len(samples.keys())))
+    colors = plt.cm.tab10(np.linspace(0, 1, len(true_samples.ordered_indices)))
 
-    time_steps = list(samples.keys())
-    # time_steps = [time_steps[0], time_steps[-1]] # Get initial and final time steps
+    if layout == "scatter":
+        fig, ax = plt.subplots(figsize=(12, 12))
+        for k in true_samples.ordered_indices:
+            ax.scatter(true_samples.at(k)[:,0], true_samples.at(k)[:,1], label=rf'$t={k+1}$')
+        ax.legend(loc='upper left')
+        ax.set_xlim([-1., 1.])
+        ax.set_ylim([-1., 1.])
+    elif layout == "hist":
+        fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(24, 36))
+        for k in true_samples.ordered_indices:
 
-    if dynamics.num_state_dims >= 2:
-        p_samples = torch.stack([samples[k]['p1_samples'] for k in samples.keys()])
-        q_samples = torch.stack([samples[k]['q1_samples'] for k in samples.keys()])
+            # Plot using hist2d with color intensity indicating the density
+            ax[0][0].hist2d(true_samples.at(k)[:,0], true_samples.at(k)[:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
+            ax[0][1].hist2d(approx_samples.at(k)[:,0], approx_samples.at(k)[:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
 
-        if layout == "scatter":
-            fig, ax = plt.subplots(figsize=(12, 12))
-            for k in time_steps:
-                ax.scatter(p_samples[k,:,0], p_samples[k,:,1], label=rf'$t={k+1}$')
+            # Plot only first dimension
+            ax[1][0].hist(true_samples.at(k)[:,0], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
+            ax[1][1].hist(approx_samples.at(k)[:,0], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
+
+            # Plot only second dimension
+            ax[2][0].hist(true_samples.at(k)[:, 1], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
+            ax[2][1].hist(approx_samples.at(k)[:, 1], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
+
+        ax[0][0].set_title(r'$\mathbb{P}_{x_t}$ (actual distr.)')
+        ax[0][1].set_title(r'$\hat{\mathbb{P}}_{x_t}$ (our approx.)')
+
+        ax[0][0].set_xlabel(r'$x^{(0)}$')
+        ax[0][1].set_xlabel(r'$x^{(0)}$')
+        ax[0][0].set_ylabel(r'$x^{(1)}$')
+
+        ax[1][0].set_xlabel(r'$x^{(0)}$')
+        ax[1][1].set_xlabel(r'$x^{(0)}$')
+        ax[1][0].set_ylabel('Frequency')
+
+        ax[2][0].set_xlabel(r'$x^{(1)}$')
+        ax[2][1].set_xlabel(r'$x^{(1)}$')
+        ax[2][0].set_ylabel('Frequency')
+
+        ax[0][0].grid(True)
+        ax[0][1].grid(True)
+
+        ax[0][0].axis('equal')
+        ax[0][1].axis('equal')
+
+        for ax in fig.axes:
             ax.legend(loc='upper left')
-            ax.set_xlim([-1., 1.])
-            ax.set_ylim([-1., 1.])
-        elif layout == "hist":
-            fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(24, 36))
-            for k in time_steps:
-
-                # Plot using hist2d with color intensity indicating the density
-                ax[0][0].hist2d(p_samples[k,:,0], p_samples[k,:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
-                ax[0][1].hist2d(q_samples[k,:,0], q_samples[k,:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
-
-                # Plot only first dimension
-                ax[1][0].hist(p_samples[k,:,0], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
-                ax[1][1].hist(q_samples[k, :, 0], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
-
-                # Plot only second dimension
-                ax[2][0].hist(p_samples[k, :, 1], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
-                ax[2][1].hist(q_samples[k, :, 1], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
-
-            ax[0][0].set_title(r'$\mathbb{P}_{x_t}$ (actual distr.)')
-            ax[0][1].set_title(r'$\hat{\mathbb{P}}_{x_t}$ (our approx.)')
-
-            ax[0][0].set_xlabel(r'$x^{(0)}$')
-            ax[0][1].set_xlabel(r'$x^{(0)}$')
-            ax[0][0].set_ylabel(r'$x^{(1)}$')
-
-            ax[1][0].set_xlabel(r'$x^{(0)}$')
-            ax[1][1].set_xlabel(r'$x^{(0)}$')
-            ax[1][0].set_ylabel('Frequency')
-
-            ax[2][0].set_xlabel(r'$x^{(1)}$')
-            ax[2][1].set_xlabel(r'$x^{(1)}$')
-            ax[2][0].set_ylabel('Frequency')
-
-            ax[0][0].grid(True)
-            ax[0][1].grid(True)
-
-            ax[0][0].axis('equal')
-            ax[0][1].axis('equal')
-
-            for ax in fig.axes:
-                ax.legend(loc='upper left')
-        else:
-            raise NotImplementedError
-
-        #plt.savefig(rf'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\{type}.pdf', format='pdf')
-        plt.show()
     else:
         raise NotImplementedError
+
+    #plt.savefig(rf'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\{type}.pdf', format='pdf')
+    plt.show()
 
 
 @torch.no_grad()
