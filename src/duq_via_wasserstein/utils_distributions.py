@@ -1,12 +1,10 @@
 import torch
-import discretize_distributions.distributions as dd_dists
-import discretize_distributions as dd
 from typing import Union, Tuple
 from copy import copy
 import ot
 
-
-
+import discretize_distributions.distributions as dd_dists
+import discretize_distributions as dd
 
 
 def cross_product(state_signature, noise_signature):

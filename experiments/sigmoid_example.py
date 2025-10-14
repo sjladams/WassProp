@@ -1,12 +1,12 @@
 import torch
 import discretize_distributions as dd
 
-import wasserstein
-from dynamics import get_dynamics
+import duq_via_wasserstein.wasserstein as wasserstein
+from duq_via_wasserstein import get_dynamics
 
-import experiments.plot as plot
-from experiments.handlers import parse_arguments
-import experiments.utils as utils
+import plot
+from handlers import parse_arguments
+import utils
 
 
 def quantization_example(dynamics_type, setting, nums_locs):

@@ -3,11 +3,9 @@ from argparse import Namespace
 import torch
 import discretize_distributions.distributions as dd_dists
 
-from propagation import multi_step
-from dynamics import get_dynamics
-from utils_distributions import AmbiguitySet
+from duq_via_wasserstein import multi_step, get_dynamics, AmbiguitySet
 
-from experiments.handlers import save_csv
+from handlers import save_csv
 
 
 def get_initial_dist(

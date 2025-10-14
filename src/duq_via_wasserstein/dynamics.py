@@ -2,11 +2,10 @@ import torch
 from typing import Union, Optional
 import bound_propagation as bp
 import math
-import os
 
 from sympy.solvers.solveset import NonlinearError
 
-import linear_bound_propagation as lbp
+from . import linear_bound_propagation as lbp
 
 
 class StochasticDynamics(torch.nn.Sequential):

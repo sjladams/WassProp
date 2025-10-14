@@ -7,7 +7,7 @@ import os
 from typing import Union, Optional, List, Dict, Tuple
 from matplotlib.ticker import MaxNLocator
 
-from propagation import SampledPath, Path
+from duq_via_wasserstein import SampledPath, Path
 
 plt.style.use('seaborn-v0_8-bright')
 

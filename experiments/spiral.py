@@ -1,12 +1,10 @@
 import torch
 
-from propagation import multi_step, multi_step_empirical, SampledPath
-from dynamics import get_dynamics
-from utils_distributions import AmbiguitySet
+from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, get_dynamics, AmbiguitySet
 
-import experiments.plot as plot
-from experiments.handlers import parse_arguments
-import experiments.utils as utils
+import plot
+from handlers import parse_arguments
+import utils
 
 if __name__ == '__main__':
     torch.manual_seed(0)

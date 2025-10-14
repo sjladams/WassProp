@@ -2,8 +2,8 @@ from typing import Union
 import torch
 import bound_propagation as bp
 
-from dynamics import Dynamics, StochasticDynamics, Separable, CompositionalStructure, LinearDynamics
-from linear_bound_propagation import factory
+from .dynamics import Dynamics, StochasticDynamics, Separable, CompositionalStructure, LinearDynamics
+from .linear_bound_propagation import factory
 
 
 def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, locs: torch.Tensor) -> torch.Tensor:

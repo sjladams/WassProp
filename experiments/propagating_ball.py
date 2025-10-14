@@ -1,12 +1,10 @@
 import torch
 import pprint
 
-from propagation import single_step
-from dynamics import get_dynamics
-from utils_distributions import AmbiguitySet
+from duq_via_wasserstein import single_step, get_dynamics, AmbiguitySet
 
-from experiments.handlers import parse_arguments
-import experiments.utils as utils
+from handlers import parse_arguments
+import utils
 
 
 def propagate_wasserstein_ball(dynamics_type, setting, num_locs, w2_p__q):

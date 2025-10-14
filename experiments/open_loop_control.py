@@ -1,11 +1,10 @@
 import torch
 
-from propagation import single_step, Path
-from dynamics import FourModesOpenLoopDynamics, AdditiveGaussianDynamics
-from utils_distributions import AmbiguitySet
-from experiments.handlers import parse_arguments
+from duq_via_wasserstein import single_step, Path, AmbiguitySet
+from duq_via_wasserstein.dynamics import FourModesOpenLoopDynamics, AdditiveGaussianDynamics
 
-import experiments.utils as utils
+from handlers import parse_arguments
+import utils
 
 
 if __name__ == '__main__':

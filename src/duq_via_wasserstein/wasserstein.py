@@ -1,10 +1,10 @@
 import torch
 from typing import Callable, Union
 
-import dynamics
 import discretize_distributions.distributions as dd_dists
 
-from bound import global_ibp_sq_norm_fx_fc, global_lbp_sq_norm_fx_fc
+from . import dynamics
+from .bound import global_ibp_sq_norm_fx_fc, global_lbp_sq_norm_fx_fc
 
 
 def get_fn_sq_w2_f_q__f_disc_q(

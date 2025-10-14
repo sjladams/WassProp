@@ -2,10 +2,11 @@ import torch
 from dataclasses import dataclass, field
 from typing import Union, List, Optional, Tuple, Dict
 
-import wasserstein
 import discretize_distributions.distributions as dd_dists
-from dynamics import StochasticDynamics, AdditiveGaussianDynamics
-from utils_distributions import AmbiguitySet, discretize, cross_product, sum_discrete_distributions
+
+from . import wasserstein
+from .dynamics import StochasticDynamics, AdditiveGaussianDynamics
+from .utils_distributions import AmbiguitySet, discretize, cross_product, sum_discrete_distributions
 
 TensorLike = Union[float, torch.Tensor]
 
