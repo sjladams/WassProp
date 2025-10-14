@@ -27,6 +27,7 @@ venv/
 # Test files
 tests/
 playground/
+sandbox/
 **/backup/** */
 
 ## Results files
