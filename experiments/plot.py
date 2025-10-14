@@ -4,8 +4,10 @@ import numpy as np
 import torch
 from scipy.stats import norm
 import os
-from typing import Union
+from typing import Union, Optional, List, Dict, Tuple
 from matplotlib.ticker import MaxNLocator
+
+from propagation import SampledPath, Path
 
 plt.style.use('seaborn-v0_8-bright')
 
@@ -81,11 +83,12 @@ def plot_signatures(f, initial_dist, signatures, bounds):
 
 @torch.no_grad()
 def plot_single_step(dynamics, w2_p1__q1_store: dict):
-    w2_p__q_options = list(w2_p1__q1_store.keys())
+    methods = list(w2_p1__q1_store.keys())
+    w2_p__q_options = list(w2_p1__q1_store[methods[0]].keys())
 
     fig = plt.figure(figsize=(16, 16))
-    for key in w2_p1__q1_store[w2_p__q_options[0]].keys():
-        plt.plot(w2_p__q_options, [w2_p1__q1_store[w2_p__q][key] for w2_p__q in w2_p__q_options], label=key)
+    for key in methods:
+        plt.plot(w2_p__q_options, [w2_p1__q1_store[key][w2_p__q] for w2_p__q in w2_p__q_options], label=key)
 
     plt.legend()
     plt.title(f"{dynamics.state_dynamics.__class__.__name__ if hasattr(dynamics, 'state_dynamics') else dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f})")
@@ -164,65 +167,56 @@ def plot_multi_step(dynamics, samples: dict, layout: str = "hist"):
 
 
 @torch.no_grad()
-def plot_2d_ambiguity_balls(samples: Union[dict, list], w2_p1__q1_store: Union[dict, list], q_store: Union[dict, list],
-                            patch_creator = None, text_creator = None,
-                            step_size: int = 1,
-                            xlim: list = None, ylim: list = None, figsize: tuple = None, save_by: str = None):
+def plot_2d_ambiguity_balls(
+    samples: SampledPath, path: Path,
+    patch_creator = None, text_creator = None,
+    step_size: int = 1,
+    xlim: Optional[List] = None, ylim: Optional[List] = None, figsize: Optional[tuple] = None, 
+    save_by: str = 'path', save: bool = False
+):
     xlim = [-1, 1] if xlim is None else xlim
     ylim = [-1, 1] if ylim is None else ylim
     figsize = figsize if figsize is not None else (6 * (xlim[1] - xlim[0]), 6 * (ylim[1] - ylim[0]))
 
-    if isinstance(samples, list) and isinstance(w2_p1__q1_store, list) and isinstance(q_store, list):
-        samples_options, w2_p1__q1_store_options, q_store_options = samples, w2_p1__q1_store, q_store
+    fig, ax = plt.subplots(figsize=figsize)
+
+    if patch_creator is not None:
+        for patch in patch_creator():
+            plt.gca().add_patch(patch)
+    if text_creator is not None:
+        for text in text_creator():
+            plt.text(**text)
+
+    time_steps = path.ordered_indices[::step_size][:-1]
+    cmap = plt.cm.coolwarm
+    colors = [cmap(i / (len(time_steps) - 1)) for i in range(len(time_steps))]
+
+    for k in time_steps:
+        amb_ball = path.at(k)
+        ax.scatter(samples.at(k)[:, 0], samples.at(k)[:, 1], color=colors[k + 1], s=16, alpha=0.5)
+
+        ambiguity_set = Circle(amb_ball.center.mean, amb_ball.w2, color=colors[k+1], fill=False, lw=2, alpha=1.0)
+        ax.add_patch(ambiguity_set)
+
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_xlabel(r'$x_1$')
+    ax.set_ylabel(r'$x_2$')
+    plt.xlim(xlim) if xlim is not None else None
+    plt.ylim(ylim) if ylim is not None else None
+    plt.tight_layout()
+
+    if save:
+        plt.savefig(f"{save_by}.pdf", format='pdf')
     else:
-        samples_options, w2_p1__q1_store_options, q_store_options = [samples], [w2_p1__q1_store], [q_store]
-
-
-    for tag in ['p1_samples', 'q1_samples']:
-        fig, ax = plt.subplots(figsize=figsize)
-
-        if patch_creator is not None:
-            for patch in patch_creator():
-                plt.gca().add_patch(patch)
-        if text_creator is not None:
-            for text in text_creator():
-                plt.text(**text)
-
-        for samples, w2_p1__q1_store, q_store in zip(samples_options, w2_p1__q1_store_options, q_store_options):
-            time_steps = list(q_store.keys())[::step_size][:-1]
-            cmap = plt.cm.coolwarm
-            colors = [cmap(i / (len(time_steps) - 1)) for i in range(len(time_steps))]
-
-            for k in time_steps:
-                q = q_store[k+1]['q_compr']
-                # if isinstance(q, ds.MixtureMultivariateNormal):
-                #     for i in range(q.num_components):
-                #         ambiguity_set = Circle(q.component_distribution.mean[i], w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'], color=colors[k+1], fill=False, lw=2, alpha=0.5)
-                #         ax.add_patch(ambiguity_set)
-                # else:
-                ax.scatter(samples[k][tag][:, 0], samples[k][tag][:, 1], color=colors[k + 1], s=16, alpha=0.5)
-
-                ambiguity_set = Circle(q.mean, w2_p1__q1_store[k]['w2_p1__q1_lagrangian_duality'], color=colors[k+1], fill=False, lw=2, alpha=1.0)
-                ax.add_patch(ambiguity_set)
-
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-        ax.set_xlabel(r'$x_1$')
-        ax.set_ylabel(r'$x_2$')
-        plt.xlim(xlim) if xlim is not None else None
-        plt.ylim(ylim) if ylim is not None else None
-        plt.tight_layout()
-
-        if save_by is not None:
-            plt.savefig(f"{os.getcwd()}{os.sep}results{os.sep}{save_by}_path_{'true' if tag == 'p1_samples' else 'appr'}.pdf", format='pdf')
-        else:
-            plt.show()
+        plt.show()
 
 
 @torch.no_grad()
 def plot_2d_dynamics(
         f, patch_creator = None, text_creator = None,
-        xlim: list = None, ylim: list = None, scale: float = 1.0, figsize: tuple = None, save_by: str = None
+        xlim: Optional[List] = None, ylim: Optional[List] = None, scale: Optional[float] = 1.0, figsize: Optional[Tuple] = None, 
+        save_by: str = 'dynamics', save: bool = False
 ):
 
     xlim = [-1, 1] if xlim is None else xlim
@@ -265,8 +259,8 @@ def plot_2d_dynamics(
     plt.ylabel(r'$x_2$')
 
     plt.tight_layout()
-    if save_by is not None:
-        plt.savefig(f"{os.getcwd()}{os.sep}results{os.sep}{save_by}_dynamics.pdf", format='pdf')
+    if save:
+        plt.savefig(f"{save_by}.pdf", format='pdf')
     else:
         plt.show()
 

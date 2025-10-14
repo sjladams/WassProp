@@ -2,15 +2,15 @@ import torch
 from experiments import multi_step
 from utils_distributions import get_noise_dist, get_initial_dist
 from dynamics import get_dynamics
-import plot
-from utils import parse_arguments
+import experiments.plot as plot
+from experiments.utils import parse_arguments
 
 def multistep_approximation(dynamics_type, dyn_setting, num_locs):
     args = parse_arguments(
         dynamics_type=dynamics_type,
         dynamics_setting=dyn_setting,
         num_locs=num_locs,
-        num_locs_after_compr=num_locs,
+        # num_locs_after_compr=num_locs,
         num_samples=5000
     )
 

@@ -1,6 +1,6 @@
 from experiments import single_step_w2_options
 from dynamics import get_dynamics
-from utils import parse_arguments
+from experiments.utils import parse_arguments
 import torch
 import pprint
 
@@ -20,7 +20,7 @@ def propagate_wasserstein_ball(dynamics_type, dyn_setting, num_locs, w_p__q):
     initial_dist = get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
     noise_dist = get_noise_dist(args.loc_noise_dist, args.variance_noise_dist)
 
-    w2_q__sign_q_store, w2_p1__q1_store = single_step_w2_options(
+    w2_q__disc_q_store, w2_p1__q1_store = single_step_w2_options(
         dynamics=dynamics,
         noise_dist=noise_dist,
         q=initial_dist,

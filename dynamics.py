@@ -59,7 +59,7 @@ class Separable:
     pass
 
 
-class AdditiveGaussianDynamics(StochasticDynamics):
+class AdditiveGaussianDynamics(StochasticDynamics): # TODO Why Gaussian? This works for any additive noise
     """
     Special case of StochasticDynamics:
     x_{k+1} = state_dynamics(x_k) + noise_dynamics(noise_k)
@@ -591,12 +591,12 @@ class FourModesOpenLoopDynamics(Dynamics):
     def global_lipschitz(self):
         return 1.4
 
-class NeuralPendulumDynamics(Dynamics, CompositionalStructure):
 
-    def __init__(self, activation: str='sigmoid', **kwargs):
+class NeuralPendulumDynamics(Dynamics, CompositionalStructure):
+    def __init__(self, data_folder: str, activation: str, **kwargs):
         self.num_dims = 2
 
-        state_dict = torch.load(f'{os.getcwd()}{os.sep}data{os.sep}{activation}_model_weights_pendulum.pth',weights_only=True)
+        state_dict = torch.load(f'{data_folder}{activation}_model_weights_pendulum.pth', weights_only=True)
 
         weight_fc1 = state_dict["fc1.weight"]
         bias_fc1 = state_dict["fc1.bias"]
@@ -609,6 +609,8 @@ class NeuralPendulumDynamics(Dynamics, CompositionalStructure):
             ActivationDynamics = SigmoidDynamics
         elif activation == 'tanh':
             ActivationDynamics = TanhDynamics
+        else:
+            raise NotImplementedError(f"Activation {activation} not implemented.")
 
         super().__init__(
             LinearDynamics(weight_fc1, bias_fc1),

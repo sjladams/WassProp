@@ -6,13 +6,11 @@ import discretize_distributions.distributions as dd_dists
 
 from bound import global_ibp_sq_norm_fx_fc, global_lbp_sq_norm_fx_fc
 
-from tensors import check_mat_diag
-
 
 def get_fn_sq_w2_f_q__f_disc_q(
     q: dd_dists.MultivariateNormal,
     disc_q: dd_dists.CategoricalFloat,
-    f: dynamics.Dynamics
+    f: dynamics.StochasticDynamics
 ) -> Callable:
     if not isinstance(q, dd_dists.MultivariateNormal):
         raise NotImplementedError("Only implemented for q being of the class MultivariateNormal")
@@ -36,7 +34,7 @@ def get_fn_sq_w2_f_q__f_disc_q(
 # ----- W_2(f#p, f#disc#q) for Lagrangian Duality approach -----
 def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
     disc_q: dd_dists.CategoricalFloat,
-    f: dynamics.Dynamics,
+    f: dynamics.StochasticDynamics,
     w2_p__disc_q: Union[float, torch.Tensor]
 ) -> Callable:
 
@@ -60,7 +58,7 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
 
 def compute_w2_f_p__f_disc_q_lagrangian_duality(
     disc_q: dd_dists.CategoricalFloat,
-    f: dynamics.Dynamics,
+    f: dynamics.StochasticDynamics,
     w2_p__disc_q: Union[float, torch.Tensor]
 ) -> torch.Tensor:
         
@@ -72,3 +70,15 @@ def compute_w2_f_p__f_disc_q_lagrangian_duality(
 
     return w2
 
+
+
+PRECISION = torch.finfo(torch.float32).eps
+
+def check_mat_diag(mat: torch.Tensor) -> bool:
+    """
+    Check if all elements of a batch of square matrices are diagonal
+    """
+    if mat.shape[-1] != mat.shape[-2]:
+        return False
+    else:
+        return ((mat - torch.diag_embed(mat.diagonal(dim1=-1, dim2=-2), dim1=-1, dim2=-2)).abs() < PRECISION).all()

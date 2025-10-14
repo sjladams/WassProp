@@ -2,9 +2,9 @@ import torch
 import wasserstein
 from utils_distributions import get_initial_dist
 from dynamics import get_dynamics
-import plot
-from utils import parse_arguments
-import discretize_distributions as ds
+import experiments.plot as plot
+from experiments.utils import parse_arguments
+import discretize_distributions as dd
 
 
 def quantization_example(dynamics_type, dyn_setting, nums_locs):
@@ -23,11 +23,15 @@ def quantization_example(dynamics_type, dyn_setting, nums_locs):
         dynamics = get_dynamics(**vars(args))
         distribution =  get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
 
-        signature = ds.discretization_generator(distribution, num_locs)
-        w2 = signature.w2
+        scheme = dd.generate_scheme(
+            dist=distribution,
+            scheme_size=num_locs,
+            per_mode=False
+        )
+        signature, w2 = dd.discretize(distribution, scheme)
         signatures.append(signature)
 
-        fn_sq_w2_f_q__f_disc_q = wasserstein.get_fn_sq_w2_f_q__f_disc_q(signature, dynamics.state_dynamics)
+        fn_sq_w2_f_q__f_disc_q = wasserstein.get_fn_sq_w2_f_q__f_disc_q(distribution, signature, dynamics.state_dynamics)
         bound = fn_sq_w2_f_q__f_disc_q().sqrt()
         bounds.append(bound)
 
