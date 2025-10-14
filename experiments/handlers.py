@@ -23,10 +23,7 @@ def parse_arguments(
         dynamics_setting: int = 0,
         num_locs: int = 10,
         num_samples: int = 1000,
-        lr: float = 0.01,
-        num_iterations: int = 1000,
-        plot: bool = False,
-        size_after_compr: Optional[int] = None,
+        save: bool = False,
 ):
     parser = argparse.ArgumentParser(description='Setup experiments for dynamics.')
     parser.add_argument('--dynamics_type',
@@ -42,26 +39,15 @@ def parse_arguments(
                         type=int,
                         default=num_locs,
                         help='Size of discretization grid.')
-    parser.add_argument('--size_after_compr',
-                        type=int,
-                        default=num_locs if size_after_compr is None else size_after_compr,
-                        help='Size of discretization grid after compression operation')
     parser.add_argument('--num_samples',
                         type=int,
                         default=num_samples,
                         help='Number of samples for empirical distribution estimate.')
-    parser.add_argument('--plot',
+    parser.add_argument('--save',
                         type=bool,
-                        default=plot,
-                        help='Plot the dynamics and distributions.')
-    parser.add_argument('--lr',
-                        type=float,
-                        default=lr,
-                        help='Learning rate gradient descent.')
-    parser.add_argument('--num_iterations',
-                        type=int,
-                        default=num_iterations,
-                        help='Number of iterations.')
+                        default=save,
+                        help='Whether to save the plots or show them.')
+    
 
     args = parser.parse_args()
 
@@ -72,6 +58,8 @@ def parse_arguments(
     )
 
     args.__dict__.update(vars(dynamics_params))
+    args.results_folder = f"{os.path.dirname(os.path.abspath(__file__))}{os.sep}results{os.sep}"
+    args.data_folder = f"{os.path.dirname(os.path.abspath(__file__))}{os.sep}data{os.sep}"
     return args
 
 
