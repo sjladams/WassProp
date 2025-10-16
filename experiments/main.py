@@ -1,18 +1,35 @@
 import torch
+import matplotlib.pyplot as plt
 
 from duq_via_wasserstein import multi_step, single_step, AmbiguitySet
 
 from dynamics import get_stoch_dynamics
 from handlers import parse_arguments
-import plot
 import utils
+
+
+def plot(store):
+    methods = list(store.keys())
+    w2_p__q_options = list(store[methods[0]].keys())
+
+    plt.figure(figsize=(16, 16))
+    for key in methods:
+        plt.plot(w2_p__q_options, [store[key][w2_p__q] for w2_p__q in w2_p__q_options], label=key)
+
+    plt.legend()
+    plt.title(f"{dynamics.state_dynamics.__class__.__name__ if hasattr(dynamics, 'state_dynamics') else dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f})")
+    plt.xlabel('$W_2(p,q)$')
+    plt.xticks(w2_p__q_options)
+    plt.ylabel(r'$W_2(f p, f \Delta q)$')
+    plt.xlim(min(w2_p__q_options), max(w2_p__q_options))
+    plt.show()
 
 
 if __name__ == '__main__':
     torch.manual_seed(0)
 
     run_single_step = True
-    run_multi_step = True
+    run_multi_step = False
 
     args = parse_arguments(
         dynamics_type = "SigmoidDynamics",
@@ -40,7 +57,7 @@ if __name__ == '__main__':
                     use_lagrangian_duality=method == 'lagrangian_duality'
                 ).w2
 
-        plot.plot_single_step(dynamics, store)
+        plot(store)
 
     if run_multi_step:
         trace = multi_step(

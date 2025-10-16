@@ -81,23 +81,6 @@ def plot_signatures(f, initial_dist, signatures, bounds):  # TODO to be updated
     #plt.savefig(rf'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\sigmoid_signature_example.pdf', format='pdf')
     plt.show()
 
-@torch.no_grad()
-def plot_single_step(dynamics, w2_p1__q1_store: dict): # TODO to be updated
-    methods = list(w2_p1__q1_store.keys())
-    w2_p__q_options = list(w2_p1__q1_store[methods[0]].keys())
-
-    fig = plt.figure(figsize=(16, 16))
-    for key in methods:
-        plt.plot(w2_p__q_options, [w2_p1__q1_store[key][w2_p__q] for w2_p__q in w2_p__q_options], label=key)
-
-    plt.legend()
-    plt.title(f"{dynamics.state_dynamics.__class__.__name__ if hasattr(dynamics, 'state_dynamics') else dynamics.__class__.__name__} (Lipschitz={dynamics.global_lipschitz:.2f})")
-    plt.xlabel('$W_2(p,q)$')
-    plt.xticks(w2_p__q_options)
-    plt.ylabel(r'$W_2(f p, f \Delta q)$')
-    plt.xlim(min(w2_p__q_options), max(w2_p__q_options))
-    plt.show()
-
 
 @torch.no_grad()
 def plot_multi_step(dynamics, true_samples: SampledPath, approx_samples: SampledPath, layout: str = "hist"):
