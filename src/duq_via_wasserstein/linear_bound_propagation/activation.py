@@ -3,7 +3,7 @@ import bound_propagation as bp
 from functools import wraps
 from .utils import NotLinearizable
 
-__all__ = ['BoundSigmoid', 'BoundIdentity', 'BoxedIdentity', 'BoundBoxedIdentity', 'BoundTanh']
+__all__ = ['BoundSigmoid', 'BoundIdentity', 'BoxedIndicator', 'BoundBoxedIndicator', 'BoundTanh']
 
 def assert_bound_order(func, position=0, keyword='preactivation'):
     @wraps(func)
@@ -177,7 +177,7 @@ class BoundIdentity(bp.activation.BoundIdentity):
         return bounds, intersection
 
 
-class BoxedIdentity(torch.nn.Module):  # TODO rename Indicator
+class BoxedIndicator(torch.nn.Module):
     def __init__(self, min, max):
         super().__init__()
 
@@ -192,7 +192,7 @@ class BoxedIdentity(torch.nn.Module):  # TODO rename Indicator
         return x * mask
 
 
-class BoundBoxedIdentity(bp.BoundActivation):
+class BoundBoxedIndicator(bp.BoundActivation):
     def __init__(self, module, factory, **kwargs):
         super().__init__(module, factory, **kwargs)
 

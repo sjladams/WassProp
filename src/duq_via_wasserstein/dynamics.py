@@ -166,7 +166,7 @@ class IndicatorDynamics(Dynamics):
 
         super().__init__(
             num_dims=dynamics.num_dims,
-            modules=[lbp.BoxedIdentity(min=torch.as_tensor(lower), max=torch.as_tensor(upper)), dynamics]
+            modules=[lbp.BoxedIndicator(min=torch.as_tensor(lower), max=torch.as_tensor(upper)), dynamics]
         )
 
     @property
