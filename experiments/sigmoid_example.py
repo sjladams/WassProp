@@ -3,9 +3,9 @@ import discretize_distributions as dd
 
 import duq_via_wasserstein.wasserstein as wasserstein
 
-from dynamics import get_dynamics
-import plot
+from dynamics import get_stoch_dynamics
 from handlers import parse_arguments
+import plot
 import utils
 
 
@@ -19,8 +19,8 @@ def quantization_example(dynamics_type, setting, nums_locs):
     for num_locs in nums_locs:
         args.num_locs = num_locs
         
-        dynamics = get_dynamics(**vars(args))
-        initial_dist =  utils.get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
+        dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
+        initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
 
         scheme = dd.generate_scheme(dist=initial_dist, scheme_size=num_locs)
         signature, w2 = dd.discretize(initial_dist, scheme)

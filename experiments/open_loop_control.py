@@ -2,7 +2,6 @@ import torch
 import bound_propagation as bp
 
 from duq_via_wasserstein import single_step, Path, AmbiguitySet
-import duq_via_wasserstein.linear_bound_propagation as lbp
 import duq_via_wasserstein.dynamics as dyn
 
 from handlers import parse_arguments
@@ -10,16 +9,12 @@ import utils
 
 
 class FourModesOpenLoopDynamics(dyn.Dynamics):
-
-    def __init__(self, control: int = 1, **kwargs):
-
-        self.num_dims = 2
-
-        linear_part = dyn.IdentityDynamics(num_dims=2)
+    def __init__(self, control: int = 1):
+        linear_part = dyn.LinearDynamics(weight=torch.eye(2))
 
         if control == 1:
             trig_part = torch.nn.Sequential(
-                lbp.Linear(
+                dyn.Linear(
                     torch.tensor([
                         [0.0, 1.0],
                         [1.0, 0.0]
@@ -27,7 +22,7 @@ class FourModesOpenLoopDynamics(dyn.Dynamics):
                     torch.tensor([0.0, torch.pi / 2])
                     ),
                 bp.Sin(),
-                lbp.Linear(
+                dyn.Linear(
                     torch.tensor([
                         [0.2, 0.0],
                         [0.0, 0.4]
@@ -37,7 +32,7 @@ class FourModesOpenLoopDynamics(dyn.Dynamics):
             )
         elif control == 2:
             trig_part = torch.nn.Sequential(
-                lbp.Linear(
+                dyn.Linear(
                     torch.tensor([
                         [0.0, 1.0],
                         [1.0, 0.0]
@@ -45,7 +40,7 @@ class FourModesOpenLoopDynamics(dyn.Dynamics):
                     torch.tensor([0.0, torch.pi / 2])
                     ),
                 bp.Sin(),
-                lbp.Linear(
+                dyn.Linear(
                     torch.tensor([
                         [0.2, 0.0],
                         [0.0, 0.4]
@@ -55,7 +50,7 @@ class FourModesOpenLoopDynamics(dyn.Dynamics):
             )
         elif control==3:
             trig_part = torch.nn.Sequential(
-                lbp.Linear(
+                dyn.Linear(
                     torch.tensor([
                         [0.0, 1.0],
                         [1.0, 0.0]
@@ -63,7 +58,7 @@ class FourModesOpenLoopDynamics(dyn.Dynamics):
                     torch.tensor([torch.pi / 2, 0.0])
                     ),
                 bp.Sin(),
-                lbp.Linear(
+                dyn.Linear(
                     torch.tensor([
                         [0.4, 0.0],
                         [0.0, 0.2]
@@ -73,7 +68,7 @@ class FourModesOpenLoopDynamics(dyn.Dynamics):
             )
         elif control==4:
             trig_part = torch.nn.Sequential(
-                lbp.Linear(
+                dyn.Linear(
                     torch.tensor([
                         [0.0, 1.0],
                         [1.0, 0.0]
@@ -81,7 +76,7 @@ class FourModesOpenLoopDynamics(dyn.Dynamics):
                     torch.tensor([torch.pi / 2, 0.0])
                     ),
                 bp.Sin(),
-                lbp.Linear(
+                dyn.Linear(
                     torch.tensor([
                         [0.4, 0.0],
                         [0.0, 0.2]
@@ -93,8 +88,8 @@ class FourModesOpenLoopDynamics(dyn.Dynamics):
             raise Exception
 
         super().__init__(
-            bp.Parallel(linear_part, trig_part),
-            bp.VectorAdd(),
+            num_dims=2, 
+            modules=[bp.Parallel(linear_part, trig_part), bp.VectorAdd()],
         )
 
     @property
@@ -113,9 +108,9 @@ if __name__ == '__main__':
         save = False
     )
 
-    initial_dist = utils.get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
-    noise_dist = utils.get_noise_dist(args.loc_noise_dist, args.variance_noise_dist)
-
+    initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
+    noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
+    
     # Define open loop control strategy
     open_loop_control = [1, 4, 2, 4, 4, 1, 3, 3, 3, 2]
 
@@ -127,7 +122,7 @@ if __name__ == '__main__':
     path_glob.append(-1, AmbiguitySet(initial_dist, 0.1))
 
     for k, control in enumerate(open_loop_control):
-        dynamics = dyn.AdditiveGaussianDynamics(FourModesOpenLoopDynamics(control=control, **vars(args))) # Build dynamics according to control mode
+        dynamics = dyn.AdditiveNoiseDynamics(FourModesOpenLoopDynamics(control=control))
 
         print(f'---- TIME STEP {k} ----')
         path_lagr.append(k, single_step(

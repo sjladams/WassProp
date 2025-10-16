@@ -2,16 +2,16 @@ import torch
 
 from duq_via_wasserstein import multi_step, single_step, AmbiguitySet
 
-from dynamics import get_dynamics
+from dynamics import get_stoch_dynamics
 from handlers import parse_arguments
 import plot
-from utils import get_initial_dist, get_noise_dist
+import utils
 
 
 if __name__ == '__main__':
     torch.manual_seed(0)
 
-    run_single_step = False
+    run_single_step = True
     run_multi_step = True
 
     args = parse_arguments(
@@ -22,9 +22,9 @@ if __name__ == '__main__':
         save=False
     )
 
-    dynamics = get_dynamics(**vars(args))
-    initial_dist = get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
-    noise_dist = get_noise_dist(args.loc_noise_dist, args.variance_noise_dist)
+    dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
+    initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
+    noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
 
     if run_single_step:
         store = dict()

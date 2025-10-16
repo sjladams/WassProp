@@ -1,246 +1,351 @@
 {
     "SigmoidDynamics": {
-        "options": {
-            "0": {
-                "loc_noise_dist": [0.0],
-                "variance_noise_dist": [0.5],
-                "loc_initial_dist": [0.2],
-                "variance_initial_dist": [0.5]
+        "0": {
+            "noise_dist": {
+                "loc": [0.0],
+                "variance": [0.5]
+            }, 
+            "initial_dist":
+            {
+                "loc": [0.2],
+                "variance": [0.5]
+            }
+        },
+        "1": {
+            "noise_dist": {
+                "loc": [0.0],
+                "variance": [0.5]
             },
-            "1": {
-                "loc_noise_dist": [0.0],
-                "variance_noise_dist": [0.5],
-                "loc_initial_dist": [5.0],
-                "variance_initial_dist": [2.0]
+            "initial_dist": {
+                "loc": [5.0],
+                "variance": [2.0]
             }
         }
     },
     "LinearDynamics": {
-        "options": {
-            "0": {
+        "0": {
+            "dynamics": {
                 "weight": [[0.721, 0.0, 0.041, 0.0],
-                           [0.0, 0.718, 0.0, 0.033],
-                           [0.0, 0.0, 0.724, 0.0],
-                           [0.0, 0.0, 0.0, 0.737]
-                          ],
-                "loc_noise_dist": [0.0, 0.0, 0.0, 0.0],
-                "variance_noise_dist": [0.001, 0.001, 0.0002, 0.0001],
-                "loc_initial_dist": [1.5, 2.5, -0.5, -1.0],
-                "variance_initial_dist": [0.001, 0.02, 0.04, 0.01]
+                        [0.0, 0.718, 0.0, 0.033],
+                        [0.0, 0.0, 0.724, 0.0],
+                        [0.0, 0.0, 0.0, 0.737]
+                        ]
             },
-            "1": {
+            "noise_dist": {
+                "loc": [0.0, 0.0, 0.0, 0.0],
+                "variance": [0.001, 0.001, 0.0002, 0.0001]
+            },
+            "initial_dist": {
+                "loc": [1.5, 2.5, -0.5, -1.0],
+                "variance": [0.001, 0.02, 0.04, 0.01]
+            }
+        },
+        "1": {
+            "dynamics": {
                 "weight": [[0.721, 0.0, 0.041, 0.0],
-                           [0.0, 0.718, 0.0, 0.033],
-                           [0.0, 0.0, 0.724, 0.0],
-                           [0.0, 0.0, 0.0, 0.737]
-                          ],
-                "loc_noise_dist": [[-0.01, -0.01, -0.01, -0.01], [0.01, 0.01, 0.01, 0.01]],
-                "variance_noise_dist": [[0.01, 0.01, 0.0002, 0.001], [0.01, 0.01, 0.0002, 0.001]],
-                "loc_initial_dist": [1.5, 2.5, -0.5, -1.0],
-                "variance_initial_dist": [0.001, 0.02, 0.4, 0.01]
+                        [0.0, 0.718, 0.0, 0.033],
+                        [0.0, 0.0, 0.724, 0.0],
+                        [0.0, 0.0, 0.0, 0.737]
+                        ]
+            },
+            "noise_dist": {
+                "loc": [[-0.01, -0.01, -0.01, -0.01], [0.01, 0.01, 0.01, 0.01]],
+                "variance": [[0.01, 0.01, 0.0002, 0.001], [0.01, 0.01, 0.0002, 0.001]]
+            },
+            "initial_dist": {
+                "loc": [1.5, 2.5, -0.5, -1.0],
+                "variance": [0.001, 0.02, 0.4, 0.01]
             }
         }
     },
     "BoundedLinearDynamics": {
-        "options": {
-            "0": {
+        "0": {
+            "dynamics": {
                 "weight": [[0.0, 0.4],
-                           [0.3, 0.8]],
-                "lower_bound": -2.0,
-                "upper_bound": 2.0,
-                "loc_noise_dist": [0.0, 0.0],
-                "variance_noise_dist": [0.3, 0.3],
-                "loc_initial_dist": [1.5, 2.5],
-                "variance_initial_dist": [0.4, 0.5]
+                        [0.3, 0.8]],
+                "lower": -2.0,
+                "upper": 2.0
+            },
+            "noise_dist": {
+                "loc": [0.0, 0.0],
+                "variance": [0.3, 0.3]
+            },
+            "initial_dist": {
+                "loc": [1.5, 2.5],
+                "variance": [0.4, 0.5]
             }
         }
     },
-    "DiagonalLinearSigmoidDynamics": {
-        "options": {
-            "0": {
-                "diagonal": [3.0, 0.8, 0.005, 0.03],
-                "loc_noise_dist": [0.0, 0.0, 0.0, 0.0],
-                "variance_noise_dist": [0.3, 0.3, 0.3, 0.3],
-                "loc_initial_dist": [0.5, 1.0, 0.5, -0.7],
-                "variance_initial_dist": [0.0001, 0.5, 0.7, 0.2]
+    "DiagonalSigmoidDynamics": {
+        "0": {
+            "dynamics": {
+                "diagonal": [3.0, 0.8, 0.005, 0.03]
             },
-            "1": {
-                "diagonal": [1.2, -1.2],
-                "loc_noise_dist": [0.0, 0.0],
-                "variance_noise_dist": [0.3, 0.3],
-                "loc_initial_dist": [4.0, 4.0],
-                "variance_initial_dist": [0.0001, 0.5]
+            "noise_dist": {
+                "loc": [0.0, 0.0, 0.0, 0.0],
+                "variance": [0.3, 0.3, 0.3, 0.3]
             },
-            "2": {
-                "diagonal": [3.0, 0.001, 0.005, 0.007, 0.03, 0.001, 0.001, 0.001, 0.001, 0.001],
-                "loc_noise_dist": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                "variance_noise_dist": [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3],
-                "loc_initial_dist": [0.0, 1.0, 0.5, -0.7, 0.3, 2.0, -3.0, 0.4, -0.1, 4.0],
-                "variance_initial_dist": [0.0001, 0.5, 0.7, 0.2, 1.5, 2.5, 0.1, 0.5, 0.8, 0.2]
+            "initial_dist": {
+                "loc": [0.5, 1.0, 0.5, -0.7],
+                "variance": [0.0001, 0.5, 0.7, 0.2]
+            }
+        },
+        "1": {
+            "dynamics": {
+                "diagonal": [1.2, -1.2]
+            },
+            "noise_dist": {
+                "loc": [0.0, 0.0],
+                "variance": [0.3, 0.3]
+            },
+            "initial_dist": {
+                "loc": [4.0, 4.0],
+                "variance": [0.0001, 0.5]
+            }
+        },
+        "2": {
+            "dynamics": {
+                "diagonal": [3.0, 0.001, 0.005, 0.007, 0.03, 0.001, 0.001, 0.001, 0.001, 0.001]
+            },
+            "noise_dist": {
+                "loc": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                "variance": [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3]
+            }, 
+            "initial_dist": {
+                "loc": [0.0, 1.0, 0.5, -0.7, 0.3, 2.0, -3.0, 0.4, -0.1, 4.0],
+                "variance": [0.0001, 0.5, 0.7, 0.2, 1.5, 2.5, 0.1, 0.5, 0.8, 0.2]
             }
         }
     },
     "LinearSigmoidDynamics": {
-        "options": {
-            "0": {
+        "0": {
+            "dynamics": {
                 "weight": [[3.0, 0.0, 0.0, 0.0],
-                           [0.0, 0.8, 0.0, 0.0],
-                           [0.0, 0.0, 0.005, 0.0],
-                           [0.0, 0.0 , 0.0, 0.03]],
-                "loc_noise_dist": [0.0, 0.0, 0.0, 0.0],
-                "variance_noise_dist": [0.3, 0.3, 0.3, 0.3],
-                "loc_initial_dist": [0.5, 1.0, 0.5, -0.7],
-                "variance_initial_dist": [0.0001, 0.5, 0.7, 0.2]
+                        [0.0, 0.8, 0.0, 0.0],
+                        [0.0, 0.0, 0.005, 0.0],
+                        [0.0, 0.0 , 0.0, 0.03]]
             },
-            "1": {
-                "diagonal": [1.2, 1.2],
-                "loc_noise_dist": [0.0, 0.0],
-                "variance_noise_dist": [0.3, 0.3],
-                "loc_initial_dist": [4.0, 4.0],
-                "variance_initial_dist": [0.0001, 0.5]
+            "noise_dist": {
+                "loc": [0.0, 0.0, 0.0, 0.0],
+                "variance": [0.3, 0.3, 0.3, 0.3]
+            },
+            "initial_dist": {
+                "loc": [0.5, 1.0, 0.5, -0.7],
+                "variance": [0.0001, 0.5, 0.7, 0.2]
+            }
+        },
+        "1": {
+            "dynamics": {
+                "diagonal": [1.2, 1.2]
+            },
+            "noise_dist": {
+                "loc": [0.0, 0.0],
+                "variance": [0.3, 0.3]
+            },
+            "initial_dist": {
+                "loc": [4.0, 4.0],
+                "variance": [0.0001, 0.5]
             }
         }
     },
     "MountainCarDynamics": {
-        "options": {
-            "0": {
-                "lower_bound": -2.0,
-                "upper_bound": 2.0,
-                "loc_noise_dist": [0.0, 0.0],
-                "variance_noise_dist": [0.01, 0.01],
-                "loc_initial_dist": [0.3, 0.2],
-                "variance_initial_dist": [0.1, 0.001]
+        "0": {
+            "dynamics": {
+                "lower": -2.0,
+                "upper": 2.0
+            },
+            "noise_dist": {
+                "loc": [0.0, 0.0],
+                "variance": [0.01, 0.01]
+            },
+            "initial_dist": {
+                "loc": [0.3, 0.2],
+                "variance": [0.1, 0.001]
             }
         }
     },
     "DubinsCarDynamics": {
-        "options": {
-            "0": {
-                "loc_noise_dist": [0.0, 0.0, 0.0],
-                "variance_noise_dist": [0.01, 0.01, 0.01],
-                "loc_initial_dist": [0.3, 0.2, 0.01],
-                "variance_initial_dist": [0.1, 0.001, 0.01]
+        "0": {
+            "noise_dist": {
+                "loc": [0.0, 0.0, 0.0],
+                "variance": [0.01, 0.01, 0.01]
+            },
+            "initial_dist": {
+                "loc": [0.3, 0.2, 0.01],
+                "variance": [0.1, 0.001, 0.01]
             }
         }
     },
     "LinearSigmoidStochasticDynamics": {
-        "options": {
-            "0": {
-                "diagonal": [3.0, 1.5, 1.2, 0.5, 1.0, 0.9],
-                "loc_noise_dist": [0.0, 0.0, 0.0],
-                "variance_noise_dist": [0.1, 0.1, 0.01],
-                "loc_initial_dist": [1.5, -1.2, 2.4],
-                "variance_initial_dist": [0.01, 0.5, 0.2]
+        "0": {
+            "dynamics": {
+                "diagonal": [3.0, 1.5, 1.2, 0.5, 1.0, 0.9]
+            }, 
+            "noise_dist": {
+                "loc": [0.0, 0.0, 0.0],
+                "variance": [0.1, 0.1, 0.01]
+            }, 
+            "initial_dist": {
+                "loc": [1.5, -1.2, 2.4],
+                "variance": [0.01, 0.5, 0.2]
             }
         }
     },
     "DiagonalLinearBoundedDynamics": {
-        "options": {
-            "1": {
+        "1": {
+            "dynamics": {
                 "diagonal": [3.0],
-                "lower_bound": -1.0,
-                "upper_bound": 1.0,
-                "loc_noise_dist": [0.0],
-                "variance_noise_dist": [1.0],
-                "loc_initial_dist": [0.0],
-                "variance_initial_dist": [1.0]
-            },
-            "2": {
+                "lower": -1.0,
+                "upper": 1.0
+            }, 
+            "noise_dist": {
+                "loc": [0.0],
+                "variance": [1.0]
+            }, 
+            "initial_dist": {
+                "loc": [0.0],
+                "variance": [1.0]
+            }
+        },
+        "2": {
+            "dynamics": {
                 "diagonal": [3.0, 0.001],
-                "lower_bound": -2.0,
-                "upper_bound": 2.0,
-                "loc_noise_dist": [0.0, 0.0],
-                "variance_noise_dist": [0.3, 0.3],
-                "loc_initial_dist": [3.0, 1.0],
-                "variance_initial_dist": [0.02, 0.5]
+                "lower": -2.0,
+                "upper": 2.0
             },
-            "3": {
+            "noise_dist": {
+                "loc": [0.0, 0.0],
+                "variance": [0.3, 0.3]
+            }, 
+            "initial_dist": {
+                "loc": [3.0, 1.0],
+                "variance": [0.02, 0.5]
+            }
+        },
+        "3": {
+            "dynamics": {
                 "diagonal": [3.0, 0.001, 1.1],
-                "lower_bound": -2.0,
-                "upper_bound": 2.0,
-                "loc_noise_dist": [0.0, 0.0, 0.0],
-                "variance_noise_dist": [0.3, 0.3, 0.3],
-                "loc_initial_dist": [3.0, 1.0, -0.9],
-                "variance_initial_dist": [0.02, 0.5, 0.001]
+                "lower": -2.0,
+                "upper": 2.0
             },
-            "4": {
+            "noise_dist": {
+                "loc": [0.0, 0.0, 0.0],
+                "variance": [0.3, 0.3, 0.3]
+            }, 
+            "initial_dist": {
+                "loc": [3.0, 1.0, -0.9],
+                "variance": [0.02, 0.5, 0.001]
+            }
+        },
+        "4": {
+            "dynamics": {
                 "diagonal": [3.0, 0.001, 1.1, 2.2],
-                "lower_bound": -2.0,
-                "upper_bound": 2.0,
-                "loc_noise_dist": [0.0, 0.0, 0.0, 0.0],
-                "variance_noise_dist": [0.3, 0.3, 0.3, 0.3],
-                "loc_initial_dist": [3.0, 1.0, -0.9, 0.4],
-                "variance_initial_dist": [0.02, 0.5, 0.001, 0.2]
+                "lower": -2.0,
+                "upper": 2.0
+            },
+            "noise_dist": {
+                "loc": [0.0, 0.0, 0.0, 0.0],
+                "variance": [0.3, 0.3, 0.3, 0.3]
+            }, 
+            "initial_dist": {
+                "loc": [3.0, 1.0, -0.9, 0.4],
+                "variance": [0.02, 0.5, 0.001, 0.2]
             }
         }
     },
     "FourModesOpenLoopDynamics": {
-        "options": {
-            "0": {
-                "loc_noise_dist": [0.0, 0.0],
-                "variance_noise_dist": [0.01, 0.01],
-                "loc_initial_dist": [0.3, 0.2],
-                "variance_initial_dist": [0.1, 0.001]
+        "0": {
+            "noise_dist": {
+                "loc": [0.0, 0.0],
+                "variance": [0.01, 0.01]
+            }, 
+            "initial_dist": {
+                "loc": [0.3, 0.2],
+                "variance": [0.1, 0.001]
             }
         }
     },
     "SwitchedLinearDynamics": {
-        "options": {
-            "0": {
-                "loc_noise_dist": [0.0, 0.0],
-                "variance_noise_dist": [0.0009, 0.0009],
-                "loc_initial_dist": [-1.8, 1.9],
-                "variance_initial_dist": [0.0005, 0.0005]
-            },
-            "1": {
-                "loc_noise_dist": [0.0, 0.0],
-                "variance_noise_dist": [0.0009, 0.0009],
-                "loc_initial_dist": [-1.6, 1.5],
-                "variance_initial_dist": [0.0005, 0.0005]
-            },
-            "2": {
-                "loc_noise_dist": [0.0, 0.0],
-                "variance_noise_dist": [0.0009, 0.0009],
-                "loc_initial_dist": [1.6, -1.9],
-                "variance_initial_dist": [0.0005, 0.0005]
+        "0": {
+            "noise_dist": {
+                "loc": [0.0, 0.0],
+                "variance": [0.0009, 0.0009]
+            }, 
+            "initial_dist": {
+                "loc": [-1.8, 1.9],
+                "variance": [0.0005, 0.0005]
+            }
+        },
+        "1": {
+            "noise_dist": {
+                "loc": [0.0, 0.0],
+                "variance": [0.0009, 0.0009]
+            }, 
+            "initial_dist": {
+                "loc": [-1.6, 1.5],
+                "variance": [0.0005, 0.0005]
+            }
+        },
+        "2": {
+            "noise_dist": {
+                "loc": [0.0, 0.0],
+                "variance": [0.0009, 0.0009]
+            }, 
+            "initial_dist": {
+                "loc": [1.6, -1.9],
+                "variance": [0.0005, 0.0005]
             }
         }
     },
     "Spiral2dDynamics": {
-        "options": {
-            "0": {
-                "loc_noise_dist": [0.0, 0.0],
-                "variance_noise_dist": [0.0005, 0.00005],
-                "loc_initial_dist": [0.75, 0.75],
-                "variance_initial_dist": [0.0005, 0.0005]
+        "0": {
+            "noise_dist": {
+                "loc": [0.0, 0.0],
+                "variance": [0.0005, 0.00005]
+            }, 
+            "initial_dist": {
+                "loc": [0.75, 0.75],
+                "variance": [0.0005, 0.0005]
             }
         }
     },
     "DoubleSpiral2dDynamics": {
-        "options": {
-            "0": {
-                "loc_noise_dist": [0.0, 0.0],
-                "variance_noise_dist": [0.0001, 0.0001],
-                "loc_initial_dist": [0.1, -0.5],
-                "variance_initial_dist": [0.001, 0.001]
+        "0": {
+            "noise_dist": {
+                "loc": [0.0, 0.0],
+                "variance": [0.0001, 0.0001]
+            },
+            "initial_dist": {
+                "loc": [0.1, -0.5],
+                "variance": [0.001, 0.001]
             }
         }
     },
     "NeuralPendulumDynamics": {
-        "options": {
-            "0": {
-                "loc_noise_dist": [0.0, 0.0],
-                "variance_noise_dist": [0.0001, 0.0005],
-                "loc_initial_dist": [-2.0, 0.8],
-                "variance_initial_dist": [0.0001, 0.0005],
+        "0": {
+            "dynamics": {
                 "activation": "sigmoid"
             },
-            "1": {
-                "loc_noise_dist": [0.0, 0.0],
-                "variance_noise_dist": [0.0001, 0.0005],
-                "loc_initial_dist": [0.1, -0.5],
-                "variance_initial_dist": [0.0001, 0.0005],
+            "noise_dist": {
+                "loc": [0.0, 0.0],
+                "variance": [0.0001, 0.0005]
+            }, 
+            "initial_dist": {
+                "loc": [-2.0, 0.8],
+                "variance": [0.0001, 0.0005]
+            }
+        },
+        "1": {
+            "dynamics": {
                 "activation": "tanh"
+            },
+            "noise_dist": {
+                "loc": [0.0, 0.0],
+                "variance": [0.0001, 0.0005]
+            }, 
+            "initial_dist": {
+                "loc": [0.1, -0.5],
+                "variance": [0.0001, 0.0005]
             }
         }
     }

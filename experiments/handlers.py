@@ -1,22 +1,27 @@
 import json
 import argparse
-from typing import Optional
 import os
 import csv
 
-dir = os.path.dirname(os.path.abspath(__file__))
+folder = os.path.dirname(os.path.abspath(__file__))
+
 
 def load_json(filename: str):
-    file_path = os.path.join(dir, "configs", f"{filename}.json")
+    file_path = os.path.join(folder, "configs", f"{filename}.json")
     with open(file_path, "r") as read_file:
         data = json.load(read_file)
     return data
 
+def param_handler(args):
+    params = load_json("dynamics")[args.dynamics_type][str(args.dynamics_setting)]
+    params = argparse.Namespace(**{k: argparse.Namespace(**v) for k, v in params.items()})
+    args.__dict__.update(vars(params))
 
-def param_handler(param_name: str, dataset_name: str, setting_tag: int = None):
-    params = load_json(param_name)[dataset_name]
-    return argparse.Namespace(**params["options"][str(setting_tag)])
-
+    assert "initial_dist" in args and "noise_dist"in args, "Please specify initial and noise distribution in config file."
+    if not "dynamics" in args:
+        args.__dict__.update(dict(dynamics=argparse.Namespace()))
+    
+    return args
 
 def parse_arguments(
         dynamics_type: str = 'ChaoticDynamics',
@@ -48,16 +53,10 @@ def parse_arguments(
                         default=save,
                         help='Whether to save the plots or show them.')
     
-
     args = parser.parse_args()
 
-    dynamics_params = param_handler(
-        param_name="dynamics",
-        dataset_name=args.dynamics_type,
-        setting_tag=args.dynamics_setting
-    )
+    args = param_handler(args)
 
-    args.__dict__.update(vars(dynamics_params))
     args.results_folder = f"{os.path.dirname(os.path.abspath(__file__))}{os.sep}results{os.sep}"
     args.data_folder = f"{os.path.dirname(os.path.abspath(__file__))}{os.sep}data{os.sep}"
     return args

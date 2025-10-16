@@ -3,19 +3,8 @@ import torch
 import bound_propagation as bp
 from .activation import assert_bound_order
 
-__all__ = ['BoundLinear', 'Linear', 'Identity']
+__all__ = ['BoundLinear']
 
-class Linear(torch.nn.Linear):
-    def __init__(self, weight: torch.Tensor, bias: Optional[torch.Tensor] = None, **kwargs):
-        super().__init__(weight.size(-1), weight.size(-2), bias=bias is not None)
-        with torch.no_grad():
-            self.weight.copy_(weight)
-            if bias is not None:
-                self.bias.copy_(bias)
-
-class Identity(Linear):
-    def __init__(self, in_features: int):
-        super().__init__(torch.eye(in_features))
 
 class BoundLinear(bp.BoundLinear):
     def __init__(self, *args, **kwargs):

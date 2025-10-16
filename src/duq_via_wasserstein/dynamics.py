@@ -1,25 +1,47 @@
-from typing import Callable, Dict, Protocol, Optional, Union
+from typing import Callable, Dict, Protocol, Optional, Union, List
+from abc import abstractmethod, ABC
 
 import torch
 import bound_propagation as bp
-import math
 
-from sympy.solvers.solveset import NonlinearError
+from . import linear_bound_propagation as lbp  # TODO remove this depenency
+from . import utils
 
-from . import linear_bound_propagation as lbp
+class Dynamics(ABC, torch.nn.Sequential):
+    _separable = False
 
+    """
+    z_{k+1} = dynamics(z_k), with z the state or noise
 
-class StochasticDynamics(torch.nn.Sequential):
+    If the dynamics is separable, then it can be written as
+
+    z_{k+1} = (dynamics^1(z_k^1), ..., dynamics^n(z_k^n)), with z the state or noise and n=num_dims
+
+    """
+    def __init__(self, num_dims: int, modules: Union[List[torch.nn.Module], torch.nn.Module]):
+        self.num_dims = num_dims
+        super().__init__(*(modules if isinstance(modules, list) else [modules]))
+
+    @property
+    def separable(self):
+        return self._separable
+    
+    @property
+    @abstractmethod
+    def global_lipschitz(self) -> Union[float, torch.Tensor]:
+        pass
+
+class StochasticDynamics(ABC, torch.nn.Sequential):
     """
     x_{k+1} = stochastic_dynamics(x_k, noise_k)
     """
-    def __init__(self, num_state_dims: int, num_noise_dims: int, modules: list):
+    def __init__(self, num_state_dims: int, num_noise_dims: int, modules: List[torch.nn.Module]):
         self.num_state_dims = num_state_dims
         self.num_noise_dims = num_noise_dims
         self.num_dims = num_state_dims + num_noise_dims
         super().__init__(*modules)
 
-    def forward(self, input):
+    def forward(self, input: torch.Tensor):
         """
         input = (x, noise)
         """
@@ -28,45 +50,22 @@ class StochasticDynamics(torch.nn.Sequential):
         return super().forward(input)
 
     @property
-    def global_lipschitz(self):
-        """
-        Global Lipschitz constant
-        :return:
-        """
-        return None
+    @abstractmethod
+    def global_lipschitz(self) -> Union[float, torch.Tensor]:
+        pass
 
-
-class Dynamics(torch.nn.Sequential):
-    """
-    z_{k+1} = dynamics(z_k), with z the state or noise
-    """
-    num_dims = None
-
-    def __init__(self, *args):
-        super().__init__(*args)
-
-
-class CompositionalStructure:
-    """
-    z_{k+1} = dynamics[-1] o ... o dynamics[0](z_k), with z_k being x_k, noise_k OR OR (x_k, noise_k)
-
-    For Dynamics or StochasticDynamics of with a CompositionalStructure, global_lbp_sq_norm_fx_fc is applied
-    iteratively over the lowest level of the Sequential module.
-    """
-    pass
-
-class Separable:
-    pass
-
-
-class AdditiveGaussianDynamics(StochasticDynamics): # TODO Why Gaussian? This works for any additive noise
+class AdditiveNoiseDynamics(StochasticDynamics):
     """
     Special case of StochasticDynamics:
     x_{k+1} = state_dynamics(x_k) + noise_dynamics(noise_k)
     """
-    def __init__(self, state_dynamics: Dynamics, noise_dynamics: Optional[Dynamics] = None):
+    def __init__(
+        self, 
+        state_dynamics: Dynamics, 
+        noise_dynamics: Optional[Dynamics] = None
+    ):
         if noise_dynamics is None:
-            noise_dynamics = IdentityDynamics(state_dynamics.num_dims)
+            noise_dynamics = LinearDynamics(weight=torch.eye(state_dynamics.num_dims))
 
         if not state_dynamics.num_dims == noise_dynamics.num_dims:
             raise ValueError("The state and noise dynamics should have the same number of dimensions")
@@ -82,146 +81,124 @@ class AdditiveGaussianDynamics(StochasticDynamics): # TODO Why Gaussian? This wo
                 bp.VectorAdd()
             ])
 
-        self._global_lipschitz = state_dynamics.global_lipschitz
+    @property
+    def state_dynamics(self):
+        return self[0].subnetworks[0]
+
+    @property
+    def global_lipschitz(self):
+        return self.state_dynamics.global_lipschitz
+
+ 
+# -- Standard Modules  -------------------------------------------------------------------------------------------------
+class Linear(torch.nn.Linear):
+    def __init__(self, weight: torch.Tensor, bias: Optional[torch.Tensor] = None, **kwargs):
+        super().__init__(weight.size(-1), weight.size(-2), bias=bias is not None)
+        with torch.no_grad():
+            self.weight.copy_(weight)
+            if bias is not None:
+                self.bias.copy_(bias)
+
+class LinearDynamics(Dynamics):
+    def __init__(
+        self,
+        weight: Union[torch.Tensor, list],
+        bias: Optional[Union[torch.Tensor, list]] = None,
+    ):
+        weight = torch.as_tensor(weight)
+        if isinstance(bias, list):
+            bias = torch.as_tensor(bias)
+
+        self._global_lipschitz = torch.linalg.svd(weight).S[0]
+
+        self._seperable = utils.is_mat_diag(weight)
+
+        super().__init__(num_dims=weight.size(-1), modules=Linear(weight, bias))
 
     @property
     def global_lipschitz(self):
         return self._global_lipschitz
 
-    @property
-    def state_dynamics(self):
-        return self[0].subnetworks[0]
-
-class LinearStochasticDynamics(StochasticDynamics):
-    num_state_dims = 3
-    num_noise_dims = 3
-
-    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
-        assert len(diagonal) == self.num_state_dims + self.num_noise_dims
+class PreBoundedDynamics(Dynamics):
+    def __init__(
+        self,
+        dynamics: Dynamics,
+        lower: Union[float, torch.Tensor, list],
+        upper: Union[float, torch.Tensor, list],
+    ):
+        self._seperable = dynamics.separable
 
         super().__init__(
-            num_state_dims=self.num_state_dims,
-            num_noise_dims=self.num_noise_dims,
-            modules=[
-                LinearDiagonalDynamics(diagonal),
-                bp.VectorAdd()
-            ]
+            num_dims=dynamics.num_dims, 
+            modules=[bp.Clamp(torch.as_tensor(lower), torch.as_tensor(upper)), dynamics]
+        )
+
+    @property
+    def global_lipschitz(self):
+        return self[1].global_lipschitz
+
+class PostBoundedDynamics(Dynamics):
+    def __init__(
+        self,
+        dynamics: Dynamics,
+        lower: Union[float, torch.Tensor, list],
+        upper: Union[float, torch.Tensor, list],
+    ):
+        self._seperable = dynamics.separable
+
+        super().__init__(
+            num_dims=dynamics.num_dims, 
+            modules=[dynamics, bp.Clamp(torch.as_tensor(lower), torch.as_tensor(upper))]
         )
 
     @property
     def global_lipschitz(self):
         return self[0].global_lipschitz
 
-class IdentityDynamics(Dynamics):
-    def __init__(self, num_dims: int = 1, **kwargs):
-        self.num_dims = num_dims
-        super().__init__(lbp.Identity(num_dims))
-
-    @property
-    def global_lipschitz(self):
-        return 1
-
-class LinearDynamics(Dynamics):
-    def __init__(self,
-                 weight: Union[torch.Tensor, list],
-                 bias: Optional[Union[torch.Tensor, list]] = None,
-                 **kwargs):
-        if isinstance(weight, list):
-            weight = torch.tensor(weight)
-        if isinstance(bias, list):
-            bias = torch.tensor(bias)
-
-        self.num_dims = weight.size(-1)
-        self._global_lipschitz = torch.linalg.svd(weight).S[0]
-
-        super().__init__(lbp.Linear(weight, bias))
-
-    @property
-    def global_lipschitz(self):
-        return self._global_lipschitz
-
-class LinearDiagonalDynamics(LinearDynamics, Separable):
-    def __init__(self,
-                 diagonal: Union[torch.Tensor, list],
-                 **kwargs):
-        if isinstance(diagonal, list):
-            diagonal = torch.tensor(diagonal)
-
-        super().__init__(torch.diag(diagonal))
-
-class LinearBoundedDynamics(Dynamics):
-    def __init__(self,
-                 weight: Union[torch.Tensor, list],
-                 bias: Optional[Union[torch.Tensor, list]] = None,
-                 lower_bound: Optional[Union[float, torch.Tensor, list]] = -torch.inf,
-                 upper_bound: Optional[Union[float, torch.Tensor, list]] = torch.inf,
-                 **kwargs):
-        if isinstance(weight, list):
-            weight = torch.tensor(weight)
-        if isinstance(bias, list):
-            bias = torch.tensor(bias)
-
-        assert not lower_bound in [None, -torch.inf] or not upper_bound in [None, -torch.inf]
-
-        self.num_dims = weight.size(-1)
-        self._global_lipschitz = torch.linalg.svd(weight).S[0]
-
-        super().__init__(lbp.Linear(weight, bias), bp.Clamp(lower_bound, upper_bound))
-
-    @property
-    def global_lipschitz(self):
-        return self._global_lipschitz
-
-class DiagonalLinearBoundedDynamics(LinearBoundedDynamics, Separable):
-    def __init__(self,
-                 diagonal: Union[torch.Tensor, list],
-                 lower_bound: Union[float, torch.Tensor, list],
-                 upper_bound: Union[float, torch.Tensor, list],
-                 **kwargs):
-        if isinstance(diagonal, list):
-            diagonal = torch.tensor(diagonal)
+class IndicatorDynamics(Dynamics):
+    def __init__(
+        self, 
+        dynamics,
+        lower: Union[float, torch.Tensor, list], 
+        upper: Union[float, torch.Tensor, list],
+    ):
+        self._seperable = dynamics.separable
 
         super().__init__(
-            weight=torch.diag(diagonal),
-            bias=None,
-            lower_bound=lower_bound,
-            upper_bound=upper_bound)
-
-class BoundedLinearDynamics(Dynamics):
-    def __init__(self,
-                 weight: Union[torch.Tensor, list],
-                 bias: Optional[Union[torch.Tensor, list]] = None,
-                 lower_bound: Optional[Union[float, torch.Tensor, list]] = -torch.inf,
-                 upper_bound: Optional[Union[float, torch.Tensor, list]] = torch.inf,
-                 **kwargs):
-        if isinstance(weight, list):
-            weight = torch.tensor(weight)
-        if isinstance(bias, list):
-            bias = torch.tensor(bias)
-
-        assert not lower_bound in [None, -torch.inf] or not upper_bound in [None, -torch.inf]
-
-        self.num_dims = weight.size(-1)
-        self._global_lipschitz = torch.linalg.svd(weight).S[0]
-
-        super(BoundedLinearDynamics, self).__init__(bp.Clamp(lower_bound, upper_bound), lbp.Linear(weight, bias))
-
-    @property
-    def global_lipschitz(self):
-        return self._global_lipschitz
-
-class PiecewiseAffineBLock(Dynamics):
-    def __init__(self, min, max, dynamics):
-        min = torch.as_tensor(min) if not torch.is_tensor(min) else min
-        max = torch.as_tensor(max) if not torch.is_tensor(max) else max
-        super().__init__(
-            lbp.BoxedIdentity(min=min, max=max),
-            dynamics
+            num_dims=dynamics.num_dims,
+            modules=[lbp.BoxedIdentity(min=torch.as_tensor(lower), max=torch.as_tensor(upper)), dynamics]
         )
 
     @property
     def global_lipschitz(self):
         return self[1].global_lipschitz
+
+class LinearStochasticDynamics(StochasticDynamics):
+    def __init__(
+        self, 
+        weight: Union[torch.Tensor, list], 
+        bias: Optional[Union[torch.Tensor, list]] = None
+    ):
+        weight = torch.as_tensor(weight)
+
+        if isinstance(bias, list):
+            bias = torch.as_tensor(bias)
+        
+        if not weight.ndim == 2:
+            raise ValueError("Weight should be a 2D matrix")
+        
+        if bias is not None and not bias.ndim == 1:
+            raise ValueError("Bias should be a 1D vector")
+
+        super().__init__(
+            num_state_dims=weight.size(0),
+            num_noise_dims=weight.size(1) - weight.size(0),
+            modules=[LinearDynamics(weight=weight, bias=bias)]
+        )
+
+    @property
+    def global_lipschitz(self):
+        return self[0].global_lipschitz
 
 
 # --- Helpers -----------------------------------------------------------------
@@ -231,37 +208,33 @@ class StochasticDynamicsFactoryFn(Protocol):
 def additive(inner_ctor: Callable[..., Dynamics]) -> StochasticDynamicsFactoryFn:
     """
     Turn a plain Dynamics constructor into a factory that returns
-    AdditiveGaussianDynamics(inner_ctor(**kwargs), noise_dynamics).
+    AdditiveNoiseDynamics(inner_ctor(**kwargs), noise_dynamics).
     Accepts an optional `noise_dynamics` in kwargs.
     """
     def factory(**kwargs) -> StochasticDynamics:
         noise = kwargs.pop("noise_dynamics", None)  # allow override
         inner = inner_ctor(**kwargs)
-        return AdditiveGaussianDynamics(inner, noise_dynamics=noise)
+        return AdditiveNoiseDynamics(inner, noise_dynamics=noise)
     return factory
 
 
 # --- Registry ----------------------------------------------------------------
-class GetDynamics:
-    _registery = dict(
+class GetStochasticDynamics:
+    _registry = dict(
         LinearDynamics=additive(LinearDynamics),
-        LinearBoundedDynamics=additive(LinearBoundedDynamics),
-        BoundedLinearDynamics=additive(BoundedLinearDynamics),
-        LinearDiagonalDynamics=additive(LinearDiagonalDynamics),
-        DiagonalLinearBoundedDynamics=additive(DiagonalLinearBoundedDynamics)
+        PreBoundedDynamics=additive(PreBoundedDynamics),
+        PostBoundedDynamics=additive(PostBoundedDynamics), 
+        IndicatorDynamics=additive(IndicatorDynamics),
     )
-
-    def __init__(self):
-        self._registry: Dict[str, Union[StochasticDynamicsFactoryFn, StochasticDynamics]] = {}
 
     def register(self, name: str, factory: Union[StochasticDynamicsFactoryFn, StochasticDynamics]) -> None:
         if name in self._registry:
             raise ValueError(f"Factory already registered for '{name}'")
         self._registry[name] = factory
 
-    def __call__(self, dynamics_type: str, **kwargs) -> StochasticDynamics: # TODO change to name
+    def __call__(self, name: str, **kwargs) -> StochasticDynamics:
         try:
-            return self._registry[dynamics_type](**kwargs)
+            return self._registry[name](**kwargs)
         except KeyError:
-            raise ValueError(f"Unknown dynamics: {dynamics_type}")
+            raise ValueError(f"Unknown dynamics: {name}")
         

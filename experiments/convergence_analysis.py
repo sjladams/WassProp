@@ -4,7 +4,7 @@ import pprint
 from duq_via_wasserstein import single_step, AmbiguitySet
 
 from handlers import parse_arguments
-from dynamics import get_dynamics
+from dynamics import get_stoch_dynamics
 import utils
 
 
@@ -15,9 +15,9 @@ def convergence_analysis(dynamics_type, setting, num_locs, w2_p__q):
         num_locs=num_locs,
     )
 
-    dynamics = get_dynamics(**vars(args))
-    initial_dist = utils.get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
-    noise_dist = utils.get_noise_dist(args.loc_noise_dist, args.variance_noise_dist)
+    dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
+    initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
+    noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
 
     results = dict()
     for method in ['global_lipschitz', 'lagrangian_duality']:
@@ -41,7 +41,7 @@ if __name__ == '__main__':
         'Sigmoid (1D)' : ('SigmoidDynamics', 0),
         'Bounded Linear (2D)' : ('BoundedLinearDynamics', 0),
         'Quadruple-Tank (4D)' : ('LinearDynamics', 0),
-        'NN Layer (10D)' : ('DiagonalLinearSigmoidDynamics', 2),
+        'NN Layer (10D)' : ('DiagonalSigmoidDynamics', 2),
         # 'Mountain Car (2D)' : ('MountainCarDynamics', 0),
         # 'Dubins car (3D)' : ('DubinsCarDynamics', 0)
     }

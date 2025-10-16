@@ -1,93 +1,84 @@
-from typing import Union, Optional
+from typing import Union, Optional, List, Iterable
 import torch
 import bound_propagation as bp
 
-from duq_via_wasserstein import GetDynamics
+from duq_via_wasserstein import GetStochasticDynamics
 import duq_via_wasserstein.dynamics as dyn
-import duq_via_wasserstein.linear_bound_propagation as lbp
 
 
-class SigmoidDynamics(dyn.Dynamics, dyn.Separable):
-    def __init__(self, num_dims: int = 1, **kwargs):
-        self.num_dims = num_dims
-        super().__init__(lbp.Identity(num_dims))
+# -- Deterministic Dynamics --------------------------------------------------------------------------------------------
+class SigmoidDynamics(dyn.Dynamics):
+    def __init__(self, num_dims: int = 1):
+        self._separable = True
+        super().__init__(num_dims=num_dims, modules=torch.nn.Sigmoid())
 
     @property
     def global_lipschitz(self):
         return 0.25
 
-class TanhDynamics(dyn.Dynamics, dyn.Separable):
-    def __init__(self, num_dims: int = 1, **kwargs):
-        super().__init__(torch.nn.Tanh())
-        self.num_dims = num_dims
+class TanhDynamics(dyn.Dynamics):
+    def __init__(self, num_dims: int = 1):
+        self._separable = True
+        super().__init__(num_dims=num_dims, modules=torch.nn.Tanh())
 
     @property
     def global_lipschitz(self):
         return 1.0
-    
-class LinearSigmoidStochasticDynamics(dyn.StochasticDynamics, dyn.CompositionalStructure):
-    num_state_dims = 3
-    num_noise_dims = 3
 
-    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
-        super().__init__(
-            num_state_dims=self.num_state_dims,
-            num_noise_dims=self.num_noise_dims,
-            modules=[
-                dyn.LinearStochasticDynamics(diagonal),
-                SigmoidDynamics(self.num_state_dims)
-            ]
-        )
-
-    @property
-    def global_lipschitz(self):
-        return self[0].global_lipschitz * self[1].global_lipschitz
-
-
-class DiagonalLinearSigmoidDynamics(dyn.Dynamics, dyn.Separable):
-    def __init__(self, diagonal: Union[torch.Tensor, list], **kwargs):
-        if isinstance(diagonal, list):
-            diagonal = torch.tensor(diagonal)
-        self.num_dims = diagonal.size(0)
-        self._diagonal = diagonal
-
-        super().__init__(
-            dyn.LinearDiagonalDynamics(diagonal),
-            SigmoidDynamics(self.num_dims)
-        )
-
-    @property
-    def global_lipschitz(self):
-        return self._diagonal.abs().max() * 0.25
-
-
-class LinearSigmoidDynamics(dyn.Dynamics, dyn.CompositionalStructure):
-    def __init__(self,
-                 weight: Union[torch.Tensor, list],
-                 bias: Optional[Union[torch.Tensor, list]] = None,
-                 **kwargs):
-        if isinstance(weight, list):
-            weight = torch.tensor(weight)
-
-        self.num_dims = weight.size(-1)
-
+class BoundedLinearDynamics(dyn.PreBoundedDynamics):
+    def __init__(
+        self,
+        weight: Union[torch.Tensor, list],
+        lower: Union[float, torch.Tensor, list],
+        upper: Union[float, torch.Tensor, list],
+        bias: Optional[Union[torch.Tensor, list]] = None
+    ):
         super().__init__(
             dyn.LinearDynamics(weight, bias),
-            SigmoidDynamics(self.num_dims)
+            lower=lower,
+            upper=upper
+        )
+
+class LinearSigmoidDynamics(dyn.Dynamics):
+    def __init__(
+        self,
+        weight: Union[torch.Tensor, list],
+        bias: Optional[Union[torch.Tensor, list]] = None,
+    ):
+        linear_dynamics = dyn.LinearDynamics(weight, bias)
+        self._seperable = linear_dynamics.separable
+    
+        super().__init__(
+            num_dims=linear_dynamics.num_dims, 
+            modules=[linear_dynamics, SigmoidDynamics(self.num_dims)]
         )
 
     @property
     def global_lipschitz(self):
-        return self[0].global_lipschitz * self[1].global_lipschitz
+        return torch.tensor([module.global_lipschitz for module in self]).prod()
 
+class DiagonalSigmoidDynamics(dyn.Dynamics):
+    def __init__(
+        self, 
+        diagonal: Union[torch.Tensor, list]
+    ):
+        linear_dynamics = dyn.LinearDynamics(torch.diag(torch.as_tensor(diagonal)))
+        self._seperable = True
+
+        super().__init__(
+            num_dims=linear_dynamics.num_dims, 
+            modules=[linear_dynamics, SigmoidDynamics(linear_dynamics.num_dims)]
+        )
+
+    @property
+    def global_lipschitz(self):
+        return torch.tensor([module.global_lipschitz for module in self]).prod()
 
 class MountainCarDynamics(dyn.Dynamics):
-    num_dims = 2
-
-    def __init__(self, action: float = 1.0, **kwargs):
+    def __init__(self, action: float = 1.0):
         linear_part = torch.nn.Sequential(
             bp.Clamp(-0.5, 1.2),
-            lbp.Linear(
+            dyn.Linear(
                 torch.tensor([
                     [1.0, 0.0],
                     [1.0, 1.0]
@@ -97,7 +88,7 @@ class MountainCarDynamics(dyn.Dynamics):
         )
 
         trig_part = torch.nn.Sequential(
-            lbp.Linear(
+            dyn.Linear(
                 torch.tensor([
                     [0.0, 3.0],
                     [0.0, 0.0]
@@ -105,7 +96,7 @@ class MountainCarDynamics(dyn.Dynamics):
                 torch.tensor([torch.pi / 2, 0.0])
                 ),
             bp.Sin(),
-            lbp.Linear(
+            dyn.Linear(
                 torch.tensor([
                     [-0.0025, 0.0],
                     [0.0, 0.0]
@@ -115,24 +106,24 @@ class MountainCarDynamics(dyn.Dynamics):
         )
 
         super().__init__(
-            torch.nn.Sequential(bp.Parallel(linear_part, trig_part)),
-            bp.VectorAdd(),
+            num_dims=2, 
+            modules=[
+                torch.nn.Sequential(bp.Parallel(linear_part, trig_part)),
+                bp.VectorAdd()
+            ]
         )
 
     @property
     def global_lipschitz(self):
         return 2
 
-
 class DubinsCarDynamics(dyn.Dynamics):
-    num_dims = 3
-
-    def __init__(self, velocity: float = 5.0, u: float = 2.0, h: float = 0.3, **kwargs):
+    def __init__(self, velocity: float = 5.0, u: float = 2.0, h: float = 0.3):
         self.velocity = velocity
         self.u = u
         self.h = h
 
-        linear_part = lbp.Linear(
+        linear_part = dyn.Linear(
                 torch.tensor([
                     [1.0, 0.0, 0.0],
                     [0.0, 1.0, 0.0],
@@ -142,7 +133,7 @@ class DubinsCarDynamics(dyn.Dynamics):
             )
 
         trig_part = torch.nn.Sequential(
-            lbp.Linear(
+            dyn.Linear(
                 torch.tensor([
                     [0.0, 0.0, 1.0],
                     [0.0, 0.0, 1.0],
@@ -151,7 +142,7 @@ class DubinsCarDynamics(dyn.Dynamics):
                 torch.tensor([torch.pi / 2, 0.0, 0.0])
                 ),
             bp.Sin(),
-            lbp.Linear(
+            dyn.Linear(
                 torch.tensor([
                     [h * velocity, 0.0, 0.0],
                     [0.0, h * velocity, 0.0],
@@ -162,19 +153,41 @@ class DubinsCarDynamics(dyn.Dynamics):
         )
 
         super().__init__(
-            bp.Parallel(linear_part, trig_part),
-            bp.VectorAdd(),
+            num_dims=3,
+            modules=[bp.Parallel(linear_part, trig_part), bp.VectorAdd()]
         )
 
     @property
     def global_lipschitz(self):
         return 1 + self.h * self.velocity
 
-get_dynamics = GetDynamics()
-        
-get_dynamics.register('SigmoidDynamics', dyn.additive(SigmoidDynamics))
-get_dynamics.register('LinearSigmoidDynamics', dyn.additive(LinearSigmoidDynamics))
-get_dynamics.register('DiagonalLinearSigmoidDynamics', dyn.additive(DiagonalLinearSigmoidDynamics))
-get_dynamics.register('MountainCarDynamics', dyn.additive(MountainCarDynamics))
-get_dynamics.register('DubinsCarDynamics', dyn.additive(DubinsCarDynamics))
-get_dynamics.register('LinearSigmoidStochasticDynamics', LinearSigmoidStochasticDynamics)
+# -- Stochastic Dynamics -----------------------------------------------------------------------------------------------
+class LinearSigmoidStochasticDynamics(dyn.StochasticDynamics):
+    def __init__(
+        self, 
+        weight: Union[torch.Tensor, list],
+        bias: Optional[Union[torch.Tensor, list]] = None,
+    ):
+        linear_dynamics = dyn.LinearStochasticDynamics(weight, bias)
+        super().__init__(
+            num_state_dims=linear_dynamics.num_state_dims,
+            num_noise_dims=linear_dynamics.num_noise_dims,
+            modules=[
+                linear_dynamics,
+                SigmoidDynamics(self.num_state_dims)
+            ]
+        )
+
+    @property
+    def global_lipschitz(self):
+        return global_lipschitz_sequential(self.modules)
+
+get_stoch_dynamics = GetStochasticDynamics()
+get_stoch_dynamics.register('SigmoidDynamics', dyn.additive(SigmoidDynamics))
+get_stoch_dynamics.register('TanhDynamics', dyn.additive(TanhDynamics))
+get_stoch_dynamics.register('BoundedLinearDynamics', dyn.additive(BoundedLinearDynamics))
+get_stoch_dynamics.register('LinearSigmoidDynamics', dyn.additive(LinearSigmoidDynamics))
+get_stoch_dynamics.register('DiagonalSigmoidDynamics', dyn.additive(DiagonalSigmoidDynamics))
+get_stoch_dynamics.register('MountainCarDynamics', dyn.additive(MountainCarDynamics))
+get_stoch_dynamics.register('DubinsCarDynamics', dyn.additive(DubinsCarDynamics))
+get_stoch_dynamics.register('LinearSigmoidStochasticDynamics', LinearSigmoidStochasticDynamics)

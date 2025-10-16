@@ -2,7 +2,7 @@ from typing import Union
 import torch
 import bound_propagation as bp
 
-from .dynamics import Dynamics, StochasticDynamics, Separable, CompositionalStructure, LinearDynamics
+from .dynamics import Dynamics, StochasticDynamics
 from .linear_bound_propagation import factory
 
 
@@ -56,44 +56,45 @@ def global_lbp_sq_norm_fx_fc(
     :param f: dynamics
     :param locs: batch of c's with shape (num_locs, num_dims)
     """
+    return f.global_lipschitz**2 * torch.ones(locs.shape[:-1])
 
-    if isinstance(f, CompositionalStructure):
-        alphas = []
-        for component in f.children():
-            alphas.append(global_lbp_sq_norm_fx_fc_component(component, locs))
-            locs = component(locs)
-        return torch.stack(alphas, dim=-1).prod(dim=-1)
-    else:
-        return global_lbp_sq_norm_fx_fc_component(f, locs)
+    # if isinstance(f, CompositionalStructure):
+    #     alphas = []
+    #     for component in f.children():
+    #         alphas.append(global_lbp_sq_norm_fx_fc_component(component, locs))
+    #         locs = component(locs)
+    #     return torch.stack(alphas, dim=-1).prod(dim=-1)
+    # else:
+    #     return global_lbp_sq_norm_fx_fc_component(f, locs)
 
 
-def global_lbp_sq_norm_fx_fc_component(
-        f: Union[StochasticDynamics, Dynamics],
-        locs: torch.Tensor) -> torch.Tensor:
-    """
-    :param f: dynamics
-    :param locs: batch of c's with shape (num_locs, num_dims)
-    """
+# def global_lbp_sq_norm_fx_fc_component(
+#         f: Union[StochasticDynamics, Dynamics],
+#         locs: torch.Tensor) -> torch.Tensor:
+#     """
+#     :param f: dynamics
+#     :param locs: batch of c's with shape (num_locs, num_dims)
+#     """
 
-    if isinstance(f, LinearDynamics):
-        return f.global_lipschitz**2 * torch.ones(locs.shape[:-1])
-    else:
-        quadrants = generate_quadrants(
-            num_dims=f.num_dims,
-            only_pos_and_neg=isinstance(f, Separable)
-        )
+#     if isinstance(f, LinearDynamics):
+#         return f.global_lipschitz**2 * torch.ones(locs.shape[:-1])
+#     else:
+#         quadrants = generate_quadrants(
+#             num_dims=f.num_dims,
+#             only_pos_and_neg=isinstance(f, Separable)
+#         )
 
-        inf = 1e2 # bound_propagation does not support inf, instead use a large value
-        quadrants = quadrants.clip(-inf, inf)
+#         inf = 1e2 # bound_propagation does not support inf, instead use a large value
+#         quadrants = quadrants.clip(-inf, inf)
 
-        num_locs = locs.shape[-2]
-        quadrants = quadrants.unsqueeze(-2).repeat(1, 1, num_locs, 1) + locs
+#         num_locs = locs.shape[-2]
+#         quadrants = quadrants.unsqueeze(-2).repeat(1, 1, num_locs, 1) + locs
 
-        alphas = torch.zeros(len(quadrants), num_locs).fill_(torch.nan)
-        for idx, quadrant in enumerate(quadrants):
-            alphas[idx] = _global_lbp_sq_norm_fx_fc_quadrant(f, locs, quadrant[0], quadrant[1])
+#         alphas = torch.zeros(len(quadrants), num_locs).fill_(torch.nan)
+#         for idx, quadrant in enumerate(quadrants):
+#             alphas[idx] = _global_lbp_sq_norm_fx_fc_quadrant(f, locs, quadrant[0], quadrant[1])
 
-        return alphas.max(dim=0).values.clamp(min=0., max=f.global_lipschitz**2)
+#         return alphas.max(dim=0).values.clamp(min=0., max=f.global_lipschitz**2)
 
 
 def generate_quadrants(num_dims, only_pos_and_neg: bool = False) -> torch.Tensor:

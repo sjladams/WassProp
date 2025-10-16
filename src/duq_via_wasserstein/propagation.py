@@ -5,7 +5,7 @@ from typing import Union, List, Optional, Tuple, Dict
 import discretize_distributions.distributions as dd_dists
 
 from . import wasserstein
-from .dynamics import StochasticDynamics, AdditiveGaussianDynamics
+from .dynamics import StochasticDynamics, AdditiveNoiseDynamics
 from .utils_distributions import AmbiguitySet, discretize, cross_product, sum_discrete_distributions
 
 TensorLike = Union[float, torch.Tensor]
@@ -31,7 +31,7 @@ def single_step(
         num_locs=num_locs,
         use_lagrangian_duality=use_lagrangian_duality
     )
-    if isinstance(dynamics, AdditiveGaussianDynamics):
+    if isinstance(dynamics, AdditiveNoiseDynamics):
         return _single_step_additive_noise(dynamics, cfg)
     else:
         return _single_step_general_noise(dynamics, cfg)
@@ -57,7 +57,7 @@ def _single_step_general_noise(
     return AmbiguitySet(center=q1, w2=w2_p1__q1)
 
 def _single_step_additive_noise(
-    dynamics: AdditiveGaussianDynamics,
+    dynamics: AdditiveNoiseDynamics,
     cfg: SingleStepConfig
 ) -> AmbiguitySet:
     disc_q, w2_q__disc_q = discretize(cfg.q, cfg.num_locs)
@@ -164,11 +164,11 @@ def multi_step_empirical(
 
 
 def propagate_additive_gaussian_noise(
-        dynamics: AdditiveGaussianDynamics,
+        dynamics: AdditiveNoiseDynamics,
         noise_dist: Union[dd_dists.MultivariateNormal, dd_dists.MixtureMultivariateNormal, dd_dists.CategoricalFloat],
         disc_state_dist: dd_dists.CategoricalFloat
 ):
-    if not isinstance(dynamics, AdditiveGaussianDynamics):
+    if not isinstance(dynamics, AdditiveNoiseDynamics):
         raise ValueError('Only supports additive noise')
 
     if isinstance(noise_dist, dd_dists.MultivariateNormal):

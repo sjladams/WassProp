@@ -2,9 +2,10 @@ import torch
 
 from duq_via_wasserstein import multi_step, AmbiguitySet
 
-from dynamics import get_dynamics
+from dynamics import get_stoch_dynamics
 from handlers import parse_arguments
 import utils
+from analysis import hyper_params_analysis, boundary_cond_analysis
 
 
 def illustrate():
@@ -16,11 +17,9 @@ def illustrate():
         save = False
     )
 
-    dynamics = get_dynamics(**vars(args))
-    print(f"global lipschitz: {dynamics.global_lipschitz}")
-    initial_dist = utils.get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
-
-    noise_dist = utils.get_noise_dist(args.loc_noise_dist, args.variance_noise_dist)
+    dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
+    initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
+    noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
 
     q = AmbiguitySet(initial_dist, 0.1)
     noise = AmbiguitySet(noise_dist, 0.01)
@@ -45,8 +44,8 @@ def quantitative_analysis():
     
     name = "quadruple_tank"
 
-    utils.hyper_params_analysis(args, name)
-    utils.boundary_cond_analysis(args, name)
+    hyper_params_analysis(args, name)
+    boundary_cond_analysis(args, name)
 
 
 if __name__ == '__main__':

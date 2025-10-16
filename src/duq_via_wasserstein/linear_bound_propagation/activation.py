@@ -177,7 +177,7 @@ class BoundIdentity(bp.activation.BoundIdentity):
         return bounds, intersection
 
 
-class BoxedIdentity(torch.nn.Module):
+class BoxedIdentity(torch.nn.Module):  # TODO rename Indicator
     def __init__(self, min, max):
         super().__init__()
 

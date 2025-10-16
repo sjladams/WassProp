@@ -2,9 +2,9 @@ import torch
 
 from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguitySet
 
-from dynamics import get_dynamics
-import plot
+from dynamics import get_stoch_dynamics
 from handlers import parse_arguments
+import plot
 import utils
 
 
@@ -18,9 +18,9 @@ def multistep_approximation(dynamics_type, setting, num_locs):
 
     num_time_steps = 10
 
-    dynamics = get_dynamics(**vars(args))
-    initial_dist = utils.get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
-    noise_dist = utils.get_noise_dist(args.loc_noise_dist, args.variance_noise_dist)
+    dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
+    initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
+    noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
 
     q = AmbiguitySet(initial_dist, 0.1)
     noise = AmbiguitySet(noise_dist, 0.0)

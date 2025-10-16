@@ -4,17 +4,17 @@ import os
 from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguitySet
 import duq_via_wasserstein.dynamics as dyn
 
-from dynamics import get_dynamics, SigmoidDynamics, TanhDynamics
-import plot as plot
+from dynamics import SigmoidDynamics, TanhDynamics, get_stoch_dynamics
 from handlers import parse_arguments
+import plot
 import utils
+from analysis import hyper_params_analysis, boundary_cond_analysis
 
+DATA_FOLDER = f"{os.path.dirname(os.path.abspath(__file__))}{os.sep}data{os.sep}"
 
-class NeuralPendulumDynamics(dyn.Dynamics, dyn.CompositionalStructure):
-    def __init__(self, data_folder: str, activation: str, **kwargs):
-        self.num_dims = 2
-
-        state_dict = torch.load(f'{data_folder}{activation}_model_weights_pendulum.pth', weights_only=True)
+class NeuralPendulumDynamics(dyn.Dynamics):
+    def __init__(self, activation: str):
+        state_dict = torch.load(f'{DATA_FOLDER}{activation}_model_weights_pendulum.pth', weights_only=True)
 
         weight_fc1 = state_dict["fc1.weight"]
         bias_fc1 = state_dict["fc1.bias"]
@@ -31,19 +31,21 @@ class NeuralPendulumDynamics(dyn.Dynamics, dyn.CompositionalStructure):
             raise NotImplementedError(f"Activation {activation} not implemented.")
 
         super().__init__(
-            dyn.LinearDynamics(weight_fc1, bias_fc1),
-            ActivationDynamics(bias_fc1.size(0)),
-            dyn.LinearDynamics(weight_fc2, bias_fc2),
-            ActivationDynamics(bias_fc2.size(0)),
-            dyn.LinearDynamics(weight_fc3, bias_fc3)
+            num_dims=2, 
+            modules=[
+                dyn.LinearDynamics(weight_fc1, bias_fc1),
+                ActivationDynamics(bias_fc1.size(0)),
+                dyn.LinearDynamics(weight_fc2, bias_fc2),
+                ActivationDynamics(bias_fc2.size(0)),
+                dyn.LinearDynamics(weight_fc3, bias_fc3)
+            ]
         )
 
     @property
     def global_lipschitz(self):
         return torch.tensor([module.global_lipschitz for module in self]).prod()
 
-get_dynamics.register('NeuralPendulumDynamics', dyn.additive(NeuralPendulumDynamics))
-
+get_stoch_dynamics.register('NeuralPendulumDynamics', dyn.additive(NeuralPendulumDynamics))
 
 def illustrate():
     args = parse_arguments(
@@ -57,7 +59,7 @@ def illustrate():
     num_time_steps = 20
 
     save_by = f"{args.results_folder}neural_pendulum"
-    dynamics = get_dynamics(**vars(args))
+    dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
     plot.plot_2d_dynamics(
         dynamics, 
         xlim=[-2.0, 1.8], ylim=[-1.8, 2.0], figsize=(12,12), 
@@ -65,8 +67,8 @@ def illustrate():
     )
     print(f"global lipschitz: {dynamics.global_lipschitz}")
 
-    initial_dist = utils.get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
-    noise_dist = utils.get_noise_dist(args.loc_noise_dist, args.variance_noise_dist)
+    initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
+    noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
 
     q = AmbiguitySet(initial_dist, 0.001)
     noise = AmbiguitySet(noise_dist, 0.001)
@@ -113,8 +115,8 @@ def quantitative_analysis():
     
     name = "neural_pendulum"
 
-    utils.hyper_params_analysis(args, name, w2_p__q=0.01, w2_noise_dist=0.01)
-    utils.boundary_cond_analysis(args, name)
+    hyper_params_analysis(args, name, w2_p__q=0.01, w2_noise_dist=0.01)
+    boundary_cond_analysis(args, name)
 
 
 if __name__ == '__main__':

@@ -1,20 +1,19 @@
 import torch
 import matplotlib.patches as patches
+import argparse
 
 import bound_propagation as bp
 
 from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguitySet
 import duq_via_wasserstein.dynamics as dyn
 
-from dynamics import get_dynamics
-import plot
 from handlers import parse_arguments, param_handler
+import plot
 import utils
 
 
 class SwitchedLinearDynamics(dyn.Dynamics):
-    num_dims = 2
-    def __init__(self, **kwargs):
+    def __init__(self):
         region = [[-2., -2.], [2., 2.]]
 
         mat1 = [[0.79, 0.035], [0., 0.825]]
@@ -25,37 +24,40 @@ class SwitchedLinearDynamics(dyn.Dynamics):
         redun_mat = torch.eye(2)
 
         mid_region = [[-0.8, -0.8],[0.8, 0.8]]
-        mid_block = dyn.PiecewiseAffineBLock(min=mid_region[0], max=mid_region[1], dynamics=dyn.LinearDynamics(weight=redun_mat))
+        mid_block = dyn.IndicatorDynamics(lower=mid_region[0], upper=mid_region[1], dynamics=dyn.LinearDynamics(weight=redun_mat))
 
-        obs_right = dyn.PiecewiseAffineBLock(min=[1., 1.], max=[2., 2.], dynamics=dyn.LinearDynamics(weight=redun_mat))
-        mode2_right = dyn.PiecewiseAffineBLock(min=[mid_region[1][0], 0.25], max=[2., 1.], dynamics=dyn.LinearDynamics(weight=mat2))
-        mode5_right = dyn.PiecewiseAffineBLock(min=[mid_region[1][0], -1.], max=[2., 0.25], dynamics=dyn.LinearDynamics(weight=mat5))
-        mode1_bottom = dyn.PiecewiseAffineBLock(min=[0., -2.], max=[2., -1.8], dynamics=dyn.LinearDynamics(weight=mat1))
-        mode4_bottom = dyn.PiecewiseAffineBLock(min=[0., -1.8], max=[2., -1.], dynamics=dyn.LinearDynamics(weight=mat4))
-        mode3 = dyn.PiecewiseAffineBLock(min=[0.3, mid_region[1][1]], max=[1., 2.], dynamics=dyn.LinearDynamics(weight=mat1)) # \todo crux
-        mode2_bottom = dyn.PiecewiseAffineBLock(min=[-0.6, -2.], max=[0., mid_region[0][1]], dynamics=dyn.LinearDynamics(weight=mat2))
-        mode1_bottom_left = dyn.PiecewiseAffineBLock(min=[-1., -2.], max=[-0.6, mid_region[0][1]], dynamics=dyn.LinearDynamics(weight=mat1))
+        obs_right = dyn.IndicatorDynamics(lower=[1., 1.], upper=[2., 2.], dynamics=dyn.LinearDynamics(weight=redun_mat))
+        mode2_right = dyn.IndicatorDynamics(lower=[mid_region[1][0], 0.25], upper=[2., 1.], dynamics=dyn.LinearDynamics(weight=mat2))
+        mode5_right = dyn.IndicatorDynamics(lower=[mid_region[1][0], -1.], upper=[2., 0.25], dynamics=dyn.LinearDynamics(weight=mat5))
+        mode1_bottom = dyn.IndicatorDynamics(lower=[0., -2.], upper=[2., -1.8], dynamics=dyn.LinearDynamics(weight=mat1))
+        mode4_bottom = dyn.IndicatorDynamics(lower=[0., -1.8], upper=[2., -1.], dynamics=dyn.LinearDynamics(weight=mat4))
+        mode3 = dyn.IndicatorDynamics(lower=[0.3, mid_region[1][1]], upper=[1., 2.], dynamics=dyn.LinearDynamics(weight=mat1)) # \todo crux
+        mode2_bottom = dyn.IndicatorDynamics(lower=[-0.6, -2.], upper=[0., mid_region[0][1]], dynamics=dyn.LinearDynamics(weight=mat2))
+        mode1_bottom_left = dyn.IndicatorDynamics(lower=[-1., -2.], upper=[-0.6, mid_region[0][1]], dynamics=dyn.LinearDynamics(weight=mat1))
 
-        mode4_top = dyn.PiecewiseAffineBLock(min=[-1.8, 1.], max=[0.3, 1.8], dynamics=dyn.LinearDynamics(weight=mat4))
-        mode2_top = dyn.PiecewiseAffineBLock(min=[-2, 1.8], max=[0.3, 2.], dynamics=dyn.LinearDynamics(weight=mat2))
-        mode1_left = dyn.PiecewiseAffineBLock(min=[-2., 0.], max=[-1.8, 1.8], dynamics=dyn.LinearDynamics(weight=mat1))
-        mode5_left = dyn.PiecewiseAffineBLock(min=[-1.8, 0.], max=[mid_region[0][0], 1.], dynamics=dyn.LinearDynamics(weight=mat5))
-        mode2_left = dyn.PiecewiseAffineBLock(min=[-2., -1.], max=[mid_region[0][0], 0.], dynamics=dyn.LinearDynamics(weight=mat2))
-        obs_left = dyn.PiecewiseAffineBLock(min=[-2., -2.], max=[-1., -1.], dynamics=dyn.LinearDynamics(weight=redun_mat))
+        mode4_top = dyn.IndicatorDynamics(lower=[-1.8, 1.], upper=[0.3, 1.8], dynamics=dyn.LinearDynamics(weight=mat4))
+        mode2_top = dyn.IndicatorDynamics(lower=[-2, 1.8], upper=[0.3, 2.], dynamics=dyn.LinearDynamics(weight=mat2))
+        mode1_left = dyn.IndicatorDynamics(lower=[-2., 0.], upper=[-1.8, 1.8], dynamics=dyn.LinearDynamics(weight=mat1))
+        mode5_left = dyn.IndicatorDynamics(lower=[-1.8, 0.], upper=[mid_region[0][0], 1.], dynamics=dyn.LinearDynamics(weight=mat5))
+        mode2_left = dyn.IndicatorDynamics(lower=[-2., -1.], upper=[mid_region[0][0], 0.], dynamics=dyn.LinearDynamics(weight=mat2))
+        obs_left = dyn.IndicatorDynamics(lower=[-2., -2.], upper=[-1., -1.], dynamics=dyn.LinearDynamics(weight=redun_mat))
 
-        redun_mode = dyn.PiecewiseAffineBLock(min=region[0], max=region[1], dynamics=dyn.LinearDynamics(weight=torch.zeros((2,2))))
+        redun_mode = dyn.IndicatorDynamics(lower=region[0], upper=region[1], dynamics=dyn.LinearDynamics(weight=torch.zeros((2,2))))
 
         super().__init__(
-            bp.Clamp(min=torch.as_tensor(region[0]), max=torch.as_tensor(region[1])),
-            bp.Parallel(
-                obs_right, mode2_right, mode5_right, mode1_bottom,
-                mode4_bottom, mode3,
-                mode2_bottom, mode1_bottom_left, mode4_top, mode2_top,
-                mid_block,
-                mode1_left, mode5_left, mode2_left, obs_left,
-                redun_mode
-            ),
-            bp.VectorAdd(), bp.VectorAdd(), bp.VectorAdd(), bp.VectorAdd()
+            num_dims=2, 
+            modules=[
+                bp.Clamp(min=torch.as_tensor(region[0]), max=torch.as_tensor(region[1])),
+                bp.Parallel(
+                    obs_right, mode2_right, mode5_right, mode1_bottom,
+                    mode4_bottom, mode3,
+                    mode2_bottom, mode1_bottom_left, mode4_top, mode2_top,
+                    mid_block,
+                    mode1_left, mode5_left, mode2_left, obs_left,
+                    redun_mode
+                ),
+                bp.VectorAdd(), bp.VectorAdd(), bp.VectorAdd(), bp.VectorAdd()
+            ]
         )
 
     @property
@@ -65,7 +67,6 @@ class SwitchedLinearDynamics(dyn.Dynamics):
             global_lipschitz.append(mode.global_lipschitz)
         return max(global_lipschitz)
 
-get_dynamics.register('SwitchedLinearDynamics', dyn.additive(SwitchedLinearDynamics))
 
 def patch_creator():
     return [
@@ -89,15 +90,15 @@ def text_creator():
 
 
 def run(args):
-    dynamics = get_dynamics(**vars(args))
+    dynamics = dyn.AdditiveNoiseDynamics(SwitchedLinearDynamics())
     plot.plot_2d_dynamics(
         dynamics, 
         patch_creator=patch_creator, text_creator=text_creator, xlim=[-2., 2.], ylim=[-2., 2.], figsize=(12, 12), scale=None, 
         save_by=f"{args.results_folder}dynamics_{args.tag}", save=args.save
     )
     print(f"global lipschitz: {dynamics.global_lipschitz}")
-    initial_dist = utils.get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
-    noise_dist = utils.get_noise_dist(args.loc_noise_dist, args.variance_noise_dist)
+    initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
+    noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
 
     q = AmbiguitySet(initial_dist, 0.01)
     noise = AmbiguitySet(noise_dist, 0.0001)
@@ -136,21 +137,17 @@ if __name__ == '__main__':
     args.name_dynamics = "switched_linear"
 
     configs = [
-        dict(dynamics_setting= 0, num_time_step=8, tag="upper_left"),
-        # dict(dynamics_setting=2, num_time_step=10, tag="lower_right"),
+        argparse.Namespace(dynamics_setting= 0, num_time_step=8, tag="upper_left"),
+        # argparse.Namespace(dynamics_setting=2, num_time_step=10, tag="lower_right"),
     ]
 
     store = dict()
     for config in configs:
-        dynamics_params = param_handler(
-            param_name="dynamics",
-            dataset_name=args.dynamics_type,
-            setting_tag=config['dynamics_setting']
-        )
-        args.__dict__.update(vars(dynamics_params))
-        args.num_time_steps = config['num_time_step']
-        args.tag = config['tag']
-
+        args.dynamics_setting = config.dynamics_setting
+        args.num_time_steps = config.num_time_step
+        args.tag = config.tag
+        args = param_handler(args)
+        
         store[args.tag] = run(args)
 
     save_by = f"{args.results_folder}switched_linear"

@@ -3,24 +3,24 @@ import torch
 from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguitySet
 import duq_via_wasserstein.dynamics as dyn
 
-from dynamics import get_dynamics
-import plot
 from handlers import parse_arguments
+import plot
 import utils
 
 
 class Spiral2dDynamics(dyn.Dynamics):
-    num_dims = 2
-    def __init__(self, **kwargs):
+    def __init__(self):
         weight = utils.rot_mat(theta=-torch.pi / 8., rho=0.8, delta=0.)
         bias = (torch.eye(2) - weight) @ torch.tensor([0., 0.])
-        super().__init__(dyn.LinearDynamics(weight=weight, bias=bias))
+        super().__init__(
+            num_dims=2,
+            modules=[dyn.LinearDynamics(weight=weight, bias=bias)]
+        )
 
     @property
     def global_lipschitz(self):
         return self[0].global_lipschitz
     
-get_dynamics.register('Spiral2dDynamics', dyn.additive(Spiral2dDynamics))
 
 if __name__ == '__main__':
     torch.manual_seed(0)
@@ -37,7 +37,7 @@ if __name__ == '__main__':
 
     save_by = f"{args.results_folder}spiral"
     xlim, ylim = [-1., 1.], [-1., 1.]
-    dynamics = get_dynamics(**vars(args))
+    dynamics = dyn.AdditiveNoiseDynamics(Spiral2dDynamics())
     plot.plot_2d_dynamics(
         dynamics, 
         xlim=xlim, ylim=ylim, 
@@ -45,8 +45,8 @@ if __name__ == '__main__':
     )
     print(f"global lipschitz: {dynamics.global_lipschitz}")
 
-    initial_dist = utils.get_initial_dist(args.loc_initial_dist, args.variance_initial_dist)
-    noise_dist = utils.get_noise_dist(args.loc_noise_dist, args.variance_noise_dist)
+    initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
+    noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
 
     q = AmbiguitySet(initial_dist, 0.1)
     noise = AmbiguitySet(noise_dist, 0.01)

@@ -2,7 +2,7 @@ import bound_propagation as bp
 import torch
 
 from .arithmetic import MultScalar, AddScalar, Sum
-from .linear import BoundLinear, Linear, Identity
+from .linear import BoundLinear
 from .activation import BoundSigmoid, BoundIdentity, BoxedIdentity, BoundBoxedIdentity, BoundTanh
 from .saturation import BoundClamp
 from .sin import BoundSin
@@ -12,7 +12,7 @@ from .bivariate import BoundVectorAdd
 
 factory = bp.BoundModelFactory()
 factory.register(torch.nn.Sigmoid, BoundSigmoid)
-factory.register(Linear, BoundLinear)
+factory.register(torch.nn.Linear, BoundLinear)
 factory.register(bp.Clamp, BoundClamp)
 factory.register(bp.Sin, BoundSin)
 factory.register(torch.nn.Sequential, BoundSequential)
