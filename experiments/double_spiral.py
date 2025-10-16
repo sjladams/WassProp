@@ -1,7 +1,7 @@
 import torch
 import bound_propagation as bp
 
-from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguitySet
+from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguityBall
 import duq_via_wasserstein.dynamics as dyn
 
 from handlers import parse_arguments
@@ -69,8 +69,8 @@ if __name__ == '__main__':
     initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
     noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
 
-    q = AmbiguitySet(initial_dist, 0.1)
-    noise = AmbiguitySet(noise_dist, 0.01)
+    q = AmbiguityBall(initial_dist, 0.1)
+    noise = AmbiguityBall(noise_dist, 0.01)
 
     path = multi_step(
         dynamics=dynamics, 

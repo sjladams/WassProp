@@ -1,7 +1,7 @@
 import torch
 import os
 
-from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguitySet
+from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguityBall
 import duq_via_wasserstein.dynamics as dyn
 
 from dynamics import SigmoidDynamics, TanhDynamics, get_stoch_dynamics
@@ -70,8 +70,8 @@ def illustrate():
     initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
     noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
 
-    q = AmbiguitySet(initial_dist, 0.001)
-    noise = AmbiguitySet(noise_dist, 0.001)
+    q = AmbiguityBall(initial_dist, 0.001)
+    noise = AmbiguityBall(noise_dist, 0.001)
 
     path = multi_step(
         dynamics=dynamics, 

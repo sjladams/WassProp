@@ -1,7 +1,7 @@
 import torch
 import matplotlib.pyplot as plt
 
-from duq_via_wasserstein import multi_step, single_step, AmbiguitySet
+from duq_via_wasserstein import multi_step, single_step, AmbiguityBall
 
 from dynamics import get_stoch_dynamics
 from handlers import parse_arguments
@@ -51,8 +51,8 @@ if __name__ == '__main__':
                 print(f" ------ W_2(p,q) = {w2_p__q} ------")
                 store[method][w2_p__q] = single_step(
                     dynamics=dynamics,
-                    q=AmbiguitySet(initial_dist, w2_p__q),
-                    noise=AmbiguitySet(noise_dist, 0.),
+                    q=AmbiguityBall(initial_dist, w2_p__q),
+                    noise=AmbiguityBall(noise_dist, 0.),
                     num_locs=args.num_locs,
                     use_lagrangian_duality=method == 'lagrangian_duality'
                 ).w2
@@ -62,8 +62,8 @@ if __name__ == '__main__':
     if run_multi_step:
         trace = multi_step(
             dynamics=dynamics,
-            q=AmbiguitySet(initial_dist, 0.),
-            noise = AmbiguitySet(noise_dist, 0.),
+            q=AmbiguityBall(initial_dist, 0.),
+            noise = AmbiguityBall(noise_dist, 0.),
             num_time_steps=3,
             num_locs=args.num_locs,
             use_lagrangian_duality= True,

@@ -6,25 +6,25 @@ import discretize_distributions.distributions as dd_dists
 
 from . import wasserstein
 from .dynamics import StochasticDynamics, AdditiveNoiseDynamics
-from .utils_distributions import AmbiguitySet, discretize, cross_product, sum_discrete_distributions
+from .utils_distributions import AmbiguityBall, discretize, cross_product, sum_discrete_distributions
 
 TensorLike = Union[float, torch.Tensor]
 
 
 @dataclass
 class SingleStepConfig:
-    q: AmbiguitySet
-    noise: AmbiguitySet
+    q: AmbiguityBall
+    noise: AmbiguityBall
     num_locs: int
     use_lagrangian_duality: bool = True
 
 def single_step(
     dynamics: StochasticDynamics,
-    q: AmbiguitySet,
-    noise: AmbiguitySet,
+    q: AmbiguityBall,
+    noise: AmbiguityBall,
     num_locs: int,
     use_lagrangian_duality: bool = True,
-) -> AmbiguitySet:
+) -> AmbiguityBall:
     cfg = SingleStepConfig(
         q=q,
         noise=noise,
@@ -39,7 +39,7 @@ def single_step(
 def _single_step_general_noise(
     dynamics: StochasticDynamics,
     cfg: SingleStepConfig
-) -> AmbiguitySet:
+) -> AmbiguityBall:
     disc_q, w2_q__disc_q = discretize(cfg.q, cfg.num_locs)
     disc_noise_dist, w2_noise_dist__disc_noise_dist = discretize(cfg.noise, cfg.num_locs)
 
@@ -54,12 +54,12 @@ def _single_step_general_noise(
     else:
         w2_p1__q1 = dynamics.global_lipschitz * (w2_q__disc_q + cfg.q.w2 + w2_noise_dist__disc_noise_dist + cfg.noise.w2)
 
-    return AmbiguitySet(center=q1, w2=w2_p1__q1)
+    return AmbiguityBall(center=q1, radius=w2_p1__q1)
 
 def _single_step_additive_noise(
     dynamics: AdditiveNoiseDynamics,
     cfg: SingleStepConfig
-) -> AmbiguitySet:
+) -> AmbiguityBall:
     disc_q, w2_q__disc_q = discretize(cfg.q, cfg.num_locs)
 
     q1 = propagate_additive_gaussian_noise(dynamics, cfg.noise.center, disc_q)
@@ -75,16 +75,16 @@ def _single_step_additive_noise(
 
     w2_p1__q1 += cfg.noise.w2
 
-    return AmbiguitySet(center=q1, w2=w2_p1__q1)
+    return AmbiguityBall(center=q1, radius=w2_p1__q1)
 
 @dataclass
 class Path:
-    steps: Dict[int, AmbiguitySet] = field(default_factory=dict)
+    steps: Dict[int, AmbiguityBall] = field(default_factory=dict)
 
-    def append(self, k: int, rec: AmbiguitySet) -> None:
+    def append(self, k: int, rec: AmbiguityBall) -> None:
         self.steps[k] = rec
 
-    def at(self, k: int) -> AmbiguitySet:
+    def at(self, k: int) -> AmbiguityBall:
         return self.steps[k]
 
     @property
@@ -93,8 +93,8 @@ class Path:
 
 def multi_step(
     dynamics: StochasticDynamics,
-    q: AmbiguitySet,
-    noise: AmbiguitySet,
+    q: AmbiguityBall,
+    noise: AmbiguityBall,
     num_time_steps: int,
     num_locs: int,
     use_lagrangian_duality: bool = True,
@@ -120,7 +120,7 @@ def multi_step(
 def single_step_empirical(
     dynamics: StochasticDynamics,
     p_emp: torch.Tensor,
-    noise: AmbiguitySet,
+    noise: AmbiguityBall,
     num_samples: int,
 ) -> torch.Tensor:
     noise_emp = noise.sample(num_samples)
@@ -143,7 +143,7 @@ class SampledPath:
 def multi_step_empirical(
     dynamics: StochasticDynamics,
     p_emp: torch.Tensor,
-    noise: AmbiguitySet,
+    noise: AmbiguityBall,
     num_time_steps: int,
     num_samples: int,
 ) -> SampledPath:

@@ -1,7 +1,7 @@
 import torch
 import bound_propagation as bp
 
-from duq_via_wasserstein import single_step, Path, AmbiguitySet
+from duq_via_wasserstein import single_step, Path, AmbiguityBall
 import duq_via_wasserstein.dynamics as dyn
 
 from handlers import parse_arguments
@@ -110,16 +110,16 @@ if __name__ == '__main__':
 
     initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
     noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
-    
+
     # Define open loop control strategy
     open_loop_control = [1, 4, 2, 4, 4, 1, 3, 3, 3, 2]
 
     # Define initial radius
-    noise = AmbiguitySet(noise_dist, 0.)
+    noise = AmbiguityBall(noise_dist, 0.)
     
     path_lagr, path_glob = Path(), Path()
-    path_lagr.append(-1, AmbiguitySet(initial_dist, 0.1))
-    path_glob.append(-1, AmbiguitySet(initial_dist, 0.1))
+    path_lagr.append(-1, AmbiguityBall(initial_dist, 0.1))
+    path_glob.append(-1, AmbiguityBall(initial_dist, 0.1))
 
     for k, control in enumerate(open_loop_control):
         dynamics = dyn.AdditiveNoiseDynamics(FourModesOpenLoopDynamics(control=control))

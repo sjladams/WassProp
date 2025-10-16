@@ -1,7 +1,7 @@
 from typing import Union, Tuple, List, Optional
 from argparse import Namespace
 
-from duq_via_wasserstein import multi_step, AmbiguitySet
+from duq_via_wasserstein import multi_step, AmbiguityBall
 
 from dynamics import get_stoch_dynamics
 from handlers import save_csv
@@ -19,8 +19,8 @@ def hyper_params_analysis(
     dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
     initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
     noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
-    q = AmbiguitySet(initial_dist, w2_p__q)
-    noise = AmbiguitySet(noise_dist, w2_noise_dist)
+    q = AmbiguityBall(initial_dist, w2_p__q)
+    noise = AmbiguityBall(noise_dist, w2_noise_dist)
 
     store = list()
     for num_locs in num_locs_options:
@@ -72,8 +72,8 @@ def boundary_cond_analysis(
         for w2_noise_dist in w2_noise_dist_options:
             path_lagr = multi_step(
                 dynamics=dynamics, 
-                q=AmbiguitySet(initial_dist, w2_p__q), 
-                noise=AmbiguitySet(noise_dist, w2_noise_dist),
+                q=AmbiguityBall(initial_dist, w2_p__q), 
+                noise=AmbiguityBall(noise_dist, w2_noise_dist),
                 num_time_steps=num_time_steps,
                 use_lagrangian_duality=True,
                 num_locs=args.num_locs,
@@ -81,8 +81,8 @@ def boundary_cond_analysis(
 
             path_glob = multi_step(
                 dynamics=dynamics, 
-                q=AmbiguitySet(initial_dist, w2_p__q), 
-                noise=AmbiguitySet(noise_dist, w2_noise_dist),
+                q=AmbiguityBall(initial_dist, w2_p__q), 
+                noise=AmbiguityBall(noise_dist, w2_noise_dist),
                 num_time_steps=num_time_steps,
                 use_lagrangian_duality=False,
                 num_locs=args.num_locs,

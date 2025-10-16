@@ -43,17 +43,21 @@ def compress_categorical_float(
         w2_compr = ot.solve_sample(X_a=q.locs, a=q.probs, X_b=q_pre.locs, b=q_pre.probs).value.sqrt()
     return q, w2_compr
 
-class AmbiguitySet: # TODO name AmbiguityBall? Call w2 the radius?
+class AmbiguityBall:
     def __init__(
             self, 
             center: Union[dd_dists.MultivariateNormal, dd_dists.MixtureMultivariateNormal, dd_dists.CategoricalFloat], 
-            w2: Union[float, torch.Tensor]
+            radius: Union[float, torch.Tensor]
         ):
         self.center = center
-        self.w2 = w2
+        self.radius = radius
+
+    @property
+    def w2(self):
+        return self.radius
 
     def sample(self, num_samples: int): # TODO Improve
-        if self.w2 == 0.:
+        if self.radius == 0.:
             return self.center.sample(torch.Size((num_samples,)))
         else:
             assert isinstance(self.center, (dd_dists.MultivariateNormal, dd_dists.MixtureMultivariateNormal)), (
@@ -63,7 +67,7 @@ class AmbiguitySet: # TODO name AmbiguityBall? Call w2 the radius?
             vec = torch.randn(int(num_samples**0.5), self.center.mean.shape[-1])
 
             # scale vectors to have length w2
-            vec = (vec / vec.norm(dim=1, keepdim=True)) * self.w2
+            vec = (vec / vec.norm(dim=1, keepdim=True)) * self.radius
 
             # sample radii
             r = torch.rand(vec.shape[0]).pow(1 / self.center.mean.shape[-1]).unsqueeze(1)
@@ -86,13 +90,13 @@ class AmbiguitySet: # TODO name AmbiguityBall? Call w2 the radius?
                         loc=self.center.component_distribution.mean.unsqueeze(-3) + weighted_vec,
                         covariance_matrix=self.center.component_distribution.covariance_matrix))
             else:
-                raise NotImplementedError # \todo generalize to CategoricalFloat
+                raise NotImplementedError # TODO generalize to CategoricalFloat
 
             # take sqrt(num_samples) samples from perturbed distributions
             samples = perturbed_center.sample(torch.Size((int(num_samples**0.5),)))
             return samples.flatten(start_dim=-3, end_dim=-2)
 
-def discretize(q: AmbiguitySet, num_locs:int) -> Tuple[dd_dists.CategoricalFloat, Union[torch.Tensor, float]]:
+def discretize(q: AmbiguityBall, num_locs:int) -> Tuple[dd_dists.CategoricalFloat, Union[torch.Tensor, float]]:
     if isinstance(q.center, dd_dists.CategoricalFloat):
         return compress_categorical_float(q.center, size_after_compr=num_locs)
     else:

@@ -4,7 +4,7 @@ import argparse
 
 import bound_propagation as bp
 
-from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguitySet
+from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguityBall
 import duq_via_wasserstein.dynamics as dyn
 
 from handlers import parse_arguments, param_handler
@@ -31,7 +31,7 @@ class SwitchedLinearDynamics(dyn.Dynamics):
         mode5_right = dyn.IndicatorDynamics(lower=[mid_region[1][0], -1.], upper=[2., 0.25], dynamics=dyn.LinearDynamics(weight=mat5))
         mode1_bottom = dyn.IndicatorDynamics(lower=[0., -2.], upper=[2., -1.8], dynamics=dyn.LinearDynamics(weight=mat1))
         mode4_bottom = dyn.IndicatorDynamics(lower=[0., -1.8], upper=[2., -1.], dynamics=dyn.LinearDynamics(weight=mat4))
-        mode3 = dyn.IndicatorDynamics(lower=[0.3, mid_region[1][1]], upper=[1., 2.], dynamics=dyn.LinearDynamics(weight=mat1)) # \todo crux
+        mode3 = dyn.IndicatorDynamics(lower=[0.3, mid_region[1][1]], upper=[1., 2.], dynamics=dyn.LinearDynamics(weight=mat1))
         mode2_bottom = dyn.IndicatorDynamics(lower=[-0.6, -2.], upper=[0., mid_region[0][1]], dynamics=dyn.LinearDynamics(weight=mat2))
         mode1_bottom_left = dyn.IndicatorDynamics(lower=[-1., -2.], upper=[-0.6, mid_region[0][1]], dynamics=dyn.LinearDynamics(weight=mat1))
 
@@ -100,8 +100,8 @@ def run(args):
     initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
     noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
 
-    q = AmbiguitySet(initial_dist, 0.01)
-    noise = AmbiguitySet(noise_dist, 0.0001)
+    q = AmbiguityBall(initial_dist, 0.01)
+    noise = AmbiguityBall(noise_dist, 0.0001)
 
     path = multi_step(
         dynamics=dynamics, 

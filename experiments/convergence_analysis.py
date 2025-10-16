@@ -1,7 +1,7 @@
 import torch
 import pprint
 
-from duq_via_wasserstein import single_step, AmbiguitySet
+from duq_via_wasserstein import single_step, AmbiguityBall
 
 from handlers import parse_arguments
 from dynamics import get_stoch_dynamics
@@ -23,8 +23,8 @@ def convergence_analysis(dynamics_type, setting, num_locs, w2_p__q):
     for method in ['global_lipschitz', 'lagrangian_duality']:
         w2 = single_step(
             dynamics=dynamics,
-            q=AmbiguitySet(initial_dist, w2_p__q),
-            noise=AmbiguitySet(noise_dist, 0.),
+            q=AmbiguityBall(initial_dist, w2_p__q),
+            noise=AmbiguityBall(noise_dist, 0.),
             num_locs=args.num_locs,
             use_lagrangian_duality=True
         ).w2
