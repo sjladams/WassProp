@@ -1,12 +1,48 @@
 import torch
 import os
 
-from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, get_dynamics, AmbiguitySet
+from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguitySet
+import duq_via_wasserstein.dynamics as dyn
 
+from dynamics import get_dynamics, SigmoidDynamics, TanhDynamics
 import plot as plot
 from handlers import parse_arguments
 import utils
 
+
+class NeuralPendulumDynamics(dyn.Dynamics, dyn.CompositionalStructure):
+    def __init__(self, data_folder: str, activation: str, **kwargs):
+        self.num_dims = 2
+
+        state_dict = torch.load(f'{data_folder}{activation}_model_weights_pendulum.pth', weights_only=True)
+
+        weight_fc1 = state_dict["fc1.weight"]
+        bias_fc1 = state_dict["fc1.bias"]
+        weight_fc2 = state_dict["fc2.weight"]
+        bias_fc2 = state_dict["fc2.bias"]
+        weight_fc3 = state_dict["fc3.weight"]
+        bias_fc3 = state_dict["fc3.bias"]
+
+        if activation == 'sigmoid':
+            ActivationDynamics = SigmoidDynamics
+        elif activation == 'tanh':
+            ActivationDynamics = TanhDynamics
+        else:
+            raise NotImplementedError(f"Activation {activation} not implemented.")
+
+        super().__init__(
+            dyn.LinearDynamics(weight_fc1, bias_fc1),
+            ActivationDynamics(bias_fc1.size(0)),
+            dyn.LinearDynamics(weight_fc2, bias_fc2),
+            ActivationDynamics(bias_fc2.size(0)),
+            dyn.LinearDynamics(weight_fc3, bias_fc3)
+        )
+
+    @property
+    def global_lipschitz(self):
+        return torch.tensor([module.global_lipschitz for module in self]).prod()
+
+get_dynamics.register('NeuralPendulumDynamics', dyn.additive(NeuralPendulumDynamics))
 
 
 def illustrate():

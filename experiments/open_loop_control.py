@@ -1,10 +1,105 @@
 import torch
+import bound_propagation as bp
 
 from duq_via_wasserstein import single_step, Path, AmbiguitySet
-from duq_via_wasserstein.dynamics import FourModesOpenLoopDynamics, AdditiveGaussianDynamics
+import duq_via_wasserstein.linear_bound_propagation as lbp
+import duq_via_wasserstein.dynamics as dyn
 
 from handlers import parse_arguments
 import utils
+
+
+class FourModesOpenLoopDynamics(dyn.Dynamics):
+
+    def __init__(self, control: int = 1, **kwargs):
+
+        self.num_dims = 2
+
+        linear_part = dyn.IdentityDynamics(num_dims=2)
+
+        if control == 1:
+            trig_part = torch.nn.Sequential(
+                lbp.Linear(
+                    torch.tensor([
+                        [0.0, 1.0],
+                        [1.0, 0.0]
+                    ]),
+                    torch.tensor([0.0, torch.pi / 2])
+                    ),
+                bp.Sin(),
+                lbp.Linear(
+                    torch.tensor([
+                        [0.2, 0.0],
+                        [0.0, 0.4]
+                    ]),
+                    torch.tensor([0.5, 0.0])
+                ),
+            )
+        elif control == 2:
+            trig_part = torch.nn.Sequential(
+                lbp.Linear(
+                    torch.tensor([
+                        [0.0, 1.0],
+                        [1.0, 0.0]
+                    ]),
+                    torch.tensor([0.0, torch.pi / 2])
+                    ),
+                bp.Sin(),
+                lbp.Linear(
+                    torch.tensor([
+                        [0.2, 0.0],
+                        [0.0, 0.4]
+                    ]),
+                    torch.tensor([-0.5, 0.0])
+                ),
+            )
+        elif control==3:
+            trig_part = torch.nn.Sequential(
+                lbp.Linear(
+                    torch.tensor([
+                        [0.0, 1.0],
+                        [1.0, 0.0]
+                    ]),
+                    torch.tensor([torch.pi / 2, 0.0])
+                    ),
+                bp.Sin(),
+                lbp.Linear(
+                    torch.tensor([
+                        [0.4, 0.0],
+                        [0.0, 0.2]
+                    ]),
+                    torch.tensor([0.0, 0.5])
+                ),
+            )
+        elif control==4:
+            trig_part = torch.nn.Sequential(
+                lbp.Linear(
+                    torch.tensor([
+                        [0.0, 1.0],
+                        [1.0, 0.0]
+                    ]),
+                    torch.tensor([torch.pi / 2, 0.0])
+                    ),
+                bp.Sin(),
+                lbp.Linear(
+                    torch.tensor([
+                        [0.4, 0.0],
+                        [0.0, 0.2]
+                    ]),
+                    torch.tensor([0.0, -0.5])
+                ),
+            )
+        else:
+            raise Exception
+
+        super().__init__(
+            bp.Parallel(linear_part, trig_part),
+            bp.VectorAdd(),
+        )
+
+    @property
+    def global_lipschitz(self):
+        return 1.4
 
 
 if __name__ == '__main__':
@@ -32,7 +127,7 @@ if __name__ == '__main__':
     path_glob.append(-1, AmbiguitySet(initial_dist, 0.1))
 
     for k, control in enumerate(open_loop_control):
-        dynamics = AdditiveGaussianDynamics(FourModesOpenLoopDynamics(control=control, **vars(args))) # Build dynamics according to control mode
+        dynamics = dyn.AdditiveGaussianDynamics(FourModesOpenLoopDynamics(control=control, **vars(args))) # Build dynamics according to control mode
 
         print(f'---- TIME STEP {k} ----')
         path_lagr.append(k, single_step(

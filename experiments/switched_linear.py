@@ -1,13 +1,71 @@
 import torch
 import matplotlib.patches as patches
 
-from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, get_dynamics, AmbiguitySet
+import bound_propagation as bp
 
+from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguitySet
+import duq_via_wasserstein.dynamics as dyn
+
+from dynamics import get_dynamics
 import plot
 from handlers import parse_arguments, param_handler
 import utils
 
 
+class SwitchedLinearDynamics(dyn.Dynamics):
+    num_dims = 2
+    def __init__(self, **kwargs):
+        region = [[-2., -2.], [2., 2.]]
+
+        mat1 = [[0.79, 0.035], [0., 0.825]]
+        mat2 = [[0.79, 0.175], [0., 0.825]]
+        mat3 = [[0.79, 0.], [0.175, 0.825]]
+        mat4 = [[1., 0.2], [-0.2, 1.]]
+        mat5 = [[1., -0.2], [0.2, 1.]]
+        redun_mat = torch.eye(2)
+
+        mid_region = [[-0.8, -0.8],[0.8, 0.8]]
+        mid_block = dyn.PiecewiseAffineBLock(min=mid_region[0], max=mid_region[1], dynamics=dyn.LinearDynamics(weight=redun_mat))
+
+        obs_right = dyn.PiecewiseAffineBLock(min=[1., 1.], max=[2., 2.], dynamics=dyn.LinearDynamics(weight=redun_mat))
+        mode2_right = dyn.PiecewiseAffineBLock(min=[mid_region[1][0], 0.25], max=[2., 1.], dynamics=dyn.LinearDynamics(weight=mat2))
+        mode5_right = dyn.PiecewiseAffineBLock(min=[mid_region[1][0], -1.], max=[2., 0.25], dynamics=dyn.LinearDynamics(weight=mat5))
+        mode1_bottom = dyn.PiecewiseAffineBLock(min=[0., -2.], max=[2., -1.8], dynamics=dyn.LinearDynamics(weight=mat1))
+        mode4_bottom = dyn.PiecewiseAffineBLock(min=[0., -1.8], max=[2., -1.], dynamics=dyn.LinearDynamics(weight=mat4))
+        mode3 = dyn.PiecewiseAffineBLock(min=[0.3, mid_region[1][1]], max=[1., 2.], dynamics=dyn.LinearDynamics(weight=mat1)) # \todo crux
+        mode2_bottom = dyn.PiecewiseAffineBLock(min=[-0.6, -2.], max=[0., mid_region[0][1]], dynamics=dyn.LinearDynamics(weight=mat2))
+        mode1_bottom_left = dyn.PiecewiseAffineBLock(min=[-1., -2.], max=[-0.6, mid_region[0][1]], dynamics=dyn.LinearDynamics(weight=mat1))
+
+        mode4_top = dyn.PiecewiseAffineBLock(min=[-1.8, 1.], max=[0.3, 1.8], dynamics=dyn.LinearDynamics(weight=mat4))
+        mode2_top = dyn.PiecewiseAffineBLock(min=[-2, 1.8], max=[0.3, 2.], dynamics=dyn.LinearDynamics(weight=mat2))
+        mode1_left = dyn.PiecewiseAffineBLock(min=[-2., 0.], max=[-1.8, 1.8], dynamics=dyn.LinearDynamics(weight=mat1))
+        mode5_left = dyn.PiecewiseAffineBLock(min=[-1.8, 0.], max=[mid_region[0][0], 1.], dynamics=dyn.LinearDynamics(weight=mat5))
+        mode2_left = dyn.PiecewiseAffineBLock(min=[-2., -1.], max=[mid_region[0][0], 0.], dynamics=dyn.LinearDynamics(weight=mat2))
+        obs_left = dyn.PiecewiseAffineBLock(min=[-2., -2.], max=[-1., -1.], dynamics=dyn.LinearDynamics(weight=redun_mat))
+
+        redun_mode = dyn.PiecewiseAffineBLock(min=region[0], max=region[1], dynamics=dyn.LinearDynamics(weight=torch.zeros((2,2))))
+
+        super().__init__(
+            bp.Clamp(min=torch.as_tensor(region[0]), max=torch.as_tensor(region[1])),
+            bp.Parallel(
+                obs_right, mode2_right, mode5_right, mode1_bottom,
+                mode4_bottom, mode3,
+                mode2_bottom, mode1_bottom_left, mode4_top, mode2_top,
+                mid_block,
+                mode1_left, mode5_left, mode2_left, obs_left,
+                redun_mode
+            ),
+            bp.VectorAdd(), bp.VectorAdd(), bp.VectorAdd(), bp.VectorAdd()
+        )
+
+    @property
+    def global_lipschitz(self):
+        global_lipschitz = []
+        for mode in self[1].subnetworks:
+            global_lipschitz.append(mode.global_lipschitz)
+        return max(global_lipschitz)
+
+get_dynamics.register('SwitchedLinearDynamics', dyn.additive(SwitchedLinearDynamics))
 
 def patch_creator():
     return [

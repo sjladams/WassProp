@@ -1,7 +1,8 @@
 import torch
 
-from duq_via_wasserstein import multi_step, single_step, get_dynamics, AmbiguitySet
+from duq_via_wasserstein import multi_step, single_step, AmbiguitySet
 
+from dynamics import get_dynamics
 from handlers import parse_arguments
 import plot
 from utils import get_initial_dist, get_noise_dist

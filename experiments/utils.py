@@ -3,8 +3,9 @@ from argparse import Namespace
 import torch
 import discretize_distributions.distributions as dd_dists
 
-from duq_via_wasserstein import multi_step, get_dynamics, AmbiguitySet
+from duq_via_wasserstein import multi_step, AmbiguitySet
 
+from dynamics import get_dynamics
 from handlers import save_csv
 
 
@@ -127,3 +128,9 @@ def boundary_cond_analysis(
         save_csv(store, f"{args.results_folder}{file_name}")
     else:
         print(store)
+
+def rot_mat(theta, rho, delta):
+    theta = theta if torch.is_tensor(theta) else torch.as_tensor(theta)
+    rho = rho if torch.is_tensor(rho) else torch.as_tensor(rho)
+    delta = delta if torch.is_tensor(delta) else torch.as_tensor(delta)
+    return rho * torch.tensor([[torch.cos(theta), -torch.sin(theta)], [torch.sin(theta), torch.cos(theta)]]) + delta

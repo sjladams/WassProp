@@ -1,10 +1,26 @@
 import torch
 
-from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, get_dynamics, AmbiguitySet
+from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguitySet
+import duq_via_wasserstein.dynamics as dyn
 
+from dynamics import get_dynamics
 import plot
 from handlers import parse_arguments
 import utils
+
+
+class Spiral2dDynamics(dyn.Dynamics):
+    num_dims = 2
+    def __init__(self, **kwargs):
+        weight = utils.rot_mat(theta=-torch.pi / 8., rho=0.8, delta=0.)
+        bias = (torch.eye(2) - weight) @ torch.tensor([0., 0.])
+        super().__init__(dyn.LinearDynamics(weight=weight, bias=bias))
+
+    @property
+    def global_lipschitz(self):
+        return self[0].global_lipschitz
+    
+get_dynamics.register('Spiral2dDynamics', dyn.additive(Spiral2dDynamics))
 
 if __name__ == '__main__':
     torch.manual_seed(0)

@@ -1,5 +1,5 @@
 from .propagation import single_step, multi_step, SampledPath, multi_step_empirical, Path
-from .dynamics import get_dynamics
+from .dynamics import GetDynamics
 from .utils_distributions import AmbiguitySet
 
 from . import utils_distributions
@@ -9,7 +9,7 @@ from . import dynamics
 
 __all__ = [
     'SampledPath', 'single_step', 'multi_step', 'multi_step_empirical', 'Path',
-    'get_dynamics',
+    'GetDynamics',
     'AmbiguitySet',
     'bound',
     'dynamics',

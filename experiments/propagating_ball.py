@@ -1,8 +1,9 @@
 import torch
 import pprint
 
-from duq_via_wasserstein import single_step, get_dynamics, AmbiguitySet
+from duq_via_wasserstein import single_step, AmbiguitySet
 
+from dynamics import get_dynamics
 from handlers import parse_arguments
 import utils
 

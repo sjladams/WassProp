@@ -2,8 +2,8 @@ import torch
 import discretize_distributions as dd
 
 import duq_via_wasserstein.wasserstein as wasserstein
-from duq_via_wasserstein import get_dynamics
 
+from dynamics import get_dynamics
 import plot
 from handlers import parse_arguments
 import utils

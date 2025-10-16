@@ -1,7 +1,8 @@
 import torch
 
-from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, get_dynamics, AmbiguitySet
+from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguitySet
 
+from dynamics import get_dynamics
 import plot
 from handlers import parse_arguments
 import utils
