@@ -98,13 +98,13 @@ def multi_step(
     num_time_steps: int,
     num_locs: int,
     use_lagrangian_duality: bool = True,
+    print_progress: bool = True,
 ) -> Path:
 
     path = Path()
     path.append(-1, q)
 
     for k in range(num_time_steps):
-        print(f'---- TIME STEP {k} ----')
         path.append(k, single_step(
             dynamics=dynamics,
             q=path.at(k-1),
@@ -112,8 +112,8 @@ def multi_step(
             num_locs=num_locs,
             use_lagrangian_duality=use_lagrangian_duality
         ))
-
-        print(f"W_2(p_{k+1}, q_{k+1}) <= {path.at(k).w2:.4f}:\n")
+        if print_progress:
+            print(f"W_2(p_{k+1}, q_{k+1}) <= {path.at(k).w2:.4f}:\n")
 
     return path
 
@@ -152,7 +152,6 @@ def multi_step_empirical(
     path.append(-1, p_emp)
 
     for k in range(num_time_steps):
-        print(f'---- TIME STEP {k} ----')
         path.append(k, single_step_empirical(
             dynamics=dynamics,
             p_emp=path.at(k-1),
