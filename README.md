@@ -1,10 +1,6 @@
 # WassProp — Formal Uncertainty Propagation in Wasserstein Distance
 
-WassProp is a PyTorch toolkit for **formal uncertainty propagation** through (stochastic) **dynamical systems**. It represents the uncertain state of a stochastic system by means of **Wasserstein ambiguity balls**  
-$$
-    \mathbb{B}_\theta(P) = \{ Q : W_2(Q, P) \le \theta \},
-$$
-where $P$ denotes a reference distribution and $\theta$ an upper bound on the 2-Wasserstein distance deviation from that reference. 
+WassProp is a PyTorch toolkit for **formal uncertainty propagation** through (stochastic) **dynamical systems**. It represents the uncertain state of a stochastic system by means of **Wasserstein ambiguity balls**  B<sub>θ</sub>(P) = { Q : W₂(Q, P) ≤ θ }, where $P$ denotes a reference distribution and $\theta$ an upper bound on the 2-Wasserstein distance deviation from that reference. 
 
 The algorithmic backbone and theoretical guarantees were first proposed in  [Figueiredo *et al.* (2025)](https://arxiv.org/pdf/2506.08689) and extended to the additive-noise setting in [Adams *et al.* (2025)](https://arxiv.org/pdf/2505.11219). 
 
