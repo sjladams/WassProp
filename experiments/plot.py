@@ -17,14 +17,6 @@ plt.style.use('seaborn-v0_8-bright')
 # })
 
 
-COLORS = ['Blues', 'BuPu', 'PuRd', 'Greens', 'Oranges', 'Reds', 'Greys', 'Purples',
-                      'YlOrBr', 'YlOrRd', 'OrRd', 'PuRd', 'RdPu', 'BuPu',
-                      'GnBu', 'PuBu', 'YlGnBu', 'PuBuGn', 'BuGn', 'YlGn']
-
-COLORS_HIST = [
-    '#543005', '#8c510a', '#bf812d', '#dfc27d', '#f6e8c3', '#c7eae5', '#80cdc1', '#35978f', '#01665e', '#003c30'
-    ]
-
 @torch.no_grad()
 def plot_signatures(f, initial_dist, signatures, bounds):  # TODO to be updated
     X = torch.linspace(-3, 3, int(1e3)).unsqueeze(-1)

@@ -141,6 +141,12 @@ class SampledPath:
     def ordered_indices(self) -> List[int]:
         return sorted(self.steps.keys())
 
+    def detach(self) -> "SampledPath":
+        new = SampledPath()
+        for k, v in self.steps.items():
+            new.steps[k] = v.detach().clone() if isinstance(v, torch.Tensor) else v
+        return new
+
 def multi_step_empirical(
     dynamics: StochasticDynamics,
     p_emp: torch.Tensor,
