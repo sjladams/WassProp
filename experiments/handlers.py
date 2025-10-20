@@ -1,7 +1,8 @@
 import json
-import argparse
+from argparse import Namespace, ArgumentParser
 import os
 import csv
+
 
 folder = os.path.dirname(os.path.abspath(__file__))
 
@@ -14,12 +15,12 @@ def load_json(filename: str):
 
 def param_handler(args):
     params = load_json("dynamics")[args.dynamics_type][str(args.dynamics_setting)]
-    params = argparse.Namespace(**{k: argparse.Namespace(**v) for k, v in params.items()})
+    params = Namespace(**{k: Namespace(**v) for k, v in params.items()})
     args.__dict__.update(vars(params))
 
     assert "initial_dist" in args and "noise_dist"in args, "Please specify initial and noise distribution in config file."
     if not "dynamics" in args:
-        args.__dict__.update(dict(dynamics=argparse.Namespace()))
+        args.__dict__.update(dict(dynamics=Namespace()))
     
     return args
 
@@ -30,7 +31,7 @@ def parse_arguments(
         num_samples: int = 1000,
         save: bool = False,
 ):
-    parser = argparse.ArgumentParser(description='Setup experiments for dynamics.')
+    parser = ArgumentParser(description='Setup experiments for dynamics.')
     parser.add_argument('--dynamics_type',
                         type=str,
                         choices=['GaussianDynamics1d', 'ChaoticDynamics', 'LinearDynamics'],
