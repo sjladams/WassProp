@@ -2,70 +2,13 @@ import torch
 import matplotlib.patches as patches
 import argparse
 
-import bound_propagation as bp
-
 from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguityBall
-import duq_via_wasserstein.dynamics as dyn
 
 from handlers import parse_arguments, param_handler
+from dynamics import get_stoch_dynamics
 import plot
 import utils
 
-
-class SwitchedLinearDynamics(dyn.Dynamics):
-    def __init__(self):
-        region = [[-2., -2.], [2., 2.]]
-
-        mat1 = [[0.79, 0.035], [0., 0.825]]
-        mat2 = [[0.79, 0.175], [0., 0.825]]
-        mat3 = [[0.79, 0.], [0.175, 0.825]]
-        mat4 = [[1., 0.2], [-0.2, 1.]]
-        mat5 = [[1., -0.2], [0.2, 1.]]
-        redun_mat = torch.eye(2)
-
-        mid_region = [[-0.8, -0.8],[0.8, 0.8]]
-        mid_block = dyn.IndicatorDynamics(lower=mid_region[0], upper=mid_region[1], dynamics=dyn.LinearDynamics(weight=redun_mat))
-
-        obs_right = dyn.IndicatorDynamics(lower=[1., 1.], upper=[2., 2.], dynamics=dyn.LinearDynamics(weight=redun_mat))
-        mode2_right = dyn.IndicatorDynamics(lower=[mid_region[1][0], 0.25], upper=[2., 1.], dynamics=dyn.LinearDynamics(weight=mat2))
-        mode5_right = dyn.IndicatorDynamics(lower=[mid_region[1][0], -1.], upper=[2., 0.25], dynamics=dyn.LinearDynamics(weight=mat5))
-        mode1_bottom = dyn.IndicatorDynamics(lower=[0., -2.], upper=[2., -1.8], dynamics=dyn.LinearDynamics(weight=mat1))
-        mode4_bottom = dyn.IndicatorDynamics(lower=[0., -1.8], upper=[2., -1.], dynamics=dyn.LinearDynamics(weight=mat4))
-        mode3 = dyn.IndicatorDynamics(lower=[0.3, mid_region[1][1]], upper=[1., 2.], dynamics=dyn.LinearDynamics(weight=mat1))
-        mode2_bottom = dyn.IndicatorDynamics(lower=[-0.6, -2.], upper=[0., mid_region[0][1]], dynamics=dyn.LinearDynamics(weight=mat2))
-        mode1_bottom_left = dyn.IndicatorDynamics(lower=[-1., -2.], upper=[-0.6, mid_region[0][1]], dynamics=dyn.LinearDynamics(weight=mat1))
-
-        mode4_top = dyn.IndicatorDynamics(lower=[-1.8, 1.], upper=[0.3, 1.8], dynamics=dyn.LinearDynamics(weight=mat4))
-        mode2_top = dyn.IndicatorDynamics(lower=[-2, 1.8], upper=[0.3, 2.], dynamics=dyn.LinearDynamics(weight=mat2))
-        mode1_left = dyn.IndicatorDynamics(lower=[-2., 0.], upper=[-1.8, 1.8], dynamics=dyn.LinearDynamics(weight=mat1))
-        mode5_left = dyn.IndicatorDynamics(lower=[-1.8, 0.], upper=[mid_region[0][0], 1.], dynamics=dyn.LinearDynamics(weight=mat5))
-        mode2_left = dyn.IndicatorDynamics(lower=[-2., -1.], upper=[mid_region[0][0], 0.], dynamics=dyn.LinearDynamics(weight=mat2))
-        obs_left = dyn.IndicatorDynamics(lower=[-2., -2.], upper=[-1., -1.], dynamics=dyn.LinearDynamics(weight=redun_mat))
-
-        redun_mode = dyn.IndicatorDynamics(lower=region[0], upper=region[1], dynamics=dyn.LinearDynamics(weight=torch.zeros((2,2))))
-
-        super().__init__(
-            num_dims=2, 
-            modules=[
-                bp.Clamp(min=torch.as_tensor(region[0]), max=torch.as_tensor(region[1])),
-                bp.Parallel(
-                    obs_right, mode2_right, mode5_right, mode1_bottom,
-                    mode4_bottom, mode3,
-                    mode2_bottom, mode1_bottom_left, mode4_top, mode2_top,
-                    mid_block,
-                    mode1_left, mode5_left, mode2_left, obs_left,
-                    redun_mode
-                ),
-                bp.VectorAdd(), bp.VectorAdd(), bp.VectorAdd(), bp.VectorAdd()
-            ]
-        )
-
-    @property
-    def global_lipschitz(self):
-        global_lipschitz = []
-        for mode in self[1].subnetworks:
-            global_lipschitz.append(mode.global_lipschitz)
-        return max(global_lipschitz)
 
 
 def patch_creator():
@@ -90,7 +33,7 @@ def text_creator():
 
 
 def run(args):
-    dynamics = dyn.AdditiveNoiseDynamics(SwitchedLinearDynamics())
+    dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
     plot.plot_2d_dynamics(
         dynamics, 
         patch_creator=patch_creator, text_creator=text_creator, xlim=[-2., 2.], ylim=[-2., 2.], figsize=(12, 12), scale=None, 

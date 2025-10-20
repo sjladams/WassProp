@@ -1,50 +1,12 @@
 import torch
-import bound_propagation as bp
 
 from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguityBall
-from duq_via_wasserstein.dynamics import Dynamics, IndicatorDynamics, LinearDynamics, AdditiveNoiseDynamics
 
 from handlers import parse_arguments
 import plot
 import utils
 
-
-class DoubleSpiral2dDynamics(Dynamics):
-    def __init__(self):
-        region_left = torch.tensor([[-2., -0.75], [0., 1.25]])
-        weight_left = utils.rot_mat(theta=torch.pi / 8., rho=0.8, delta=0.)
-        bias_left = (torch.eye(2) - weight_left) @ torch.tensor([-1.25, -1.0])
-
-        region_right = torch.tensor([[0., -0.75], [2., 1.25]])
-        weight_right = utils.rot_mat(theta=-torch.pi / 8., rho=0.8, delta=0.)
-        bias_right = (torch.eye(2) - weight_right) @ torch.tensor([1.25, -1.0])
-
-        mode_left = IndicatorDynamics(
-            lower=region_left[0], 
-            upper=region_left[1],
-            dynamics=LinearDynamics(weight=weight_left, bias=bias_left)
-        )
-        mode_right = IndicatorDynamics(
-            lower=region_right[0], 
-            upper=region_right[1],
-            dynamics=LinearDynamics(weight=weight_right, bias=bias_right)
-        )
-
-        super().__init__(
-            num_dims=2,
-            modules=[
-                bp.Clamp(min=region_left[0], max=region_right[1]),
-                bp.Parallel(mode_left, mode_right),
-                bp.VectorAdd()
-            ]
-        )
-
-    @property
-    def global_lipschitz(self):
-        global_lipschitz = []
-        for mode in self[1].subnetworks:
-            global_lipschitz.append(mode.global_lipschitz)
-        return max(global_lipschitz)
+from dynamics import get_stoch_dynamics
 
 
 if __name__ == '__main__':
@@ -61,7 +23,7 @@ if __name__ == '__main__':
     num_time_steps = 10
 
     save_by = f"{args.results_folder}double_spiral"
-    dynamics = AdditiveNoiseDynamics(DoubleSpiral2dDynamics())
+    dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
     plot.plot_2d_dynamics(
         dynamics, 
         xlim= [-2.0, 2.0], ylim=[-1.0, 1.0], figsize=(13, 8), scale=None, 
