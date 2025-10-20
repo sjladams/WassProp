@@ -6,7 +6,7 @@ from scipy.stats import norm
 from typing import Union, Optional, List, Dict, Tuple
 from matplotlib.ticker import MaxNLocator
 
-from duq_via_wasserstein import SampledPath, Path
+from wass_prop import SampledPath, Path
 
 plt.style.use('seaborn-v0_8-bright')
 

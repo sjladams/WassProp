@@ -3,8 +3,8 @@ import torch
 import os
 import bound_propagation as bp
 
-from duq_via_wasserstein import GetStochasticDynamics
-from duq_via_wasserstein.dynamics import Dynamics, Linear, LinearDynamics, PreBoundedDynamics, IndicatorDynamics, StochasticDynamics, LinearStochasticDynamics, additive, AdditiveNoiseDynamics
+from wass_prop import GetStochasticDynamics
+from wass_prop.dynamics import Dynamics, Linear, LinearDynamics, PreBoundedDynamics, IndicatorDynamics, StochasticDynamics, LinearStochasticDynamics, additive, AdditiveNoiseDynamics
 
 import utils
 

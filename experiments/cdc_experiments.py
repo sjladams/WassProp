@@ -2,7 +2,7 @@ from typing import List, Optional, Tuple, Callable
 import torch
 import matplotlib.patches as patches
 
-from duq_via_wasserstein import multi_step, multi_step_empirical, SampledPath, AmbiguityBall
+from wass_prop import multi_step, multi_step_empirical, SampledPath, AmbiguityBall
 from dataclasses import dataclass, field
 
 from handlers import parse_arguments
@@ -189,15 +189,15 @@ if __name__ == '__main__':
 
     illustrate("double_spiral")
 
-    illustrate("switched_linear_upper_left")
+    # illustrate("switched_linear_upper_left")
 
-    illustrate("switched_linear_lower_right")
+    # illustrate("switched_linear_lower_right")
 
-    illustrate("neural_pendulum")
+    # illustrate("neural_pendulum")
 
-    analysis("quadruple_tank")
+    # analysis("quadruple_tank")
 
-    analysis("neural_pendulum")
+    # analysis("neural_pendulum")
 
 
 

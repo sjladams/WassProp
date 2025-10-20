@@ -1,7 +1,7 @@
 from typing import Union, Tuple, List, Optional
 from argparse import Namespace
 
-from duq_via_wasserstein import multi_step, AmbiguityBall
+from wass_prop import multi_step, AmbiguityBall
 
 from dynamics import get_stoch_dynamics
 from handlers import save_csv

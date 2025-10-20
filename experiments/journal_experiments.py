@@ -5,8 +5,8 @@ import discretize_distributions as dd
 import numpy as np
 from scipy.stats import norm
 
-from duq_via_wasserstein import single_step, multi_step, multi_step_empirical, SampledPath, AmbiguityBall
-import duq_via_wasserstein.wasserstein as wasserstein
+from wass_prop import single_step, multi_step, multi_step_empirical, SampledPath, AmbiguityBall
+import wass_prop.wasserstein as wasserstein
 
 from dynamics import get_stoch_dynamics
 from handlers import parse_arguments

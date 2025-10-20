@@ -1,6 +1,6 @@
 import torch
 
-from duq_via_wasserstein import single_step, Path, AmbiguityBall
+from wass_prop import single_step, Path, AmbiguityBall
 
 from handlers import parse_arguments
 from dynamics import get_stoch_dynamics
