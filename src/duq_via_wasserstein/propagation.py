@@ -137,6 +137,7 @@ class SampledPath:
     def at(self, k: int) -> torch.Tensor:
         return self.steps[k]
 
+    @property
     def ordered_indices(self) -> List[int]:
         return sorted(self.steps.keys())
 
