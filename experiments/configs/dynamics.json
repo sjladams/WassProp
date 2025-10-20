@@ -150,10 +150,6 @@
     },
     "MountainCarDynamics": {
         "0": {
-            "dynamics": {
-                "lower": -2.0,
-                "upper": 2.0
-            },
             "noise_dist": {
                 "loc": [0.0, 0.0],
                 "variance": [0.01, 0.01]
