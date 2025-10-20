@@ -39,7 +39,6 @@ def multistep_approximation(dynamics_type, setting, num_locs):
         p_emp=q.sample(args.num_samples),
         noise=noise,
         num_time_steps=num_time_steps,
-        num_samples=args.num_samples,
     )
     approx_samples = SampledPath({k: path.at(k).sample(args.num_samples) for k in path.ordered_indices})
 

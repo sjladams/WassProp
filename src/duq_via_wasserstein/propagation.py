@@ -145,7 +145,6 @@ def multi_step_empirical(
     p_emp: torch.Tensor,
     noise: AmbiguityBall,
     num_time_steps: int,
-    num_samples: int,
 ) -> SampledPath:
 
     path = SampledPath()
@@ -157,7 +156,7 @@ def multi_step_empirical(
             dynamics=dynamics,
             p_emp=path.at(k-1),
             noise=noise,
-            num_samples=num_samples
+            num_samples=p_emp.size(0)
         ))
 
     return path
