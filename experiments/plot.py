@@ -3,7 +3,6 @@ from matplotlib.patches import Circle
 import numpy as np
 import torch
 from scipy.stats import norm
-import os
 from typing import Union, Optional, List, Dict, Tuple
 from matplotlib.ticker import MaxNLocator
 
@@ -11,11 +10,11 @@ from duq_via_wasserstein import SampledPath, Path
 
 plt.style.use('seaborn-v0_8-bright')
 
-plt.rcParams.update({
-    'font.size': 40,
-    'text.usetex': True,
-    'text.latex.preamble': r'\usepackage{amsfonts}'
-})
+# plt.rcParams.update({
+#     'font.size': 40,
+#     'text.usetex': True,
+#     'text.latex.preamble': r'\usepackage{amsfonts}'
+# })
 
 
 COLORS = ['Blues', 'BuPu', 'PuRd', 'Greens', 'Oranges', 'Reds', 'Greys', 'Purples',
@@ -82,73 +81,16 @@ def plot_signatures(f, initial_dist, signatures, bounds):  # TODO to be updated
     plt.show()
 
 
-@torch.no_grad()
-def plot_multi_step(dynamics, true_samples: SampledPath, approx_samples: SampledPath, layout: str = "hist"):
-    if not dynamics.num_state_dims in [1, 2]:
-        raise NotImplementedError("Only implemented for 1D and 2D dynamics")
-
-    colors = plt.cm.tab10(np.linspace(0, 1, len(true_samples.ordered_indices)))
-
-    if layout == "scatter":
-        fig, ax = plt.subplots(figsize=(12, 12))
-        for k in true_samples.ordered_indices:
-            ax.scatter(true_samples.at(k)[:,0], true_samples.at(k)[:,1], label=rf'$t={k+1}$')
-        ax.legend(loc='upper left')
-        ax.set_xlim([-1., 1.])
-        ax.set_ylim([-1., 1.])
-    elif layout == "hist":
-        fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(24, 36))
-        for k in true_samples.ordered_indices:
-
-            # Plot using hist2d with color intensity indicating the density
-            ax[0][0].hist2d(true_samples.at(k)[:,0], true_samples.at(k)[:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
-            ax[0][1].hist2d(approx_samples.at(k)[:,0], approx_samples.at(k)[:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
-
-            # Plot only first dimension
-            ax[1][0].hist(true_samples.at(k)[:,0], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
-            ax[1][1].hist(approx_samples.at(k)[:,0], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
-
-            # Plot only second dimension
-            ax[2][0].hist(true_samples.at(k)[:, 1], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
-            ax[2][1].hist(approx_samples.at(k)[:, 1], color=colors[k], bins=50, density=True, label=rf'$t={k+1}$')
-
-        ax[0][0].set_title(r'$\mathbb{P}_{x_t}$ (actual distr.)')
-        ax[0][1].set_title(r'$\hat{\mathbb{P}}_{x_t}$ (our approx.)')
-
-        ax[0][0].set_xlabel(r'$x^{(0)}$')
-        ax[0][1].set_xlabel(r'$x^{(0)}$')
-        ax[0][0].set_ylabel(r'$x^{(1)}$')
-
-        ax[1][0].set_xlabel(r'$x^{(0)}$')
-        ax[1][1].set_xlabel(r'$x^{(0)}$')
-        ax[1][0].set_ylabel('Frequency')
-
-        ax[2][0].set_xlabel(r'$x^{(1)}$')
-        ax[2][1].set_xlabel(r'$x^{(1)}$')
-        ax[2][0].set_ylabel('Frequency')
-
-        ax[0][0].grid(True)
-        ax[0][1].grid(True)
-
-        ax[0][0].axis('equal')
-        ax[0][1].axis('equal')
-
-        for ax in fig.axes:
-            ax.legend(loc='upper left')
-    else:
-        raise NotImplementedError
-
-    #plt.savefig(rf'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\{type}.pdf', format='pdf')
-    plt.show()
-
 
 @torch.no_grad()
 def plot_2d_ambiguity_balls(
-    samples: SampledPath, path: Path,
+    samples: SampledPath, 
+    path: Optional[Path] = None,
     patch_creator = None, text_creator = None,
     step_size: int = 1,
     xlim: Optional[List] = None, ylim: Optional[List] = None, figsize: Optional[tuple] = None, 
-    save_by: str = 'path', save: bool = False
+    save_by: str = 'path', save: bool = False, 
+    title: Optional[str] = None
 ):
     xlim = [-1, 1] if xlim is None else xlim
     ylim = [-1, 1] if ylim is None else ylim
@@ -163,16 +105,16 @@ def plot_2d_ambiguity_balls(
         for text in text_creator():
             plt.text(**text)
 
-    time_steps = path.ordered_indices[::step_size][:-1]
+    time_steps = samples.ordered_indices[::step_size][:-1]
     cmap = plt.cm.coolwarm
     colors = [cmap(i / (len(time_steps) - 1)) for i in range(len(time_steps))]
 
     for k in time_steps:
-        amb_ball = path.at(k)
         ax.scatter(samples.at(k)[:, 0], samples.at(k)[:, 1], color=colors[k + 1], s=16, alpha=0.5)
-
-        ambiguity_set = Circle(amb_ball.center.mean, amb_ball.w2, color=colors[k+1], fill=False, lw=2, alpha=1.0)
-        ax.add_patch(ambiguity_set)
+        if path is not None:
+            amb_ball = path.at(k)
+            ambiguity_set = Circle(amb_ball.center.mean, amb_ball.w2, color=colors[k+1], fill=False, lw=2, alpha=1.0)
+            ax.add_patch(ambiguity_set)
 
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.yaxis.set_major_locator(MaxNLocator(integer=True))
@@ -181,6 +123,9 @@ def plot_2d_ambiguity_balls(
     plt.xlim(xlim) if xlim is not None else None
     plt.ylim(ylim) if ylim is not None else None
     plt.tight_layout()
+
+    if title is not None:
+        plt.title(title)
 
     if save:
         plt.savefig(f"{save_by}.pdf", format='pdf')
@@ -192,7 +137,7 @@ def plot_2d_ambiguity_balls(
 def plot_2d_dynamics(
         f, patch_creator = None, text_creator = None,
         xlim: Optional[List] = None, ylim: Optional[List] = None, scale: Optional[float] = 1.0, figsize: Optional[Tuple] = None, 
-        save_by: str = 'dynamics', save: bool = False
+        save_by: str = 'dynamics', save: bool = False, title: Optional[str] = None
 ):
 
     xlim = [-1, 1] if xlim is None else xlim
@@ -234,6 +179,9 @@ def plot_2d_dynamics(
     plt.xlabel(r'$x_1$')
     plt.ylabel(r'$x_2$')
 
+    if title is not None:
+        plt.title(title)
+
     plt.tight_layout()
     if save:
         plt.savefig(f"{save_by}.pdf", format='pdf')
@@ -241,3 +189,83 @@ def plot_2d_dynamics(
         plt.show()
 
 
+# ----- Plotting Utilities from the discretize_distributions package ---------------------------------------------------
+
+import discretize_distributions.cell as dd_cell
+import discretize_distributions.schemes as dd_schemes
+
+
+def plot_2d_dist(ax, dist, num_samples=10000):
+    samples = dist.sample((num_samples,))
+    ax.hist2d(samples[:,0], samples[:,1], bins=[50,50], density=True)
+    return ax
+
+def plot_2d_cat_float(ax, dist, s: float = 500, c: str = 'red', **kwargs):
+    ax.scatter(
+        dist.locs[:, 0],
+        dist.locs[:, 1],
+        s=dist.probs * s,
+        c=c,
+        **kwargs
+    )
+    return ax
+
+def plot_2d_grid(ax, grid, s: float = 10, c: str = 'red', **kwargs):
+    ax.scatter(
+        grid.points[:, 0],
+        grid.points[:, 1],
+        s=s,
+        c=c,
+        **kwargs
+    )
+    return ax
+
+def plot_2d_cell(ax, cell: dd_cell.Cell, c: str = 'blue', linewidth: float = 2, **kwargs):
+    verts = sort_vertices_counterclockwise(cell.vertices)
+
+    # Close the box by repeating the first vertex at the end
+    verts = torch.cat([verts, verts[:1]], dim=0)
+    ax.plot(verts[:, 0], verts[:, 1], linestyle='-', marker='', c=c, linewidth=linewidth, **kwargs)
+    return ax
+
+def sort_vertices_counterclockwise(vertices: torch.Tensor) -> torch.Tensor:
+    centroid = vertices.mean(dim=0)
+    angles = torch.atan2(vertices[:,1] - centroid[1], vertices[:,0] - centroid[0])
+    sorted_idx = torch.argsort(angles)
+    return vertices[sorted_idx]
+
+def plot_2d_partition(ax, partition: dd_schemes.GridPartition, c: str = 'blue', linewidth: float = 2, **kwargs):
+    for i in range(partition.shape[0]):
+        for j in range(partition.shape[1]):
+            cell = partition[i, j]
+            if cell is not None:
+                try: 
+                    domain = cell.domain
+                except:
+                    domain = cell.domain
+
+                ax = plot_2d_cell(ax, cell.domain, c=c, linewidth=linewidth, **kwargs)
+    return ax
+
+
+def plot_2d_basis(ax, offset: torch.Tensor, mat: torch.Tensor, color: str = 'blue', linewidth: float = 3.):
+    style = ['solid', 'dashed']
+    for i in range(2):
+        ax.arrow(
+            *offset, mat[0, i], mat[1, i],
+            head_width=0.1, head_length=0.1, fc=color, ec=color,
+            length_includes_head=True,
+            linewidth=linewidth, linestyle=style[i]
+        )
+    ax.set_aspect('equal')
+    return ax
+
+
+def set_axis(ax, xlim=None, ylim=None):
+    xlims = ax.get_xlim() if xlim is None else xlim
+    ylims = ax.get_ylim() if ylim is None else ylim
+    min_lim = min(xlims[0], ylims[0])
+    max_lim = max(xlims[1], ylims[1])
+    ax.set_xlim(min_lim, max_lim)
+    ax.set_ylim(min_lim, max_lim)
+    return ax
