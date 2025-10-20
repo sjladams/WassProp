@@ -56,10 +56,10 @@ class AmbiguityBall:
     def w2(self):
         return self.radius
 
-    def sample(self, num_samples: int): # TODO Improve
-        if self.radius == 0.:
+    def sample(self, num_samples: int):
+        if self.radius == 0. or (isinstance(self.radius, torch.Tensor) and self.radius.isnan().any()): # TODO make this explicit
             return self.center.sample(torch.Size((num_samples,)))
-        else:
+        else:  # TODO fix issue num_samples != sqrt(num_samples) ** 2
             assert isinstance(self.center, (dd_dists.MultivariateNormal, dd_dists.MixtureMultivariateNormal)), (
                 ValueError('Only implemented for (mixtures of) MultivariateNormal distributions'))
 
