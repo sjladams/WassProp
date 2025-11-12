@@ -13,7 +13,7 @@ For a hands-on introduction to the theoretical principles, see [`demo_cdc_worksh
 You can install the package directly from this repository:
 
 ```bash
-pip install git+https://github.com/sjladams/DUQviaWasserstein
+pip install git+https://github.com/sjladams/WasProp
 ```
 *(A PyPI release will follow soon.)*
 
