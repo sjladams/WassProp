@@ -132,11 +132,6 @@ def illustrate(name: str):
 
     save_by = f"{args.results_folder}{name}"
     dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
-    plot.plot_2d_dynamics(
-        dynamics, 
-        save_by=f"{save_by}_dynamics", save=args.save, scale=None,
-        **vars(config.dynamics_plot)
-    )
     print(f"global lipschitz: {dynamics.global_lipschitz}")
 
     initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
@@ -162,14 +157,17 @@ def illustrate(name: str):
     )
     approx_samples = SampledPath({k: path.at(k).sample(args.num_samples) for k in path.ordered_indices})
 
-    plot.plot_2d_ambiguity_balls(
-        true_samples, path, 
-        save_by=f"{save_by}_path_true", save=args.save, **vars(config.path_plot)
-    )
-    plot.plot_2d_ambiguity_balls(
-        approx_samples, path, 
-        save_by=f"{save_by}_path_appr", save=args.save, **vars(config.path_plot)
-    )
+    ax = plot.init_ax(**vars(config.path_plot))
+    ax = plot.plot_dynamics(ax, dynamics, scale=None, alpha=0.2)
+    ax = plot.plot_patches(ax, **vars(config.path_plot))
+    ax = plot.plot_path(ax, samples=true_samples)
+    plot.save(save_by=f"{save_by}_path_true", save=args.save)
+
+    ax = plot.init_ax(**vars(config.path_plot))
+    ax = plot.plot_dynamics(ax, dynamics, scale=None, alpha=0.2)
+    ax = plot.plot_patches(ax, **vars(config.path_plot))
+    ax = plot.plot_path(ax, samples=approx_samples)
+    plot.save(save_by=f"{save_by}_path_appr", save=args.save)
 
 def analysis(name: str):
     config = paper_configs[name]

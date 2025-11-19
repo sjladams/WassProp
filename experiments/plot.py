@@ -72,31 +72,51 @@ def plot_signatures(f, initial_dist, signatures, bounds):  # TODO to be updated
     #plt.savefig(rf'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\sigmoid_signature_example.pdf', format='pdf')
     plt.show()
 
-
-
 @torch.no_grad()
-def plot_2d_ambiguity_balls(
-    samples: SampledPath, 
-    path: Optional[Path] = None,
-    patch_creator = None, text_creator = None,
-    step_size: int = 1,
-    xlim: Optional[List] = None, ylim: Optional[List] = None, figsize: Optional[tuple] = None, 
-    save_by: str = 'path', save: bool = False, 
-    title: Optional[str] = None
+def init_ax(
+    xlim: Optional[List] = None, 
+    ylim: Optional[List] = None, 
+    figsize: Optional[tuple] = None, 
+    title: Optional[str] = None, 
+    **kwargs
 ):
     xlim = [-1, 1] if xlim is None else xlim
     ylim = [-1, 1] if ylim is None else ylim
     figsize = figsize if figsize is not None else (6 * (xlim[1] - xlim[0]), 6 * (ylim[1] - ylim[0]))
 
     fig, ax = plt.subplots(figsize=figsize)
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
 
+    if title is not None:
+        ax.set_title(title)
+
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_xlabel(r'$x_1$')
+    ax.set_ylabel(r'$x_2$')
+
+    return ax
+
+def plot_patches(ax, patch_creator = None, text_creator = None, **kwargs):
     if patch_creator is not None:
         for patch in patch_creator():
-            plt.gca().add_patch(patch)
+            ax.add_patch(patch)
     if text_creator is not None:
         for text in text_creator():
-            plt.text(**text)
+            ax.text(**text)
+    return ax
 
+def save(save_by: str = 'path', save: bool = False, **kwargs):
+    plt.tight_layout()
+
+    if save:
+        plt.savefig(f"{save_by}.pdf", format='pdf')
+    else:
+        plt.show()
+
+@torch.no_grad()
+def plot_path(ax, samples: SampledPath, path: Optional[Path] = None, step_size: int = 1):
     time_steps = samples.ordered_indices[::step_size][:-1]
     cmap = plt.cm.coolwarm
     colors = [cmap(i / (len(time_steps) - 1)) for i in range(len(time_steps))]
@@ -108,78 +128,29 @@ def plot_2d_ambiguity_balls(
             ambiguity_set = Circle(amb_ball.center.mean, amb_ball.w2, color=colors[k+1], fill=False, lw=2, alpha=1.0)
             ax.add_patch(ambiguity_set)
 
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.set_xlabel(r'$x_1$')
-    ax.set_ylabel(r'$x_2$')
-    plt.xlim(xlim) if xlim is not None else None
-    plt.ylim(ylim) if ylim is not None else None
-    plt.tight_layout()
-
-    if title is not None:
-        plt.title(title)
-
-    if save:
-        plt.savefig(f"{save_by}.pdf", format='pdf')
-    else:
-        plt.show()
-
+    return ax
 
 @torch.no_grad()
-def plot_2d_dynamics(
-        f, patch_creator = None, text_creator = None,
-        xlim: Optional[List] = None, ylim: Optional[List] = None, scale: Optional[float] = 1.0, figsize: Optional[Tuple] = None, 
-        save_by: str = 'dynamics', save: bool = False, title: Optional[str] = None
-):
-
-    xlim = [-1, 1] if xlim is None else xlim
-    ylim = [-1, 1] if ylim is None else ylim
-    figsize = figsize if figsize is not None else (6 * (xlim[1] - xlim[0]), 6 * (ylim[1] - ylim[0]))
-
-    x = torch.linspace(xlim[0], xlim[1], 5 * int(xlim[1] - xlim[0]))
-    y = torch.linspace(ylim[0], ylim[1], 5 * int(ylim[1] - ylim[0]))
+def plot_dynamics(ax, f, scale: Optional[float] = 1.0, alpha: Optional[float] = 1.0):
+    (xmin, xmax), (ymin, ymax) = ax.get_xlim(), ax.get_ylim()
+    x, y = torch.linspace(xmin, xmax, 5 * int(xmax - xmin)), torch.linspace(ymin, ymax, 5 * int(ymax - ymin))
     X, Y = torch.meshgrid(x, y, indexing="ij")
     grid_points = torch.stack([X.flatten(), Y.flatten()], dim=1)  # Shape (N, 2)
 
-    with torch.no_grad():
-        next_states = f.state_dynamics(grid_points)
-        deltas = next_states - grid_points
+    next_states = f.state_dynamics(grid_points)
+    deltas = next_states - grid_points
 
-    plt.figure(figsize=figsize)
-    plt.quiver(
+    ax.quiver(
         grid_points[:, 0].numpy(),  # X coordinates
         grid_points[:, 1].numpy(),  # Y coordinates
         deltas[:, 0].numpy(),  # U: delta X
         deltas[:, 1].numpy(),  # V: delta Y
         angles='xy', scale_units='xy',
         scale=scale,
-        width=0.003
+        width=0.003, 
+        alpha=alpha
     )
-    if patch_creator is not None:
-        for patch in patch_creator():
-            plt.gca().add_patch(patch)
-    if text_creator is not None:
-        for text in text_creator():
-            plt.text(**text)
-
-    plt.xlim(xlim) if xlim is not None else None
-    plt.ylim(ylim) if ylim is not None else None
-
-    plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
-    plt.gca().yaxis.set_major_locator(MaxNLocator(integer=True))
-
-    plt.xlabel(r'$x_1$')
-    plt.ylabel(r'$x_2$')
-
-    if title is not None:
-        plt.title(title)
-
-    plt.tight_layout()
-    if save:
-        plt.savefig(f"{save_by}.pdf", format='pdf')
-    else:
-        plt.show()
-
+    return ax
 
 # ----- Plotting Utilities from the discretize_distributions package ---------------------------------------------------
 
