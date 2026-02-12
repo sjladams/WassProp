@@ -1,4 +1,5 @@
 import os, sys
+import torch
 from itertools import product
 from typing import Union
 
@@ -7,14 +8,10 @@ from wass_prop.dynamics import NNLayerDynamics, StochasticDynamics
 
 sys.path.append(os.path.join(os.path.dirname(os.getcwd()), "src"))
 
-import torch
-import matplotlib.pyplot as plt
-
+import discretize_distributions as dd
 from discretize_distributions.distributions import MultivariateNormal, MixtureMultivariateNormal
 from wass_prop import AmbiguityBall, multi_step
 from dynamics import AdditiveNoiseDynamics
-
-import discretize_distributions as dd
 
 import time
 import tracemalloc
