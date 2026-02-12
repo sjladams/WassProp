@@ -83,6 +83,28 @@ def sample_covariance(dimension: int, low=1e-3, high=1e-1):
     diag_vals = torch.rand(dimension) * (high - low) + low
     return torch.diag(diag_vals)
 
+def sample_weight(dimension: int):
+
+    A = torch.randn(dimension, dimension)
+    A = 0.5 * (A + A.T)
+
+    eig_max = torch.linalg.eigvalsh(A).max()
+    if eig_max >= 1:
+        A = A / (eig_max + 1e-8)
+    return A
+
+def get_normalized_variance(dimension: int):
+    normalized_covariance = {
+        2: 0.03,
+        3: 0.027559643611311913,
+        10: 0.022145232185721397,
+        25: 0.01923503540456295,
+        50: 0.017483416944742203,
+        75: 0.016596339643001556,
+        100: 0.01601838879287243
+    }
+
+    return normalized_covariance[dimension]
 
 def manifold_distributions(dimension, num_dists, small=1e-6, large=1e-2):
     dists = []
@@ -104,12 +126,12 @@ if __name__ == '__main__':
     torch.manual_seed(0)
 
     ###################################################
-    # Experiment: random quantization and propagation #
+    # Experiment: quantization and propagation        #
     ###################################################
     # Set parameters
-    dimensions = [2, 5, 10, 50, 100]
+    dimensions = [2, 3, 10, 25, 50, 75, 100]
     nums_locs = [10, 100, 1000]
-    num_random_seeds = 20
+    num_random_seeds = 10
 
     # Collect data
     data_quant, data_prop = {}, {}
@@ -117,11 +139,11 @@ if __name__ == '__main__':
         for random_seed in range(num_random_seeds):
 
             # Quantization
-            distribution = MultivariateNormal(loc=torch.zeros(dimension), covariance_matrix=sample_covariance(dimension)) # random isotropic Gaussian
+            distribution = MultivariateNormal(loc=torch.zeros(dimension), covariance_matrix=get_normalized_variance(dimension) * torch.eye(dimension))
             data_quant[(dimension, num_locs, random_seed)] = analyze_discretization(distribution=distribution, num_locs=num_locs)
 
             # Propagation
-            dynamics = AdditiveNoiseDynamics(state_dynamics=NNLayerDynamics(weight=torch.randn(dimension, dimension), bias=None)) # random NN layer
+            dynamics = AdditiveNoiseDynamics(state_dynamics=NNLayerDynamics(weight=sample_weight(dimension), bias=None)) # random NN layer
 
             p = AmbiguityBall(
                 center=distribution,
@@ -162,9 +184,3 @@ if __name__ == '__main__':
             data_quant[(manifold_dim, num_locs)] = analyze_discretization(distribution=distribution, num_locs=num_locs)
 
     plot_dimension_analysis(data_quant, x_axis_title="Dimension of manifold")
-
-
-    #############################################################
-    # Experiment: bound for distributions with higher dimension #
-    #############################################################
-

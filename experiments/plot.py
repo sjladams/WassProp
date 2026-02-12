@@ -258,12 +258,12 @@ def plot_dimension_analysis(
         plt.figure()
         colors = {}
 
-        def plot_group(data, linestyle):
+        def plot_group(data, linestyle, has_label=True):
             for nlocs, metrics in data.items():
                 arr = sorted(metrics[metric_key], key=lambda x: x[0])
                 dims, vals_mean, vals_std = zip(*arr)
                 line, = plt.plot(dims, vals_mean, marker="o", linestyle=linestyle,
-                                 label=rf"$|\mathcal{{C}}| = {nlocs}$")
+                                 label=rf"$|\mathcal{{C}}| = {nlocs}$" if has_label else None)
                 colors[nlocs] = line.get_color()
 
                 if any(v is not None for v in vals_std):
@@ -273,7 +273,7 @@ def plot_dimension_analysis(
 
         plot_group(Q, "-")
         if P:
-            plot_group(P, "--")
+            plot_group(P, "--", has_label=False)
 
         plt.title(title)
         plt.xlabel(x_axis_title)
