@@ -17,6 +17,19 @@ plt.rcParams.update({
     'text.latex.preamble': r'\usepackage{amsfonts}'
 })
 
+COLORS = ['Blues', 'BuPu', 'PuRd', 'Greens', 'Oranges', 'Reds', 'Greys', 'Purples']
+
+def _convert_sci_notation(n: int):
+    x = torch.tensor(float(n))
+    exp = int(torch.floor(torch.log10(x)))
+    mantissa = float(x / (10 ** exp))
+
+    if abs(mantissa - 1.0) < 1e-12:
+        label = rf"$|\mathcal{{C}}| = 10^{{{exp}}}$"
+    else:
+        label = rf"$|\mathcal{{C}}| = {mantissa:g} \times 10^{{{exp}}}$"
+
+    return label
 
 @torch.no_grad()
 def plot_signatures(f, initial_dist, signatures, bounds):  # TODO to be updated
@@ -235,10 +248,8 @@ def set_axis(ax, xlim=None, ylim=None):
 
 @torch.no_grad()
 def plot_dimension_analysis(
-    means_quant: dict,
-    stds_quant: Optional[dict] = None,
-    means_prop: Optional[dict] = None,
-    stds_prop: Optional[dict] = None,
+    data_means: dict,
+    data_stds: Optional[dict] = None,
     x_axis_title: str = r"Dimension $d$"
 ):
     def organize_data(means: dict, stds: Optional[dict]):
@@ -249,33 +260,33 @@ def plot_dimension_analysis(
                 data[nlocs][k].append((dim, vals[k], std_val))
         return data
 
-    Q = organize_data(means_quant, stds_quant)
-    P = organize_data(means_prop, stds_prop) if means_prop is not None else {}
+    Q = organize_data(data_means, data_stds)
 
-    all_dims = sorted({dim for (dim, _) in means_quant.keys()})
+    all_dims = sorted({dim for (dim, _) in data_means.keys()})
 
-    def plot_metric_helper(metric_key, ylabel, title):
+    def plot_metric_helper(metric_key, ylabel):
         plt.figure()
-        colors = {}
+
+        unique_nlocs = sorted(Q.keys())
+        cmap_colors = {
+            nlocs: plt.get_cmap(COLORS[i])(0.65)
+            for i, nlocs in enumerate(unique_nlocs)
+        }
 
         def plot_group(data, linestyle, has_label=True):
             for nlocs, metrics in data.items():
                 arr = sorted(metrics[metric_key], key=lambda x: x[0])
                 dims, vals_mean, vals_std = zip(*arr)
-                line, = plt.plot(dims, vals_mean, marker="o", linestyle=linestyle,
-                                 label=rf"$|\mathcal{{C}}| = {nlocs}$" if has_label else None)
-                colors[nlocs] = line.get_color()
+                line, = plt.plot(dims, vals_mean, marker="o", linestyle=linestyle, color=cmap_colors[nlocs],
+                                 label=_convert_sci_notation(nlocs) if has_label else None)
 
                 if any(v is not None for v in vals_std):
                     lower = [m - (s if s is not None else 0) for m, s in zip(vals_mean, vals_std)]
                     upper = [m + (s if s is not None else 0) for m, s in zip(vals_mean, vals_std)]
-                    plt.fill_between(dims, lower, upper, color=colors[nlocs], alpha=0.3)
+                    plt.fill_between(dims, lower, upper, color=cmap_colors[nlocs], alpha=0.3)
 
         plot_group(Q, "-")
-        if P:
-            plot_group(P, "--", has_label=False)
 
-        plt.title(title)
         plt.xlabel(x_axis_title)
         plt.ylabel(ylabel)
         plt.grid(True)
@@ -285,6 +296,6 @@ def plot_dimension_analysis(
         plt.show()
 
     # Plot metrics
-    plot_metric_helper("w2", r"$\mathbb{W}_{2}$", "W2 vs Dimension")
-    plot_metric_helper("exec_time", "Time (s)", "Time vs Dimension")
-    plot_metric_helper("memory", "Memory (MB)", "Peak Memory vs Dimension")
+    plot_metric_helper("w2", r"$\mathbb{W}_{2}$")
+    plot_metric_helper("exec_time", "Time (s)")
+    plot_metric_helper("memory", "Memory (MB)")

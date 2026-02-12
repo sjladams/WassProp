@@ -178,4 +178,4 @@ if __name__ == '__main__':
             # Quantization
             data_quant[(manifold_dim, num_locs)] = analyze_discretization(distribution=distribution, num_locs=num_locs)
 
-    plot_dimension_analysis(data_quant, x_axis_title="Dimension of manifold")
+    plot_dimension_analysis(data_quant, x_axis_title=r"Dimension $d - d_{\emph{manifold}}$")
