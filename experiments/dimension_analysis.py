@@ -4,6 +4,7 @@ from collections import defaultdict
 import torch
 from itertools import product
 from typing import Union
+import scipy.stats as st
 
 from experiments.plot import plot_dimension_analysis
 from wass_prop.dynamics import NNLayerDynamics, StochasticDynamics
@@ -62,19 +63,20 @@ def analyze_discretization(distribution: Union[MultivariateNormal, MixtureMultiv
 def analyze_propagation(dynamics: StochasticDynamics,
                         p: AmbiguityBall,
                         noise: AmbiguityBall,
-                        num_locs: int):
+                        num_locs: int,
+                        num_steps: int):
 
     tracemalloc.start()
     t0 = time.perf_counter()
 
-    path = multi_step(dynamics=dynamics, q=p, noise=noise, num_time_steps=1, num_locs=num_locs, print_progress=False)
+    path = multi_step(dynamics=dynamics, q=p, noise=noise, num_time_steps=num_steps, num_locs=num_locs, print_progress=False)
 
     elapsed = time.perf_counter() - t0
     current, peak = tracemalloc.get_traced_memory()
 
     tracemalloc.stop()
 
-    execution_time = elapsed
+    execution_time = elapsed / num_steps
     memory = peak / 1024 ** 2  # In MB
 
     return {"w2": path.at(0).w2.item(), "exec_time": execution_time, "memory": memory}
@@ -84,7 +86,6 @@ def sample_covariance(dimension: int, low=1e-3, high=1e-1):
     return torch.diag(diag_vals)
 
 def sample_weight(dimension: int):
-
     A = torch.randn(dimension, dimension)
     A = 0.5 * (A + A.T)
 
@@ -93,18 +94,9 @@ def sample_weight(dimension: int):
         A = A / (eig_max + 1e-8)
     return A
 
-def get_normalized_variance(dimension: int):
-    normalized_covariance = {
-        2: 0.03,
-        3: 0.027559643611311913,
-        10: 0.022145232185721397,
-        25: 0.01923503540456295,
-        50: 0.017483416944742203,
-        75: 0.016596339643001556,
-        100: 0.01601838879287243
-    }
-
-    return normalized_covariance[dimension]
+def get_normalized_variance(dimension: int, p: float = 0.95):
+    chi2_quantile = st.chi2.ppf(p, df=dimension)
+    return 1.0 / chi2_quantile
 
 def manifold_distributions(dimension, num_dists, small=1e-6, large=1e-2):
     dists = []
@@ -133,6 +125,8 @@ if __name__ == '__main__':
     nums_locs = [10, 100, 1000]
     num_random_seeds = 10
 
+    num_steps = 1
+
     # Collect data
     data_quant, data_prop = {}, {}
     for dimension, num_locs in product(dimensions, nums_locs):
@@ -154,19 +148,20 @@ if __name__ == '__main__':
                 radius=0.01
             )
 
-            data_prop[(dimension, num_locs, random_seed)] = analyze_propagation(dynamics=dynamics, p=p, noise=noise, num_locs=num_locs)
+            data_prop[(dimension, num_locs, random_seed)] = analyze_propagation(dynamics=dynamics, p=p, noise=noise, num_locs=num_locs, num_steps=num_steps)
 
     means_quant, stds_quant = aggregate_stats(data_quant)
     means_prop, stds_prop = aggregate_stats(data_prop)
 
-    plot_dimension_analysis(means_quant, stds_quant, means_prop, stds_prop)
+    plot_dimension_analysis(means_quant, stds_quant)
+    plot_dimension_analysis(means_prop, stds_prop)
 
     #######################################################
     # Experiment: probability concentration in a manifold #
     #######################################################
 
     dimension = 100
-    nums_locs = [10, 100, 1000, 10000]
+    nums_locs = [10000]
 
     num_dists = 5
     small = 1e-5
