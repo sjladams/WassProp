@@ -1,4 +1,6 @@
 import os, sys
+from collections import defaultdict
+
 import torch
 from itertools import product
 from typing import Union
@@ -15,6 +17,29 @@ from dynamics import AdditiveNoiseDynamics
 
 import time
 import tracemalloc
+
+def aggregate_stats(data):
+    # Group tensors by (dimension, num_locs)
+    grouped = defaultdict(lambda: {"w2": [], "exec_time": [], "memory": []})
+
+    for (dim, locs, seed), vals in data.items():
+        for key in ["w2", "exec_time", "memory"]:
+            # Convert scalars to tensors if they aren't already
+            grouped[(dim, locs)][key].append(torch.as_tensor(vals[key], dtype=torch.float32))
+
+    means = {}
+    stds = {}
+
+    for key, fields in grouped.items():
+        means[key] = {}
+        stds[key] = {}
+
+        for field, values in fields.items():
+            stack = torch.stack(values)
+            means[key][field] = stack.mean().item()
+            stds[key][field] = stack.std(unbiased=True).item()
+
+    return means, stds
 
 def analyze_discretization(distribution: Union[MultivariateNormal, MixtureMultivariateNormal],
                            num_locs: int):
@@ -54,48 +79,92 @@ def analyze_propagation(dynamics: StochasticDynamics,
 
     return {"w2": path.at(0).w2.item(), "exec_time": execution_time, "memory": memory}
 
+def sample_covariance(dimension: int, low=1e-3, high=1e-1):
+    diag_vals = torch.rand(dimension) * (high - low) + low
+    return torch.diag(diag_vals)
+
+
+def manifold_distributions(dimension, num_dists, small=1e-6, large=1e-2):
+    dists = []
+    small_counts = torch.linspace(0, dimension, num_dists, dtype=torch.int32)
+
+    for k, n_small in enumerate(small_counts):
+        diag = torch.full((dimension,), large)
+
+        if n_small > 0:
+            diag[:n_small.item()] = small
+
+        cov = torch.diag(diag)
+        mvn = MultivariateNormal(loc=torch.zeros(dimension), covariance_matrix=cov)
+        dists.append(mvn)
+
+    return dists
+
 if __name__ == '__main__':
     torch.manual_seed(0)
 
-    ### Parameters
-    distributions = [
-        MultivariateNormal(loc=torch.zeros(2), covariance_matrix=torch.eye(2) * 1e-3),
-        MultivariateNormal(loc=torch.zeros(5), covariance_matrix=torch.eye(5) * 1e-3),
-        MultivariateNormal(loc=torch.zeros(10), covariance_matrix=torch.eye(10) * 1e-3),
-        MultivariateNormal(loc=torch.zeros(50), covariance_matrix=torch.eye(50) * 1e-3),
-        MultivariateNormal(loc=torch.zeros(100), covariance_matrix=torch.eye(100) * 1e-3),
-    ]
+    ###################################################
+    # Experiment: random quantization and propagation #
+    ###################################################
+    # Set parameters
+    dimensions = [2, 5, 10, 50, 100]
+    nums_locs = [10, 100, 1000]
+    num_random_seeds = 20
 
+    # Collect data
+    data_quant, data_prop = {}, {}
+    for dimension, num_locs in product(dimensions, nums_locs):
+        for random_seed in range(num_random_seeds):
+
+            # Quantization
+            distribution = MultivariateNormal(loc=torch.zeros(dimension), covariance_matrix=sample_covariance(dimension)) # random isotropic Gaussian
+            data_quant[(dimension, num_locs, random_seed)] = analyze_discretization(distribution=distribution, num_locs=num_locs)
+
+            # Propagation
+            dynamics = AdditiveNoiseDynamics(state_dynamics=NNLayerDynamics(weight=torch.randn(dimension, dimension), bias=None)) # random NN layer
+
+            p = AmbiguityBall(
+                center=distribution,
+                radius=0.1
+            )
+            noise = AmbiguityBall(
+                center=MultivariateNormal(loc=torch.zeros(dimension), covariance_matrix=torch.eye(dimension) * 1e-4),
+                radius=0.01
+            )
+
+            data_prop[(dimension, num_locs, random_seed)] = analyze_propagation(dynamics=dynamics, p=p, noise=noise, num_locs=num_locs)
+
+    means_quant, stds_quant = aggregate_stats(data_quant)
+    means_prop, stds_prop = aggregate_stats(data_prop)
+
+    plot_dimension_analysis(means_quant, stds_quant, means_prop, stds_prop)
+
+    #######################################################
+    # Experiment: probability concentration in a manifold #
+    #######################################################
+
+    dimension = 100
     nums_locs = [10, 100, 1000, 10000]
 
-    weights = [
-        torch.randn((2, 2)),
-        torch.randn((5, 5)),
-        torch.randn((10, 10)),
-        torch.randn((50, 50)),
-        torch.randn((100, 100)),
-    ]
+    num_dists = 5
+    small = 1e-5
+    large = 1e-2
 
-    # Quantization
-    results_quantization = {}
-    for distribution, num_locs in product(distributions, nums_locs):
-        results_quantization[(distribution.loc.shape[0], num_locs)] = analyze_discretization(distribution=distribution, num_locs=num_locs)
+    distributions = manifold_distributions(dimension, num_dists=num_dists, small=small, large=large)
 
-    # Propagation
-    results_propagation = {}
-    for (distribution, weight), num_locs in product(zip(distributions, weights), nums_locs):
-        dynamics = AdditiveNoiseDynamics(state_dynamics=NNLayerDynamics(weight=weight, bias=None))
+    # Collect data
+    data_quant = {}
+    for distribution in distributions:
 
-        p = AmbiguityBall(
-            center=distribution,
-            radius=0.1
-        )
-        noise = AmbiguityBall(
-            center=MultivariateNormal(loc=torch.zeros(distribution.loc.shape[0]), covariance_matrix=torch.eye(distribution.loc.shape[0]) * 1e-4),
-            radius=0.01
-        )
+        manifold_dim = (distribution.covariance_matrix.diag() == small).sum().item()
+        for num_locs in nums_locs:
+            # Quantization
+            data_quant[(manifold_dim, num_locs)] = analyze_discretization(distribution=distribution, num_locs=num_locs)
 
-        results_propagation[(distribution.loc.shape[0], num_locs)] = analyze_propagation(dynamics=dynamics, p=p, noise=noise, num_locs=num_locs)
+    plot_dimension_analysis(data_quant, x_axis_title="Dimension of manifold")
 
-    plot_dimension_analysis(results_quantization, results_propagation)
+
+    #############################################################
+    # Experiment: bound for distributions with higher dimension #
+    #############################################################
 
