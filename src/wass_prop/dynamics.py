@@ -173,6 +173,29 @@ class IndicatorDynamics(Dynamics):
     def global_lipschitz(self):
         return self[1].global_lipschitz
 
+class NNLayerDynamics(Dynamics):
+    def __init__(
+        self,
+        weight: Union[torch.Tensor, list],
+        bias: Optional[Union[torch.Tensor, list]] = None,
+    ):
+        weight = torch.as_tensor(weight)
+        if isinstance(bias, list):
+            bias = torch.as_tensor(bias)
+
+        self._global_lipschitz = 0.25 * torch.linalg.svd(weight).S[0]
+
+        self._separable = utils.is_mat_diag(weight)
+
+        super().__init__(
+            num_dims=weight.size(-1),
+            modules=[Linear(weight, bias), torch.nn.Sigmoid()]
+        )
+
+    @property
+    def global_lipschitz(self):
+        return self._global_lipschitz
+
 class LinearStochasticDynamics(StochasticDynamics):
     def __init__(
         self, 
