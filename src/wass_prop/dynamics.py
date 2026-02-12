@@ -111,7 +111,7 @@ class LinearDynamics(Dynamics):
 
         self._global_lipschitz = torch.linalg.svd(weight).S[0]
 
-        self._seperable = utils.is_mat_diag(weight)
+        self._separable = utils.is_mat_diag(weight)
 
         super().__init__(num_dims=weight.size(-1), modules=Linear(weight, bias))
 
@@ -126,7 +126,7 @@ class PreBoundedDynamics(Dynamics):
         lower: Union[float, torch.Tensor, list],
         upper: Union[float, torch.Tensor, list],
     ):
-        self._seperable = dynamics.separable
+        self._separable = dynamics.separable
 
         super().__init__(
             num_dims=dynamics.num_dims, 
@@ -144,7 +144,7 @@ class PostBoundedDynamics(Dynamics):
         lower: Union[float, torch.Tensor, list],
         upper: Union[float, torch.Tensor, list],
     ):
-        self._seperable = dynamics.separable
+        self._separable = dynamics.separable
 
         super().__init__(
             num_dims=dynamics.num_dims, 
@@ -162,7 +162,7 @@ class IndicatorDynamics(Dynamics):
         lower: Union[float, torch.Tensor, list], 
         upper: Union[float, torch.Tensor, list],
     ):
-        self._seperable = dynamics.separable
+        self._separable = dynamics.separable
 
         super().__init__(
             num_dims=dynamics.num_dims,
