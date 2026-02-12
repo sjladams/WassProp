@@ -5,16 +5,17 @@ import torch
 from scipy.stats import norm
 from typing import Union, Optional, List, Dict, Tuple
 from matplotlib.ticker import MaxNLocator
+from collections import defaultdict
 
 from wass_prop import SampledPath, Path
 
 plt.style.use('seaborn-v0_8-bright')
 
-# plt.rcParams.update({
-#     'font.size': 40,
-#     'text.usetex': True,
-#     'text.latex.preamble': r'\usepackage{amsfonts}'
-# })
+plt.rcParams.update({
+    'font.size': 12,
+    'text.usetex': True,
+    'text.latex.preamble': r'\usepackage{amsfonts}'
+})
 
 
 @torch.no_grad()
@@ -232,3 +233,78 @@ def set_axis(ax, xlim=None, ylim=None):
     ax.set_xlim(min_lim, max_lim)
     ax.set_ylim(min_lim, max_lim)
     return ax
+
+@torch.no_grad()
+def plot_dimension_analysis(
+    results_quantization: dict,
+    results_propagation: dict
+):
+    # Organize quantization results
+    Q_w2 = defaultdict(list)
+    Q_time = defaultdict(list)
+    Q_mem = defaultdict(list)
+
+    for (dim, nlocs), vals in results_quantization.items():
+        Q_w2[nlocs].append((dim, vals["w2"]))
+        Q_time[nlocs].append((dim, vals["exec_time"]))
+        Q_mem[nlocs].append((dim, vals["memory"]))
+
+    # Organize propagation results
+    P_w2 = defaultdict(list)
+    P_time = defaultdict(list)
+    P_mem = defaultdict(list)
+
+    for (dim, nlocs), vals in results_propagation.items():
+        P_w2[nlocs].append((dim, vals["w2"]))
+        P_time[nlocs].append((dim, vals["exec_time"]))
+        P_mem[nlocs].append((dim, vals["memory"]))
+
+    # Sorted unique dims
+    all_dims = sorted({dim for (dim, _) in results_quantization.keys()})
+
+    # ======== Helper to plot one metric ========
+    def plot_metric_helper(Q_data, P_data, ylabel, title):
+        plt.figure()
+
+        # First plot quantization (solid) and collect colors
+        colors = {}
+
+        for nlocs, arr in Q_data.items():
+            arr = sorted(arr)
+            dims, vals = zip(*arr)
+
+            line, = plt.plot(
+                dims,
+                vals,
+                marker="o",
+                linestyle="-",
+                label=rf"$|\mathcal{{C}}| = {nlocs}$"
+            )
+            colors[nlocs] = line.get_color()
+
+        # Plot propagation (dashed) using COLORS from quantization
+        for nlocs, arr in P_data.items():
+            arr = sorted(arr)
+            dims, vals = zip(*arr)
+
+            plt.plot(
+                dims,
+                vals,
+                linestyle="--",
+                marker="o",
+                color=colors[nlocs]
+            )
+
+        plt.title(title)
+        plt.xlabel(r"Dimension $d$")
+        plt.ylabel(ylabel)
+        plt.grid(True)
+        plt.xticks(all_dims)
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+    # Plot the three metrics
+    plot_metric_helper(Q_w2,   P_w2,   r"$\mathbb{W}_2$", "W2 vs Dimension")
+    plot_metric_helper(Q_time, P_time, "Time (s)",        "Time vs Dimension")
+    plot_metric_helper(Q_mem,  P_mem,  "Memory (MB)",     "Peak Memory vs Dimension")
