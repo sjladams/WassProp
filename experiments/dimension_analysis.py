@@ -130,7 +130,7 @@ def plot_dimension_analysis(
     x_axis_title_comp: Optional[str] = None
 ):
     metric_labels = {
-        "w2": r"$\mathbb{W}_{2}$",
+        "w2": r"$2$-Wasserstein bound",
         "exec_time": "Time (s)",
         "memory": "Memory (MB)"
     }
@@ -217,7 +217,7 @@ def plot_dimension_analysis(
         plt.show()
 
 plt.rcParams.update({
-    'font.size': 12,
+    'font.size': 14,
     'text.usetex': True,
     'text.latex.preamble': r'\usepackage{amsfonts}'
 })
