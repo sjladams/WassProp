@@ -6,7 +6,6 @@ from itertools import product
 from typing import Union
 import scipy.stats as st
 
-from experiments.plot import plot_dimension_analysis
 from wass_prop.dynamics import NNLayerDynamics, StochasticDynamics
 
 sys.path.append(os.path.join(os.path.dirname(os.getcwd()), "src"))
@@ -18,6 +17,8 @@ from dynamics import AdditiveNoiseDynamics
 
 import time
 import tracemalloc
+
+import matplotlib.pyplot as plt
 
 def aggregate_stats(data):
     # Group tensors by (dimension, num_locs)
@@ -114,6 +115,127 @@ def manifold_distributions(dimension, num_dists, small=1e-6, large=1e-2):
 
     return dists
 
+import matplotlib.pyplot as plt
+from collections import defaultdict
+from typing import Optional, List
+
+
+def plot_dimension_analysis(
+    data_means: dict,
+    data_stds: Optional[dict] = None,
+    x_axis_title: str = r"Dimension $d$",
+    metrics_to_plot: List[str] = ("w2", "exec_time", "memory"),
+    data_means_comp: Optional[dict] = None,
+    data_stds_comp: Optional[dict] = None,
+    x_axis_title_comp: Optional[str] = None
+):
+    metric_labels = {
+        "w2": r"$\mathbb{W}_{2}$",
+        "exec_time": "Time (s)",
+        "memory": "Memory (MB)"
+    }
+
+    def organize_data(means: dict, stds: Optional[dict]):
+        data = defaultdict(lambda: {"w2": [], "exec_time": [], "memory": []})
+        for (dim, nlocs), vals in means.items():
+            for k in ["w2", "exec_time", "memory"]:
+                std_val = stds[(dim, nlocs)][k] if stds is not None else None
+                data[nlocs][k].append((dim, vals[k], std_val))
+        return data
+
+    # Prepare primary dataset
+    Q1 = organize_data(data_means, data_stds)
+    dims1 = sorted({dim for (dim, _) in data_means.keys()})
+
+    # Prepare comparison dataset if present
+    has_comparison = data_means_comp is not None
+    if has_comparison:
+        Q2 = organize_data(data_means_comp, data_stds_comp)
+        dims2 = sorted({dim for (dim, _) in data_means_comp.keys()})
+    else:
+        Q2 = None
+        dims2 = None
+
+    def plot_single_axis(ax, Q, dims, x_title, metric_key):
+        unique_nlocs = sorted(Q.keys())
+        cmap_colors = {
+            nlocs: plt.get_cmap(COLORS[i])(0.65)
+            for i, nlocs in enumerate(unique_nlocs)
+        }
+
+        for nlocs, metrics in Q.items():
+            arr = sorted(metrics[metric_key], key=lambda x: x[0])
+            dims_sorted, vals_mean, vals_std = zip(*arr)
+
+            (line,) = ax.plot(
+                dims_sorted,
+                vals_mean,
+                marker="o",
+                color=cmap_colors[nlocs],
+                label=_convert_sci_notation(nlocs)
+            )
+
+            # Fill std band if provided
+            if any(s is not None for s in vals_std):
+                lower = [m - (s or 0) for m, s in zip(vals_mean, vals_std)]
+                upper = [m + (s or 0) for m, s in zip(vals_mean, vals_std)]
+                ax.fill_between(dims_sorted, lower, upper, color=cmap_colors[nlocs], alpha=0.3)
+
+        ax.set_xlabel(x_title)
+        ax.set_ylabel(metric_labels[metric_key])
+        ax.grid(True)
+        ax.set_xticks(dims)
+
+    # Create figure
+    ncols = 2 if has_comparison else 1
+
+    for metric_key in metrics_to_plot:
+        fig, axes = plt.subplots(1, ncols, figsize=(4 * ncols, 5), squeeze=False)
+        axes = axes[0]
+
+        # Plot main dataset
+        plot_single_axis(
+            axes[0],
+            Q1,
+            dims1,
+            x_axis_title,
+            metric_key
+        )
+        axes[0].legend(loc="best")
+
+        # Plot comparison dataset if provided
+        if has_comparison:
+            plot_single_axis(
+                axes[1],
+                Q2,
+                dims2,
+                x_axis_title_comp or x_axis_title,
+                metric_key
+            )
+            axes[1].legend(loc="best")
+        plt.tight_layout()
+        plt.show()
+
+plt.rcParams.update({
+    'font.size': 12,
+    'text.usetex': True,
+    'text.latex.preamble': r'\usepackage{amsfonts}'
+})
+
+COLORS = ['Blues', 'BuPu', 'PuRd', 'Greens', 'Oranges', 'Reds', 'Greys', 'Purples']
+
+def _convert_sci_notation(n: int):
+    x = torch.tensor(float(n))
+    exp = int(torch.floor(torch.log10(x)))
+    mantissa = float(x / (10 ** exp))
+
+    if abs(mantissa - 1.0) < 1e-12:
+        label = rf"$|\mathcal{{C}}| = 10^{{{exp}}}$"
+    else:
+        label = rf"$|\mathcal{{C}}| = {mantissa:g} \times 10^{{{exp}}}$"
+
+    return label
+
 if __name__ == '__main__':
     torch.manual_seed(0)
 
@@ -153,9 +275,6 @@ if __name__ == '__main__':
     means_quant, stds_quant = aggregate_stats(data_quant)
     means_prop, stds_prop = aggregate_stats(data_prop)
 
-    plot_dimension_analysis(means_quant, stds_quant)
-    plot_dimension_analysis(means_prop, stds_prop)
-
     #######################################################
     # Experiment: probability concentration in a manifold #
     #######################################################
@@ -170,12 +289,21 @@ if __name__ == '__main__':
     distributions = manifold_distributions(dimension, num_dists=num_dists, small=small, large=large)
 
     # Collect data
-    data_quant = {}
+    data_manifold = {}
     for distribution in distributions:
 
         manifold_dim = (distribution.covariance_matrix.diag() == small).sum().item()
         for num_locs in nums_locs:
             # Quantization
-            data_quant[(manifold_dim, num_locs)] = analyze_discretization(distribution=distribution, num_locs=num_locs)
+            data_manifold[(manifold_dim, num_locs)] = analyze_discretization(distribution=distribution, num_locs=num_locs)
 
-    plot_dimension_analysis(data_quant, x_axis_title=r"Dimension $d - d_{\emph{manifold}}$")
+
+    plot_dimension_analysis(
+        data_means=means_quant,
+        data_stds=stds_quant,
+        x_axis_title=r"Dimension $d$",
+        metrics_to_plot= ["w2"],
+        data_means_comp=data_manifold,
+        data_stds_comp= None,
+        x_axis_title_comp= r"Dimension $d - d_{\emph{manifold}}$"
+    )
