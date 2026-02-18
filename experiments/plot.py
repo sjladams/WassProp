@@ -5,17 +5,17 @@ import torch
 from scipy.stats import norm
 from typing import Union, Optional, List, Dict, Tuple
 from matplotlib.ticker import MaxNLocator
+from collections import defaultdict
 
 from wass_prop import SampledPath, Path
 
 plt.style.use('seaborn-v0_8-bright')
 
 # plt.rcParams.update({
-#     'font.size': 40,
+#     'font.size': 12,
 #     'text.usetex': True,
 #     'text.latex.preamble': r'\usepackage{amsfonts}'
 # })
-
 
 @torch.no_grad()
 def plot_signatures(f, initial_dist, signatures, bounds):  # TODO to be updated
@@ -69,7 +69,6 @@ def plot_signatures(f, initial_dist, signatures, bounds):  # TODO to be updated
     plt.tight_layout()
 
     # Save the figure as EPS
-    #plt.savefig(rf'C:\Users\efigueiredomot\Desktop\Papers\Wasserstein\sigmoid_signature_example.pdf', format='pdf')
     plt.show()
 
 @torch.no_grad()

@@ -111,7 +111,7 @@ class LinearDynamics(Dynamics):
 
         self._global_lipschitz = torch.linalg.svd(weight).S[0]
 
-        self._seperable = utils.is_mat_diag(weight)
+        self._separable = utils.is_mat_diag(weight)
 
         super().__init__(num_dims=weight.size(-1), modules=Linear(weight, bias))
 
@@ -126,7 +126,7 @@ class PreBoundedDynamics(Dynamics):
         lower: Union[float, torch.Tensor, list],
         upper: Union[float, torch.Tensor, list],
     ):
-        self._seperable = dynamics.separable
+        self._separable = dynamics.separable
 
         super().__init__(
             num_dims=dynamics.num_dims, 
@@ -144,7 +144,7 @@ class PostBoundedDynamics(Dynamics):
         lower: Union[float, torch.Tensor, list],
         upper: Union[float, torch.Tensor, list],
     ):
-        self._seperable = dynamics.separable
+        self._separable = dynamics.separable
 
         super().__init__(
             num_dims=dynamics.num_dims, 
@@ -162,7 +162,7 @@ class IndicatorDynamics(Dynamics):
         lower: Union[float, torch.Tensor, list], 
         upper: Union[float, torch.Tensor, list],
     ):
-        self._seperable = dynamics.separable
+        self._separable = dynamics.separable
 
         super().__init__(
             num_dims=dynamics.num_dims,
@@ -172,6 +172,29 @@ class IndicatorDynamics(Dynamics):
     @property
     def global_lipschitz(self):
         return self[1].global_lipschitz
+
+class NNLayerDynamics(Dynamics):
+    def __init__(
+        self,
+        weight: Union[torch.Tensor, list],
+        bias: Optional[Union[torch.Tensor, list]] = None,
+    ):
+        weight = torch.as_tensor(weight)
+        if isinstance(bias, list):
+            bias = torch.as_tensor(bias)
+
+        self._global_lipschitz = 0.25 * torch.linalg.svd(weight).S[0]
+
+        self._separable = utils.is_mat_diag(weight)
+
+        super().__init__(
+            num_dims=weight.size(-1),
+            modules=[Linear(weight, bias), torch.nn.Sigmoid()]
+        )
+
+    @property
+    def global_lipschitz(self):
+        return self._global_lipschitz
 
 class LinearStochasticDynamics(StochasticDynamics):
     def __init__(
