@@ -3,7 +3,7 @@ from collections import defaultdict
 
 import torch
 from itertools import product
-from typing import Union
+from typing import Union, Optional, List
 import scipy.stats as st
 
 from wass_prop.dynamics import NNLayerDynamics, StochasticDynamics
@@ -91,8 +91,7 @@ def sample_weight(dimension: int):
     A = 0.5 * (A + A.T)
 
     eig_max = torch.linalg.eigvalsh(A).max()
-    if eig_max >= 1:
-        A = A / (eig_max + 1e-8)
+    A = A / (eig_max + 1e-8)
     return A
 
 def get_normalized_variance(dimension: int, p: float = 0.95):
@@ -114,10 +113,6 @@ def manifold_distributions(dimension, num_dists, small=1e-6, large=1e-2):
         dists.append(mvn)
 
     return dists
-
-import matplotlib.pyplot as plt
-from collections import defaultdict
-from typing import Optional, List
 
 
 def plot_dimension_analysis(
@@ -237,14 +232,14 @@ def _convert_sci_notation(n: int):
     return label
 
 if __name__ == '__main__':
-    torch.manual_seed(0)
+    torch.manual_seed(10)
 
     ###################################################
     # Experiment: quantization and propagation        #
     ###################################################
     # Set parameters
-    dimensions = [2, 3, 10, 25, 50, 75, 100]
-    nums_locs = [10, 100, 1000]
+    dimensions = [2, 10, 25, 50, 75, 100]
+    nums_locs = [100, 1000, 10000]
     num_random_seeds = 10
 
     num_steps = 1
@@ -254,12 +249,14 @@ if __name__ == '__main__':
     for dimension, num_locs in product(dimensions, nums_locs):
         for random_seed in range(num_random_seeds):
 
+            weight = sample_weight(dimension)  # random NN layer
+
             # Quantization
             distribution = MultivariateNormal(loc=torch.zeros(dimension), covariance_matrix=get_normalized_variance(dimension) * torch.eye(dimension))
             data_quant[(dimension, num_locs, random_seed)] = analyze_discretization(distribution=distribution, num_locs=num_locs)
 
             # Propagation
-            dynamics = AdditiveNoiseDynamics(state_dynamics=NNLayerDynamics(weight=sample_weight(dimension), bias=None)) # random NN layer
+            dynamics = AdditiveNoiseDynamics(state_dynamics=NNLayerDynamics(weight=weight, bias=None))
 
             p = AmbiguityBall(
                 center=distribution,
@@ -299,11 +296,21 @@ if __name__ == '__main__':
 
 
     plot_dimension_analysis(
+        data_means=data_manifold,
+        data_stds=None,
+        x_axis_title=r"Dimension $d - d_{\emph{manifold}}$",
+        metrics_to_plot= ["w2"],
+        data_means_comp=means_prop,
+        data_stds_comp= stds_prop,
+        x_axis_title_comp= r"Dimension $d$"
+    )
+
+    plot_dimension_analysis(
         data_means=means_quant,
         data_stds=stds_quant,
         x_axis_title=r"Dimension $d$",
-        metrics_to_plot= ["w2"],
-        data_means_comp=data_manifold,
-        data_stds_comp= None,
-        x_axis_title_comp= r"Dimension $d - d_{\emph{manifold}}$"
+        metrics_to_plot= ["exec_time"],
+        data_means_comp=means_prop,
+        data_stds_comp= stds_prop,
+        x_axis_title_comp= r"Dimension $d$"
     )
