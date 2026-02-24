@@ -277,7 +277,7 @@ if __name__ == '__main__':
     #######################################################
 
     dimension = 100
-    nums_locs = [10000]
+    nums_locs = [100, 1000, 10000]
 
     num_dists = 5
     small = 1e-5
@@ -288,16 +288,33 @@ if __name__ == '__main__':
     # Collect data
     data_manifold = {}
     for distribution in distributions:
-
         manifold_dim = (distribution.covariance_matrix.diag() == small).sum().item()
-        for num_locs in nums_locs:
-            # Quantization
-            data_manifold[(manifold_dim, num_locs)] = analyze_discretization(distribution=distribution, num_locs=num_locs)
 
+        for num_locs in nums_locs:
+            for random_seed in range(num_random_seeds):
+                weight = sample_weight(dimension)  # random NN layer
+
+                # Propagation
+                dynamics = AdditiveNoiseDynamics(state_dynamics=NNLayerDynamics(weight=weight, bias=None))
+
+                p = AmbiguityBall(
+                    center=distribution,
+                    radius=0.1
+                )
+                noise = AmbiguityBall(
+                    center=MultivariateNormal(loc=torch.zeros(dimension),
+                                              covariance_matrix=torch.eye(dimension) * 1e-4),
+                    radius=0.01
+                )
+
+                data_manifold[(manifold_dim, num_locs, random_seed)] = analyze_propagation(dynamics=dynamics, p=p, noise=noise, num_locs=num_locs, num_steps=num_steps)
+
+
+    means_prop_manifold, stds_prop_manifold = aggregate_stats(data_manifold)
 
     plot_dimension_analysis(
-        data_means=data_manifold,
-        data_stds=None,
+        data_means=means_prop_manifold,
+        data_stds=stds_prop_manifold,
         x_axis_title=r"Dimension $d - d_{\emph{manifold}}$",
         metrics_to_plot= ["w2"],
         data_means_comp=means_prop,
@@ -306,9 +323,9 @@ if __name__ == '__main__':
     )
 
     plot_dimension_analysis(
-        data_means=means_quant,
-        data_stds=stds_quant,
-        x_axis_title=r"Dimension $d$",
+        data_means=means_prop_manifold,
+        data_stds=stds_prop_manifold,
+        x_axis_title=r"Dimension $d - d_{\emph{manifold}}$",
         metrics_to_plot= ["exec_time"],
         data_means_comp=means_prop,
         data_stds_comp= stds_prop,
