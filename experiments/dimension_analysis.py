@@ -177,7 +177,6 @@ def plot_dimension_analysis(
                 ax.fill_between(dims_sorted, lower, upper, color=cmap_colors[nlocs], alpha=0.3)
 
         ax.set_xlabel(x_title)
-        ax.set_ylabel(metric_labels[metric_key])
         ax.grid(True)
         ax.set_xticks(dims)
 
@@ -196,6 +195,7 @@ def plot_dimension_analysis(
             x_axis_title,
             metric_key
         )
+        axes[0].set_ylabel(metric_labels[metric_key])
         axes[0].legend(loc="best")
 
         # Plot comparison dataset if provided
