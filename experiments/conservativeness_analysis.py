@@ -55,22 +55,19 @@ def run_single_step_no_ambiguity(dynamics_type, setting, num_locs):
     return results
 
 def conservativeness_analysis():
-    num_locs_experiment = [1000]
-
-    run_inputs = { # [dynamics_type, dynamics_setting]
-        #'Sigmoid (1D)' : ('SigmoidDynamics', 0),
-        #'Bounded Linear (2D)' : ('BoundedLinearDynamics', 0),
-        'Quadruple-Tank (4D)' : ('LinearDynamics', 0),
-        'NN Layer (10D)' : ('DiagonalSigmoidDynamics', 2),
-        'Mountain Car (2D)' : ('MountainCarDynamics', 0),
-        'Dubins car (3D)' : ('DubinsCarDynamics', 0)
+    run_inputs = { # [dynamics_type, dynamics_setting, num_locs]
+        'Sigmoid (1D)' : ('SigmoidDynamics', 0, 10),
+        'Bounded Linear (2D)' : ('BoundedLinearDynamics', 0, 100),
+        'Quadruple-Tank (4D)' : ('LinearDynamics', 0, 1000),
+        'NN Layer (10D)' : ('DiagonalSigmoidDynamics', 2, 1000),
+        'Mountain Car (2D)' : ('MountainCarDynamics', 0, 100),
+        'Dubins car (3D)' : ('DubinsCarDynamics', 0, 1000)
     }
 
     results = {}
-    for dynamics_name, (dynamics_type, setting) in run_inputs.items():
+    for dynamics_name, (dynamics_type, setting, num_locs) in run_inputs.items():
         results[dynamics_name] = {}
-        for num_locs in num_locs_experiment:
-            results[dynamics_name][num_locs] = run_single_step_no_ambiguity(dynamics_type, setting, num_locs)
+        results[dynamics_name][num_locs] = run_single_step_no_ambiguity(dynamics_type, setting, num_locs)
 
     pprint.pprint(results)
 
