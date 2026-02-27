@@ -59,7 +59,7 @@ def conservativeness_analysis():
         'Sigmoid (1D)' : ('SigmoidDynamics', 0, 10),
         'Bounded Linear (2D)' : ('BoundedLinearDynamics', 0, 100),
         'Quadruple-Tank (4D)' : ('LinearDynamics', 0, 1000),
-        'NN Layer (10D)' : ('DiagonalSigmoidDynamics', 2, 1000),
+        'NN Layer (10D)' : ('DiagonalSigmoidDynamics', 2, 10000),
         'Mountain Car (2D)' : ('MountainCarDynamics', 0, 100),
         'Dubins car (3D)' : ('DubinsCarDynamics', 0, 1000)
     }
