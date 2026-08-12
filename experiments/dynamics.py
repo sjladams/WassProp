@@ -15,12 +15,10 @@ DATA_FOLDER = f"{os.path.dirname(os.path.abspath(__file__))}{os.sep}data{os.sep}
 # -- Deterministic Dynamics --------------------------------------------------------------------------------------------
 class SigmoidDynamics(Dynamics):
     def __init__(self, num_dims: int = 1):
-        self._separable = True
         super().__init__(num_dims=num_dims, modules=torch.nn.Sigmoid())
 
 class TanhDynamics(Dynamics):
     def __init__(self, num_dims: int = 1):
-        self._separable = True
         super().__init__(num_dims=num_dims, modules=torch.nn.Tanh())
 
 class BoundedLinearDynamics(PreBoundedDynamics):
@@ -44,7 +42,6 @@ class LinearSigmoidDynamics(Dynamics):
         bias: Optional[Union[torch.Tensor, list]] = None,
     ):
         linear_dynamics = LinearDynamics(weight, bias)
-        self._seperable = linear_dynamics.separable
     
         super().__init__(
             num_dims=linear_dynamics.num_dims, 
@@ -57,7 +54,6 @@ class DiagonalSigmoidDynamics(Dynamics):
         diagonal: Union[torch.Tensor, list]
     ):
         linear_dynamics = LinearDynamics(torch.diag(torch.as_tensor(diagonal)))
-        self._seperable = True
 
         super().__init__(
             num_dims=linear_dynamics.num_dims, 

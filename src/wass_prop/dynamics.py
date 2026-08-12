@@ -9,23 +9,14 @@ pl_factory = pl.BoundModelFactory()
 from . import utils
 
 class Dynamics(torch.nn.Sequential):
-    _separable = False
 
     """
     z_{k+1} = dynamics(z_k), with z the state or noise
-
-    If the dynamics is separable, then it can be written as
-
-    z_{k+1} = (dynamics^1(z_k^1), ..., dynamics^n(z_k^n)), with z the state or noise and n=num_dims
 
     """
     def __init__(self, num_dims: int, modules: Union[List[torch.nn.Module], torch.nn.Module]):
         self.num_dims = num_dims
         super().__init__(*(modules if isinstance(modules, list) else [modules]))
-
-    @property
-    def separable(self):
-        return self._separable
     
     @property
     def global_lipschitz(self) -> Union[float, torch.Tensor]:
@@ -108,8 +99,6 @@ class LinearDynamics(Dynamics):
         if isinstance(bias, list):
             bias = torch.as_tensor(bias)
 
-        self._separable = utils.is_mat_diag(weight)
-
         super().__init__(num_dims=weight.size(-1), modules=Linear(weight, bias))
 
 class PreBoundedDynamics(Dynamics):
@@ -119,8 +108,6 @@ class PreBoundedDynamics(Dynamics):
         lower: Union[float, torch.Tensor, list],
         upper: Union[float, torch.Tensor, list],
     ):
-        self._separable = dynamics.separable
-
         super().__init__(
             num_dims=dynamics.num_dims, 
             modules=[bp.Clamp(torch.as_tensor(lower), torch.as_tensor(upper)), dynamics]
@@ -133,8 +120,6 @@ class PostBoundedDynamics(Dynamics):
         lower: Union[float, torch.Tensor, list],
         upper: Union[float, torch.Tensor, list],
     ):
-        self._separable = dynamics.separable
-
         super().__init__(
             num_dims=dynamics.num_dims, 
             modules=[dynamics, bp.Clamp(torch.as_tensor(lower), torch.as_tensor(upper))]
@@ -147,8 +132,6 @@ class IndicatorDynamics(Dynamics):
         lower: Union[float, torch.Tensor, list], 
         upper: Union[float, torch.Tensor, list],
     ):
-        self._separable = dynamics.separable
-
         super().__init__(
             num_dims=dynamics.num_dims,
             modules=[lbp.BoxedIndicator(min=torch.as_tensor(lower), max=torch.as_tensor(upper)), dynamics]
@@ -163,8 +146,6 @@ class NNLayerDynamics(Dynamics):
         weight = torch.as_tensor(weight)
         if isinstance(bias, list):
             bias = torch.as_tensor(bias)
-
-        self._separable = utils.is_mat_diag(weight)
 
         super().__init__(
             num_dims=weight.size(-1),
