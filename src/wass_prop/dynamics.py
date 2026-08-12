@@ -125,17 +125,6 @@ class PostBoundedDynamics(Dynamics):
             modules=[dynamics, bp.Clamp(torch.as_tensor(lower), torch.as_tensor(upper))]
         )
 
-class IndicatorDynamics(Dynamics):
-    def __init__(
-        self, 
-        dynamics,
-        lower: Union[float, torch.Tensor, list], 
-        upper: Union[float, torch.Tensor, list],
-    ):
-        super().__init__(
-            num_dims=dynamics.num_dims,
-            modules=[lbp.BoxedIndicator(min=torch.as_tensor(lower), max=torch.as_tensor(upper)), dynamics]
-        )
 
 class NNLayerDynamics(Dynamics):
     def __init__(

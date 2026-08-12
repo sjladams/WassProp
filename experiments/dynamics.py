@@ -7,7 +7,7 @@ from torch import nn
 import bound_propagation as bp
 
 from wass_prop import GetStochasticDynamics
-from wass_prop.dynamics import Dynamics, Linear, LinearDynamics, PreBoundedDynamics, IndicatorDynamics, StochasticDynamics, LinearStochasticDynamics, additive, AdditiveNoiseDynamics
+from wass_prop.dynamics import Dynamics, Linear, LinearDynamics, PreBoundedDynamics, StochasticDynamics, LinearStochasticDynamics, additive, AdditiveNoiseDynamics
 import utils
 
 DATA_FOLDER = f"{os.path.dirname(os.path.abspath(__file__))}{os.sep}data{os.sep}"
@@ -158,6 +158,33 @@ class Spiral2dDynamics(Dynamics):
             num_dims=2,
             modules=[LinearDynamics(weight=weight, bias=bias)]
         )
+
+class Indicator(torch.nn.Module):
+    def __init__(self, min, max):
+        super().__init__()
+
+        self.min = min
+        self.max = max
+
+    def forward(self, x):
+        mask = ((x >= self.min) & (x <= self.max)).all(dim=-1).unsqueeze(-1)
+        return x * mask
+   
+class IndicatorDynamics(Dynamics):
+    def __init__(
+        self, 
+        dynamics: Dynamics,
+        lower: Union[float, torch.Tensor, list], 
+        upper: Union[float, torch.Tensor, list],
+    ):
+        super().__init__(
+            num_dims=dynamics.num_dims,
+            modules=[Indicator(min=torch.as_tensor(lower), max=torch.as_tensor(upper)), dynamics]
+        )
+
+    @property
+    def global_lipschitz(self):
+        return self[1].global_lipschitz
 
 class DoubleSpiral2dDynamics(Dynamics):
     def __init__(self):
