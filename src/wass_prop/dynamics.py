@@ -4,7 +4,6 @@ from abc import abstractmethod, ABC
 import torch
 import bound_propagation as bp
 
-from . import linear_bound_propagation as lbp  # TODO remove this depenency
 from . import utils
 
 class Dynamics(ABC, torch.nn.Sequential):
