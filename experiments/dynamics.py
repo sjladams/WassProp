@@ -1,11 +1,13 @@
 from typing import Union, Optional, List, Iterable
-import torch
 import os
+
+import torch
+from torch import nn
+
 import bound_propagation as bp
 
 from wass_prop import GetStochasticDynamics
 from wass_prop.dynamics import Dynamics, Linear, LinearDynamics, PreBoundedDynamics, IndicatorDynamics, StochasticDynamics, LinearStochasticDynamics, additive, AdditiveNoiseDynamics
-
 import utils
 
 DATA_FOLDER = f"{os.path.dirname(os.path.abspath(__file__))}{os.sep}data{os.sep}"
@@ -16,18 +18,10 @@ class SigmoidDynamics(Dynamics):
         self._separable = True
         super().__init__(num_dims=num_dims, modules=torch.nn.Sigmoid())
 
-    @property
-    def global_lipschitz(self):
-        return 0.25
-
 class TanhDynamics(Dynamics):
     def __init__(self, num_dims: int = 1):
         self._separable = True
         super().__init__(num_dims=num_dims, modules=torch.nn.Tanh())
-
-    @property
-    def global_lipschitz(self):
-        return 1.0
 
 class BoundedLinearDynamics(PreBoundedDynamics):
     def __init__(
@@ -57,10 +51,6 @@ class LinearSigmoidDynamics(Dynamics):
             modules=[linear_dynamics, SigmoidDynamics(self.num_dims)]
         )
 
-    @property
-    def global_lipschitz(self):
-        return torch.tensor([module.global_lipschitz for module in self]).prod()
-
 class DiagonalSigmoidDynamics(Dynamics):
     def __init__(
         self, 
@@ -74,52 +64,39 @@ class DiagonalSigmoidDynamics(Dynamics):
             modules=[linear_dynamics, SigmoidDynamics(linear_dynamics.num_dims)]
         )
 
-    @property
-    def global_lipschitz(self):
-        return torch.tensor([module.global_lipschitz for module in self]).prod()
-
 class MountainCarDynamics(Dynamics):
-    def __init__(self, action: float = 1.0):
-        linear_part = torch.nn.Sequential(
-            bp.Clamp(-0.5, 1.2),
-            Linear(
-                torch.tensor([
-                    [1.0, 0.0],
-                    [1.0, 1.0]
-                ]),
-                torch.tensor([0.001 * action, 0.0])
-            )
-        )
+    def __init__(self, action: float = 2.0):
+        """
+        Actions:
+        - 0: Accelerate to the left
+        - 1: Don’t accelerate
+        - 2: Accelerate to the right
 
-        trig_part = torch.nn.Sequential(
+        State is [velocity, position]. 
+        """
+
+        velocity_part = bp.Add(
             Linear(
-                torch.tensor([
-                    [0.0, 3.0],
-                    [0.0, 0.0]
-                ]),
-                torch.tensor([torch.pi / 2, 0.0])
-                ),
-            bp.Sin(),
-            Linear(
-                torch.tensor([
-                    [-0.0025, 0.0],
-                    [0.0, 0.0]
-                ]),
-                torch.tensor([0.0, 0.0])
+                torch.tensor([[1.0, 0.0]]),
+                torch.tensor([0.001 * (action - 1.)]),
+            ),
+            nn.Sequential(
+                Linear(torch.tensor([[0.0, 3.0]])),
+                bp.Cos(),
+                Linear(torch.tensor([[-0.0025]])),
             ),
         )
 
+        position_part = Linear(torch.tensor([[1.0, 1.0]]))
+
         super().__init__(
-            num_dims=2, 
+            num_dims=2,
             modules=[
-                torch.nn.Sequential(bp.Parallel(linear_part, trig_part)),
-                bp.VectorAdd()
+                bp.Parallel(velocity_part, position_part),
+                bp.Clamp(torch.tensor([-0.07, -1.2]), torch.tensor([0.07, 0.6])),
             ]
         )
 
-    @property
-    def global_lipschitz(self):
-        return 2
 
 class DubinsCarDynamics(Dynamics):
     def __init__(self, velocity: float = 5.0, u: float = 2.0, h: float = 0.3):
@@ -127,43 +104,55 @@ class DubinsCarDynamics(Dynamics):
         self.u = u
         self.h = h
 
-        linear_part = Linear(
-                torch.tensor([
-                    [1.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0],
-                    [0.0, 0.0, 1.0]
-                ]),
-                torch.tensor([0.0, 0.0, h * u])
-            )
+        linear_part = Linear(torch.eye(3), torch.tensor([0.0, 0.0, h * u]))
 
-        trig_part = torch.nn.Sequential(
+        trig_part = nn.Sequential(
             Linear(
-                torch.tensor([
-                    [0.0, 0.0, 1.0],
-                    [0.0, 0.0, 1.0],
-                    [0.0, 0.0, 0.0]
-                ]),
-                torch.tensor([torch.pi / 2, 0.0, 0.0])
-                ),
+                torch.tensor([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]]),
+                torch.tensor([torch.pi / 2, 0.0]),
+            ),
             bp.Sin(),
             Linear(
                 torch.tensor([
-                    [h * velocity, 0.0, 0.0],
-                    [0.0, h * velocity, 0.0],
-                    [0.0, 0.0, 0.0]
+                    [h * velocity, 0.0],
+                    [0.0, h * velocity],
+                    [0.0, 0.0],
                 ]),
-                torch.tensor([0.0, 0.0, 0.0])
             ),
         )
 
         super().__init__(
             num_dims=3,
-            modules=[bp.Parallel(linear_part, trig_part), bp.VectorAdd()]
+            modules=[bp.Add(linear_part, trig_part)]
         )
 
     @property
     def global_lipschitz(self):
-        return 1 + self.h * self.velocity
+        """
+        Write d = x - c and b = h * velocity. The step's displacement is
+
+            f(x) - f(c) = (d_xy + g(d_theta), d_theta),
+            g(d_theta)  = b * (cos(c_theta + d_theta) - cos(c_theta),
+                            sin(c_theta + d_theta) - sin(c_theta)),
+
+        where ||g(d_theta)|| = 2 * b * |sin(d_theta / 2)| exactly - the chord of a circle of
+        radius b. Because d_xy ranges freely it can be aligned with g, so
+
+            ||f(x) - f(c)||^2 = (||d_xy|| + 2 * b * |sin(d_theta / 2)|)^2 + d_theta^2
+
+        with equality attained rather than merely bounded. Applying 2|sin(s/2)| <= |s|, tight as
+        s -> 0, leaves the operator norm of [[1, b], [0, 1]] acting on (||d_xy||, |d_theta|),
+        whose largest singular value is (b + sqrt(b^2 + 4)) / 2. That supremum is approached as
+        d -> 0 along ||d_xy|| / |d_theta| = 2 / (b + sqrt(b^2 + 4)), so the constant is exact.
+
+        It does not depend on c: the step is equivariant under translation in (x, y) and under
+        rotation in theta, so every center sees the same constant and there is no point-wise
+        structure left to exploit.
+        """
+
+        radius = self.h * self.velocity
+        b = torch.as_tensor(radius)
+        return (b + (b.square() + 4.0).sqrt()) / 2.0
 
 class Spiral2dDynamics(Dynamics):
     def __init__(self):
@@ -173,10 +162,6 @@ class Spiral2dDynamics(Dynamics):
             num_dims=2,
             modules=[LinearDynamics(weight=weight, bias=bias)]
         )
-
-    @property
-    def global_lipschitz(self):
-        return self[0].global_lipschitz
 
 class DoubleSpiral2dDynamics(Dynamics):
     def __init__(self):
@@ -243,11 +228,6 @@ class NeuralPendulumDynamics(Dynamics):
                 LinearDynamics(weight_fc3, bias_fc3)
             ]
         )
-
-    @property
-    def global_lipschitz(self):
-        return torch.tensor([module.global_lipschitz for module in self]).prod()
-
 
 class FourModesOpenLoopDynamics(Dynamics):
     def __init__(self, control: int = 1):
@@ -409,9 +389,6 @@ class LinearSigmoidStochasticDynamics(StochasticDynamics):
             ]
         )
 
-    @property
-    def global_lipschitz(self):
-        return torch.tensor([module.global_lipschitz for module in self]).prod()
 
 get_stoch_dynamics = GetStochasticDynamics()
 get_stoch_dynamics.register('SigmoidDynamics', additive(SigmoidDynamics))
