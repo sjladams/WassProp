@@ -1,3 +1,6 @@
+import os
+import copy
+
 import matplotlib.pyplot as plt
 import torch
 import pprint
@@ -16,8 +19,28 @@ import utils
 COLORS = ['Blues', 'BuPu', 'PuRd', 'Greens', 'Oranges', 'Reds', 'Greys', 'Purples', 'YlOrBr', 'YlOrRd', 'OrRd', 'PuRd', 'RdPu', 'BuPu', 'GnBu', 'PuBu', 'YlGnBu', 'PuBuGn', 'BuGn', 'YlGn']
 COLORS_HIST = ['#543005', '#8c510a', '#bf812d', '#dfc27d', '#f6e8c3', '#c7eae5', '#80cdc1', '#35978f', '#01665e', '#003c30']
 
+# Systems shared by the convergence-analysis figures: name -> (dynamics_type, dynamics_setting, default_num_locs, color).
+# default_num_locs is only used where a fixed number of locations is needed (e.g. w2_p__q_convergence_analysis).
+SYSTEMS = {
+    'Sigmoid (1D)': ('SigmoidDynamics', 0, 100, 'tab:blue'),
+    'Bounded Linear (2D)': ('BoundedLinearDynamics', 0, 100, 'tab:green'),
+    'Mountain Car (2D)': ('MountainCarDynamics', 0, 100, 'tab:olive'),
+    'Dubins Car (3D)': ('DubinsCarDynamics', 0, 1000, 'tab:cyan'),
+    'Quadruple-Tank (4D)': ('LinearDynamics', 0, 1000, 'tab:purple'),
+    'NN Layer (10D)': ('DiagonalSigmoidDynamics', 2, 1000, 'tab:pink'),
+}
 
-def sigmoid_example(): # TODO test
+plt.style.use('seaborn-v0_8-bright')
+plt.rcParams.update({
+    'font.size': 14,
+    'text.usetex': True,
+    'text.latex.preamble': r'\usepackage{amsfonts}'
+})
+
+RESULTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
+
+
+def sigmoid_example():
     args = parse_arguments(
         dynamics_type='SigmoidDynamics',
         dynamics_setting=0,
@@ -25,7 +48,7 @@ def sigmoid_example(): # TODO test
 
     dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
     initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
-    
+
     signatures, bounds = [], []
     for num_locs in [5, 10, 100]:
         scheme = dd.generate_scheme(dist=initial_dist, scheme_size=num_locs)
@@ -36,53 +59,44 @@ def sigmoid_example(): # TODO test
         bound = fn_sq_w2_f_q__f_disc_q().sqrt()
         bounds.append(bound)
 
-
     X = torch.linspace(-3, 3, int(1e3)).unsqueeze(-1)
     Y = dynamics.state_dynamics(X)
 
-    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(36, 12))
-
-    # Gaussian density parameters
     mu = initial_dist.loc.item()
     sigma = np.sqrt(initial_dist.covariance_matrix.item())
     gaussian_density = norm.pdf(X.numpy(), loc=mu, scale=sigma)
 
-    for i, (signature, bound) in enumerate(zip(signatures, bounds)):
+    with plt.rc_context({'font.size': 55}):
+        fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(36, 12), constrained_layout=True)
 
-        ax[i].plot(X, Y, label=r'$f(x)$')
-        ax[i].set_xlabel(r"$x$")
+        for i, (signature, bound) in enumerate(zip(signatures, bounds)):
+            ax[i].plot(X, Y, label=r'$f(x)$', linewidth=3.5)
+            ax[i].plot(X, gaussian_density, label=r'$\mathbb{P}$', linewidth=3.5)
+            ax[i].set_xlabel(r"$x$")
 
-        ax[i].plot(X, gaussian_density, label=r'$\mathbb{P}$')
+            arrow_x = signature.locs.squeeze().tolist()
+            discrete_probs = signature.probs.tolist()
+            for xi, prob in zip(arrow_x, discrete_probs):
+                ax[i].arrow(xi, 0, 0, prob, length_includes_head=False,
+                          width=0.017, head_width=0.085, head_length=0.03,
+                          facecolor='green', edgecolor='green')
 
-        # Discrete distribution setup
-        arrow_x = signature.locs.squeeze().tolist()
-        discrete_probs = signature.probs.tolist()
+            ax[i].text(0.95, 0.95, rf'$\mathcal{{W}}_{{\mathcal{{R}}, \mathcal{{C}}}} = {bound:.2f}$',
+                     transform=ax[i].transAxes,
+                     ha='right', va='top', color='black',
+                     bbox=dict(facecolor='white', edgecolor='0.8', alpha=0.8, boxstyle='round,pad=0.3'))
 
-        # Add arrows representing discrete probabilities
-        for xi, prob in zip(arrow_x, discrete_probs):
-            ax[i].annotate('', xy=(xi, prob), xytext=(xi, 0),
-                         arrowprops=dict(facecolor='green', edgecolor='green', width=0.8, headwidth=7),
-                         )
+            ax[i].yaxis.set_visible(False)
 
-        ax[i].text(mu-2.0, 0.5, rf'$h(\mathcal{{R}}, \mathcal{{C}}) = {bound:.2f}$',
-                 ha='center', color='black',
-                 bbox=dict(facecolor='white', edgecolor='gray', boxstyle='round,pad=0.3'))
+        # proxy artist for the discretized pushforward, which isn't drawn via a labeled plot call
+        handles, labels = ax[0].get_legend_handles_labels()
+        handles.append(plt.Line2D([0], [0], color="green", linewidth=3.5))
+        labels.append(r"$\Delta_{\mathcal{R}, \mathcal{C}}\#\mathbb{P}$")
+        ax[0].legend(handles=handles, labels=labels, loc="upper left")
 
-        ax[i].yaxis.set_visible(False)
+        plt.savefig(os.path.join(RESULTS_DIR, 'sigmoid_signature_example.pdf'), bbox_inches='tight')
+        plt.show()
 
-    # Add a proxy artist for the annotation to include it in the legend
-    annotation_label = r"$\Delta_{\mathcal{R}, \mathcal{C}}\#\mathbb{P}$"
-    # Add the annotation to the legend
-    handles, labels = plt.gca().get_legend_handles_labels()  # Get existing legend entries
-    proxy_artist = plt.Line2D([0], [0], color="green")  # Create proxy
-    handles.append(proxy_artist)
-    labels.append(annotation_label)
-
-    # Update the legend
-    ax[0].legend(handles=handles, labels=labels, loc="upper left")
-    plt.axhline(y=0, color="black", linewidth=0.2)
-    plt.tight_layout()
-    plt.show()
 
 def convergence_analysis(dynamics_type, setting, num_locs, w2_p__q):
     args = parse_arguments(
@@ -102,51 +116,84 @@ def convergence_analysis(dynamics_type, setting, num_locs, w2_p__q):
             q=AmbiguityBall(initial_dist, w2_p__q),
             noise=AmbiguityBall(noise_dist, 0.),
             num_locs=args.num_locs,
-            use_lagrangian_duality=True
+            use_lagrangian_duality=method=='lagrangian_duality'
         ).w2
         results[method] = float(w2)
     return results
 
 
-def num_loc_convergence_analysis(w2_p__q: float):
+def num_loc_convergence_analysis(w2_p__q_values: list[float]):
     num_locs_experiment = [10, 100, 1000, 10000]
 
-    run_inputs = { # [dynamics_type, dynamics_setting]
-        'Sigmoid (1D)' : ('SigmoidDynamics', 0),
-        'Bounded Linear (2D)' : ('BoundedLinearDynamics', 0),
-        'Quadruple-Tank (4D)' : ('LinearDynamics', 0),
-        'NN Layer (10D)' : ('DiagonalSigmoidDynamics', 2),
-        # 'Mountain Car (2D)' : ('MountainCarDynamics', 0),
-        # 'Dubins car (3D)' : ('DubinsCarDynamics', 0)
-    }
+    fig, axes = plt.subplots(nrows=1, ncols=len(w2_p__q_values), figsize=(7.5, 3.5),
+                              sharey=True, constrained_layout=True)
+    if len(w2_p__q_values) == 1:
+        axes = [axes]
 
-    results = {}
-    for dynamics_name, (dynamics_type, setting) in run_inputs.items():
-        results[dynamics_name] = {}
-        for num_locs in num_locs_experiment:
-            results[dynamics_name][num_locs] = convergence_analysis(dynamics_type, setting, num_locs, w2_p__q)
+    for ax, w2_p__q in zip(axes, w2_p__q_values):
+        for dynamics_name, (dynamics_type, setting, _, color) in SYSTEMS.items():
+            w2_values = [convergence_analysis(dynamics_type, setting, num_locs, w2_p__q)['lagrangian_duality']
+                         for num_locs in num_locs_experiment]
 
-    pprint.pprint(results)
+            ax.plot(num_locs_experiment, w2_values, marker='o', linestyle='--', label=dynamics_name,
+                    color=color)
+
+        ax.set_xscale('log')
+        ax.set_ylim(bottom=0, top=1.55)
+        ax.set_xlabel(r'Number of locations ($|\mathcal{C}|$)')
+        ax.grid(True)
+        ax.text(0.95, 0.95, rf'$\theta = {w2_p__q}$',
+                transform=ax.transAxes,
+                ha='right', va='top', color='black',
+                bbox=dict(facecolor='white', edgecolor='0.8', alpha=0.8, boxstyle='round,pad=0.3'))
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    handles = [copy.copy(h) for h in handles]
+    for h in handles:
+        h.set_linestyle('None')
+
+    axes[0].set_ylabel('2-Wasserstein bound')
+    fig.legend(handles, labels, loc='outside center right')
+    plt.savefig(os.path.join(RESULTS_DIR, 'increase_num_locs_analysis.pdf'), bbox_inches='tight')
+    plt.show()
+
 
 def w2_p__q_convergence_analysis():
     w2_p__q_options = [0.0, 0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0]
 
-    run_inputs = { # (dynamics_type, dynamics_setting, num_locs)
-        'Sigmoid (1D)' : ('SigmoidDynamics', 0, 100),
-        'Bounded Linear (2D)' : ('BoundedLinearDynamics', 0, 100),
-        'Quadruple-Tank (4D)' : ('LinearDynamics', 0, 1000),
-        'NN Layer (10D)' : ('DiagonalSigmoidDynamics', 2, 1000),
-        # 'Mountain Car (2D)' : ('MountainCarDynamics', 0, 100),
-        # 'Dubins car (3D)' : ('DubinsCarDynamics', 0, 1000)
-    }
-
     results = {}
-    for dynamics_name, (dynamics_type, setting, num_locs) in run_inputs.items():
+    for dynamics_name, (dynamics_type, setting, num_locs, _) in SYSTEMS.items():
         results[dynamics_name] = {}
         for w2_p__q in w2_p__q_options:
             results[dynamics_name][w2_p__q] = convergence_analysis(dynamics_type, setting, num_locs, w2_p__q)
 
-    pprint.pprint(results)
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(7.5, 3.5), 
+                             sharey=True, constrained_layout=True)
+
+    for dynamics_name, data in results.items():
+        w2_values = np.array([data[w2]['lagrangian_duality'] for w2 in w2_p__q_options])
+        w2_values_global = np.array([data[w2]['global_lipschitz'] for w2 in w2_p__q_options])
+        color = SYSTEMS[dynamics_name][3]
+
+        axes[0].plot(w2_p__q_options, w2_values, marker='o', linestyle='--', label=dynamics_name, color=color)
+        axes[1].plot(w2_p__q_options, w2_values_global - w2_values, marker='o', linestyle='--',
+                      label=dynamics_name, color=color)
+
+    for ax in axes:
+        ax.set_xlabel(r'2-Wasserstein ball radius $\theta$')
+        ax.grid(True)
+
+    axes[0].set_ylabel('2-Wasserstein bound')
+    axes[1].set_ylabel('Global Lip. $-$ Lin. Coeff.')
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    handles = [copy.copy(h) for h in handles]
+    for h in handles:
+        h.set_linestyle('None')
+
+    fig.legend(handles, labels, loc='outside center right')
+    plt.savefig(os.path.join(RESULTS_DIR, 'wass_ball_radius_analysis.pdf'), bbox_inches='tight')
+    plt.show()
 
 
 def mountain_car_mc_plot(): # TODO fix color scheme
