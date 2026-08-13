@@ -20,7 +20,7 @@ class Dynamics(torch.nn.Sequential):
     
     @property
     def global_lipschitz(self) -> Union[float, torch.Tensor]:
-        return pl_factory.build(self).global_lipschitz()
+        return pl_factory.build(self).lipschitz()
 
 class StochasticDynamics(torch.nn.Sequential):
     """
@@ -42,7 +42,7 @@ class StochasticDynamics(torch.nn.Sequential):
 
     @property
     def global_lipschitz(self) -> Union[float, torch.Tensor]:
-        return pl_factory.build(self).global_lipschitz()
+        return pl_factory.build(self).lipschitz()
 
 class AdditiveNoiseDynamics(StochasticDynamics):
     """

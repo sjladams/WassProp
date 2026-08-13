@@ -47,6 +47,6 @@ def global_lbp_sq_norm_fx_fc(
     """
 
     global_lipschitz = torch.as_tensor(f.global_lipschitz)
-    pointwise_lipschitz = pl_factory.build(f).local_lipschitz(locs)
+    pointwise_lipschitz = pl_factory.build(f).pointwise_lipschitz(locs)
 
     return torch.min(global_lipschitz.expand(locs.shape[:-1]), pointwise_lipschitz).pow(2)
