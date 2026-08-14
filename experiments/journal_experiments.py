@@ -2,6 +2,8 @@ import os
 import copy
 
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 import torch
 import pprint
 import discretize_distributions as dd
@@ -16,15 +18,12 @@ from handlers import parse_arguments
 import utils
 
 
-COLORS = ['Blues', 'BuPu', 'PuRd', 'Greens', 'Oranges', 'Reds', 'Greys', 'Purples', 'YlOrBr', 'YlOrRd', 'OrRd', 'PuRd', 'RdPu', 'BuPu', 'GnBu', 'PuBu', 'YlGnBu', 'PuBuGn', 'BuGn', 'YlGn']
-COLORS_HIST = ['#543005', '#8c510a', '#bf812d', '#dfc27d', '#f6e8c3', '#c7eae5', '#80cdc1', '#35978f', '#01665e', '#003c30']
-
 # Systems shared by the convergence-analysis figures: name -> (dynamics_type, dynamics_setting, default_num_locs, color).
 # default_num_locs is only used where a fixed number of locations is needed (e.g. w2_p__q_convergence_analysis).
 SYSTEMS = {
     'Sigmoid (1D)': ('SigmoidDynamics', 0, 100, 'tab:blue'),
     'Bounded Linear (2D)': ('BoundedLinearDynamics', 0, 100, 'tab:green'),
-    'Mountain Car (2D)': ('MountainCarDynamics', 0, 100, 'tab:olive'),
+    'Mountain Car (2D)': ('MountainCarJournalDynamics', 0, 100, 'tab:olive'),
     'Dubins Car (3D)': ('DubinsCarDynamics', 0, 1000, 'tab:cyan'),
     'Quadruple-Tank (4D)': ('LinearDynamics', 0, 1000, 'tab:purple'),
     'NN Layer (10D)': ('DiagonalSigmoidDynamics', 2, 1000, 'tab:pink'),
@@ -196,15 +195,15 @@ def w2_p__q_convergence_analysis():
     plt.show()
 
 
-def mountain_car_mc_plot(): # TODO fix color scheme
+def mountain_car_mc_plot():
     args = parse_arguments(
-        dynamics_type='MountainCarDynamics',
+        dynamics_type='MountainCarJournalDynamics',
         dynamics_setting=0,
         num_locs=100,
         num_samples=10000
     )
 
-    num_time_steps = 2
+    num_time_steps = 10
 
     dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
     initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
@@ -231,19 +230,24 @@ def mountain_car_mc_plot(): # TODO fix color scheme
     approx_samples = SampledPath({k: path.at(k).sample(args.num_samples) for k in path.ordered_indices}).detach()
 
 
-    fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(24, 36))
-    for k in true_samples.ordered_indices:
+    # with plt.rc_context({'font.size': 40}):
+    fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(12, 36))
+    cmap = cm.get_cmap("managua")
+    colors = cmap(np.linspace(0,1,num_time_steps+1))
+    for k, color in zip(true_samples.ordered_indices, colors):
         # Plot using hist2d with color intensity indicating the density
-        ax[0,0].hist2d(true_samples.at(k)[:,0], true_samples.at(k)[:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
-        ax[0,1].hist2d(approx_samples.at(k)[:,0], approx_samples.at(k)[:,1], bins=100, cmap=COLORS[k], alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
+        mono_cmap = mcolors.LinearSegmentedColormap.from_list("mono", ["white", color])
+        ax[0,0].hist2d(true_samples.at(k)[:,0], true_samples.at(k)[:,1], bins=100, cmap=mono_cmap, alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
+        ax[0,1].hist2d(approx_samples.at(k)[:,0], approx_samples.at(k)[:,1], bins=100, cmap=mono_cmap, alpha=0.8, cmin=0.1, label=rf'$t={k+1}$')
 
+    for k, color in zip([0,num_time_steps-1], ['tab:blue', 'tab:cyan']):
         # Plot only first dimension
-        ax[1,0].hist(true_samples.at(k)[:,0], color=COLORS_HIST[k], bins=50, density=True, label=rf'$t={k+1}$')
-        ax[1,1].hist(approx_samples.at(k)[:,0], color=COLORS_HIST[k], bins=50, density=True, label=rf'$t={k+1}$')
+        ax[1,0].hist(true_samples.at(k)[:,0], color=color, bins=50, density=True, label=rf'$t={k+1}$')
+        ax[1,1].hist(approx_samples.at(k)[:,0], color=color, bins=50, density=True, label=rf'$t={k+1}$')
 
         # Plot only second dimension
-        ax[2,0].hist(true_samples.at(k)[:, 1], color=COLORS_HIST[k], bins=50, density=True, label=rf'$t={k+1}$')
-        ax[2,1].hist(approx_samples.at(k)[:, 1], color=COLORS_HIST[k], bins=50, density=True, label=rf'$t={k+1}$')
+        ax[2,0].hist(true_samples.at(k)[:, 1], color=color, bins=50, density=True, label=rf'$t={k+1}$')
+        ax[2,1].hist(approx_samples.at(k)[:, 1], color=color, bins=50, density=True, label=rf'$t={k+1}$')
 
     ax[0,0].set_title(r'$\mathbb{P}_{x_t}$ (actual distr.)')
     ax[0,1].set_title(r'$\hat{\mathbb{P}}_{x_t}$ (our approx.)')
@@ -270,6 +274,7 @@ def mountain_car_mc_plot(): # TODO fix color scheme
         ax.legend(loc='upper left')
 
     plt.show()
+    plt.savefig(os.path.join(RESULTS_DIR, 'multistep_mountain_car.pdf'), bbox_inches='tight')
 
 
 if __name__ == '__main__':
@@ -279,11 +284,10 @@ if __name__ == '__main__':
     # sigmoid_example()
 
     # Figure 5
-    num_loc_convergence_analysis(w2_p__q=0.0)
-    num_loc_convergence_analysis(w2_p__q=0.1)
+    num_loc_convergence_analysis(w2_p__q_values=[0, 0.1])
 
     # Figure 6
     w2_p__q_convergence_analysis()
 
     # Figure 7
-    mountain_car_mc_plot()
+    # mountain_car_mc_plot()
