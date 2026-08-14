@@ -46,11 +46,21 @@ def _single_step_general_noise(
     q1 = propagate_general_discrete_noise(dynamics, disc_noise_dist, disc_q)
 
     if cfg.use_lagrangian_duality:
-        w2_p1__q1 = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-            disc_q=disc_q,
-            f=dynamics, 
-            w2_p__disc_q=w2_q__disc_q + w2_noise_dist__disc_noise_dist + cfg.q.w2 + cfg.noise.w2
-        )
+        w2_p__q = cfg.q.w2 + cfg.noise.w2
+        w2_q__disc_q = w2_q__disc_q + w2_noise_dist__disc_noise_dist
+
+        if isinstance(cfg.q.center, dd_dists.MultivariateNormal) and w2_p__q == 0.:
+            w2_p1__q1 = wasserstein.compute_w2_f_q__f_disc_q_lagrangian_duality(
+                q=cfg.q.center,
+                disc_q=disc_q,
+                f=dynamics, 
+            )
+        else:
+            w2_p1__q1 = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
+                disc_q=disc_q,
+                f=dynamics, 
+                w2_p__disc_q=w2_p__q + w2_q__disc_q
+            )
     else:
         w2_p1__q1 = dynamics.global_lipschitz * (w2_q__disc_q + cfg.q.w2 + w2_noise_dist__disc_noise_dist + cfg.noise.w2)
 
@@ -65,11 +75,21 @@ def _single_step_additive_noise(
     q1 = propagate_additive_gaussian_noise(dynamics, cfg.noise.center, disc_q)
 
     if cfg.use_lagrangian_duality:
-        w2_p1__q1 = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-            disc_q=disc_q, 
-            f=dynamics.state_dynamics, 
-            w2_p__disc_q=w2_q__disc_q + cfg.q.w2
-        )
+        w2_p__q = cfg.q.w2
+        w2_q__disc_q = w2_q__disc_q
+
+        if isinstance(cfg.q.center, dd_dists.MultivariateNormal) and w2_p__q == 0.:
+            w2_p1__q1 = wasserstein.compute_w2_f_q__f_disc_q_lagrangian_duality(
+                q=cfg.q.center,
+                disc_q=disc_q, 
+                f=dynamics.state_dynamics, 
+            )
+        else:
+            w2_p1__q1 = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
+                disc_q=disc_q, 
+                f=dynamics.state_dynamics, 
+                w2_p__disc_q=w2_p__q + w2_q__disc_q,
+            )
     else:
         w2_p1__q1 = dynamics.global_lipschitz * (w2_q__disc_q + cfg.q.w2)
 

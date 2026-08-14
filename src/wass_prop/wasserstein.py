@@ -2,6 +2,7 @@ import torch
 from typing import Callable, Union
 
 import discretize_distributions.distributions as dd_dists
+from discretize_distributions import compute_local_mse
 
 from . import dynamics
 from .bound import global_ibp_sq_norm_fx_fc, global_lbp_sq_norm_fx_fc
@@ -24,8 +25,10 @@ def get_fn_sq_w2_f_q__f_disc_q(
     alpha = global_lbp_sq_norm_fx_fc(f, disc_q.locs)
     beta = global_ibp_sq_norm_fx_fc(f, disc_q.locs)
 
+    sq_l2_norm = compute_local_mse(q, disc_q)
+
     def fn_sq_w2_f_q__f_disc_q():
-        w2_alpha_or_beta = torch.min(disc_q.sq_l2_norm * alpha, beta)
+        w2_alpha_or_beta = torch.min(sq_l2_norm * alpha, beta)
         return torch.einsum('...i,...i->...', w2_alpha_or_beta, disc_q.probs)
 
     return fn_sq_w2_f_q__f_disc_q
@@ -46,7 +49,7 @@ def get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(
         mask = torch.cat((mask, torch.zeros(1, disc_q.locs.shape[-2])), dim=0)
 
         alpha_options = torch.einsum('ij, j->ij', mask, alpha)
-        beta_options = torch.einsum('ij, j->ij', 1 - mask, beta)
+        beta_options = torch.einsum('ij, j->ij', 1 - mask, beta).nan_to_num(nan=0.0)
 
         alpha_max = alpha_options.max(dim=-1).values
         result_options = alpha_max * w2_p__disc_q ** 2 + torch.einsum('j,ij->i', disc_q.probs, beta_options)
@@ -61,15 +64,23 @@ def compute_w2_f_p__f_disc_q_lagrangian_duality(
     f: dynamics.StochasticDynamics,
     w2_p__disc_q: Union[float, torch.Tensor]
 ) -> torch.Tensor:
-        
-    ## TODO Implement Theorem 5.2 for the case where w2_p__q == 0 and isinstance(q, dd_dists.MixtureMultivariateNormal) 
-    # using get_fn_sq_w2_f_q__f_disc_q, which requires computing, or pulling the sq_l2_norm during the discretizaiton operation
 
     fn_sq_w2_f_p__f_disc_q = get_fn_sq_w2_f_p__f_disc_q_lagrangian_duality(disc_q, f, w2_p__disc_q)
     w2 = fn_sq_w2_f_p__f_disc_q().sqrt()
 
     return w2
 
+
+def compute_w2_f_q__f_disc_q_lagrangian_duality(
+    q: dd_dists.MultivariateNormal,
+    disc_q: dd_dists.CategoricalFloat,
+    f: dynamics.StochasticDynamics,
+) -> torch.Tensor:
+    
+    fn_sq_w2_f_q__f_disc_q = get_fn_sq_w2_f_q__f_disc_q(q, disc_q, f)
+    w2 = fn_sq_w2_f_q__f_disc_q().sqrt()
+
+    return w2
 
 
 PRECISION = torch.finfo(torch.float32).eps
