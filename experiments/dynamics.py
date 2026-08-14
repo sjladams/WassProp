@@ -60,6 +60,46 @@ class DiagonalSigmoidDynamics(Dynamics):
             modules=[linear_dynamics, SigmoidDynamics(linear_dynamics.num_dims)]
         )
 
+
+class MountainCarJournalDynamics(Dynamics):
+    def __init__(self, action: float = 1.0):
+        linear_part = torch.nn.Sequential(
+            bp.Clamp(-0.5, 1.2),
+            Linear(
+                torch.tensor([
+                    [1.0, 0.0],
+                    [1.0, 1.0]
+                ]),
+                torch.tensor([0.001 * action, 0.0])
+            )
+        )
+
+        trig_part = torch.nn.Sequential(
+            Linear(
+                torch.tensor([
+                    [0.0, 3.0],
+                    [0.0, 0.0]
+                ]),
+                torch.tensor([torch.pi / 2, 0.0])
+                ),
+            bp.Sin(),
+            Linear(
+                torch.tensor([
+                    [-0.0025, 0.0],
+                    [0.0, 0.0]
+                ]),
+            ),
+        )
+
+        super().__init__(
+            num_dims=2, 
+            modules=[
+                torch.nn.Sequential(bp.Parallel(linear_part, trig_part)),
+                bp.VectorAdd()
+            ]
+        )
+
+
 class MountainCarDynamics(Dynamics):
     def __init__(self, action: float = 2.0):
         """
@@ -419,6 +459,7 @@ get_stoch_dynamics.register('TanhDynamics', additive(TanhDynamics))
 get_stoch_dynamics.register('BoundedLinearDynamics', additive(BoundedLinearDynamics))
 get_stoch_dynamics.register('LinearSigmoidDynamics', additive(LinearSigmoidDynamics))
 get_stoch_dynamics.register('DiagonalSigmoidDynamics', additive(DiagonalSigmoidDynamics))
+get_stoch_dynamics.register('MountainCarJournalDynamics', additive(MountainCarJournalDynamics))
 get_stoch_dynamics.register('MountainCarDynamics', additive(MountainCarDynamics))
 get_stoch_dynamics.register('DubinsCarDynamics', additive(DubinsCarDynamics))
 get_stoch_dynamics.register('Spiral2dDynamics', additive(Spiral2dDynamics))

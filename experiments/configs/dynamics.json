@@ -160,6 +160,18 @@
             }
         }
     },
+    "MountainCarJournalDynamics": {
+        "0": {
+            "noise_dist": {
+                "loc": [0.0, 0.0],
+                "variance": [0.01, 0.01]
+            },
+            "initial_dist": {
+                "loc": [0.3, 0.2],
+                "variance": [0.1, 0.001]
+            }
+        }
+    },
     "DubinsCarDynamics": {
         "0": {
             "noise_dist": {
