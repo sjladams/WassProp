@@ -1,24 +1,33 @@
-import os, sys
-from collections import defaultdict
-
-import torch
-from itertools import product
+import os
 from typing import Union, Optional, List
-import scipy.stats as st
-
-from wass_prop.dynamics import NNLayerDynamics, StochasticDynamics
-
-sys.path.append(os.path.join(os.path.dirname(os.getcwd()), "src"))
-
-import discretize_distributions as dd
-from discretize_distributions.distributions import MultivariateNormal, MixtureMultivariateNormal
-from wass_prop import AmbiguityBall, multi_step
-from dynamics import AdditiveNoiseDynamics
-
+from collections import defaultdict
 import time
 import tracemalloc
+from itertools import product
+import pprint
 
+import torch
+import scipy.stats as st
 import matplotlib.pyplot as plt
+
+import discretize_distributions as dd
+from discretize_distributions.distributions import MultivariateNormal, MixtureMultivariateNormal, CategoricalFloat
+
+from wass_prop.dynamics import NNLayerDynamics, StochasticDynamics
+from wass_prop import AmbiguityBall, multi_step
+from dynamics import AdditiveNoiseDynamics
+from journal_experiments import run_single_step_no_ambiguity
+
+RESULTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
+
+plt.rcParams.update({
+    'font.size': 14,
+    'text.usetex': True,
+    'text.latex.preamble': r'\usepackage{amsfonts}'
+})
+
+COLORS = ['Blues', 'BuPu', 'PuRd', 'Greens', 'Oranges', 'Reds', 'Greys', 'Purples']
+
 
 def aggregate_stats(data):
     # Group tensors by (dimension, num_locs)
@@ -97,6 +106,21 @@ def sample_weight(dimension: int):
 def get_normalized_variance(dimension: int, p: float = 0.95):
     chi2_quantile = st.chi2.ppf(p, df=dimension)
     return 1.0 / chi2_quantile
+
+def build_propagation_setup(dimension: int, distribution: Union[MultivariateNormal, MixtureMultivariateNormal]):
+    weight = sample_weight(dimension)  # random NN layer
+    dynamics = AdditiveNoiseDynamics(state_dynamics=NNLayerDynamics(weight=weight))
+
+    p = AmbiguityBall(
+        center=distribution,
+        radius=0.1
+    )
+    noise = AmbiguityBall(
+        center=MultivariateNormal(loc=torch.zeros(dimension), covariance_matrix=torch.eye(dimension) * 1e-4),
+        radius=0.01
+    )
+
+    return dynamics, p, noise
 
 def manifold_distributions(dimension, num_dists, small=1e-6, large=1e-2):
     dists = []
@@ -209,15 +233,7 @@ def plot_dimension_analysis(
             )
             axes[1].legend(loc="best")
         plt.tight_layout()
-        plt.show()
 
-plt.rcParams.update({
-    'font.size': 14,
-    'text.usetex': True,
-    'text.latex.preamble': r'\usepackage{amsfonts}'
-})
-
-COLORS = ['Blues', 'BuPu', 'PuRd', 'Greens', 'Oranges', 'Reds', 'Greys', 'Purples']
 
 def _convert_sci_notation(n: int):
     x = torch.tensor(float(n))
@@ -231,8 +247,10 @@ def _convert_sci_notation(n: int):
 
     return label
 
-if __name__ == '__main__':
-    torch.manual_seed(10)
+
+def dimensional_analysis():
+    num_steps = 1
+    num_random_seeds = 10
 
     ###################################################
     # Experiment: quantization and propagation        #
@@ -240,32 +258,18 @@ if __name__ == '__main__':
     # Set parameters
     dimensions = [2, 10, 25, 50, 75, 100]
     nums_locs = [100, 1000, 10000]
-    num_random_seeds = 10
-
-    num_steps = 1
 
     # Collect data
     data_quant, data_prop = {}, {}
     for dimension, num_locs in product(dimensions, nums_locs):
         for random_seed in range(num_random_seeds):
 
-            weight = sample_weight(dimension)  # random NN layer
-
             # Quantization
             distribution = MultivariateNormal(loc=torch.zeros(dimension), covariance_matrix=get_normalized_variance(dimension) * torch.eye(dimension))
             data_quant[(dimension, num_locs, random_seed)] = analyze_discretization(distribution=distribution, num_locs=num_locs)
 
             # Propagation
-            dynamics = AdditiveNoiseDynamics(state_dynamics=NNLayerDynamics(weight=weight, bias=None))
-
-            p = AmbiguityBall(
-                center=distribution,
-                radius=0.1
-            )
-            noise = AmbiguityBall(
-                center=MultivariateNormal(loc=torch.zeros(dimension), covariance_matrix=torch.eye(dimension) * 1e-4),
-                radius=0.01
-            )
+            dynamics, p, noise = build_propagation_setup(dimension, distribution)
 
             data_prop[(dimension, num_locs, random_seed)] = analyze_propagation(dynamics=dynamics, p=p, noise=noise, num_locs=num_locs, num_steps=num_steps)
 
@@ -292,20 +296,8 @@ if __name__ == '__main__':
 
         for num_locs in nums_locs:
             for random_seed in range(num_random_seeds):
-                weight = sample_weight(dimension)  # random NN layer
-
                 # Propagation
-                dynamics = AdditiveNoiseDynamics(state_dynamics=NNLayerDynamics(weight=weight, bias=None))
-
-                p = AmbiguityBall(
-                    center=distribution,
-                    radius=0.1
-                )
-                noise = AmbiguityBall(
-                    center=MultivariateNormal(loc=torch.zeros(dimension),
-                                              covariance_matrix=torch.eye(dimension) * 1e-4),
-                    radius=0.01
-                )
+                dynamics, p, noise = build_propagation_setup(dimension, distribution)
 
                 data_manifold[(manifold_dim, num_locs, random_seed)] = analyze_propagation(dynamics=dynamics, p=p, noise=noise, num_locs=num_locs, num_steps=num_steps)
 
@@ -321,6 +313,7 @@ if __name__ == '__main__':
         data_stds_comp= stds_prop,
         x_axis_title_comp= r"Dimension $d$"
     )
+    plt.savefig(os.path.join(RESULTS_DIR, 'dimension_analysis_w2.pdf'), bbox_inches='tight')
 
     plot_dimension_analysis(
         data_means=means_prop_manifold,
@@ -331,3 +324,43 @@ if __name__ == '__main__':
         data_stds_comp= stds_prop,
         x_axis_title_comp= r"Dimension $d$"
     )
+    plt.savefig(os.path.join(RESULTS_DIR, 'dimension_analysis_exec_time.pdf'), bbox_inches='tight')
+
+    plt.show()
+
+
+@torch.no_grad()
+def conservativeness_analysis(dimension=10, num_locs=10000):
+    weight = sample_weight(dimension)  # random NN layer
+    distribution = MultivariateNormal(
+        loc=torch.zeros(dimension),
+        covariance_matrix=get_normalized_variance(dimension) * torch.eye(dimension)
+    )
+
+    dynamics = AdditiveNoiseDynamics(state_dynamics=NNLayerDynamics(weight=weight))
+
+    noise_dist = CategoricalFloat(
+        locs=torch.zeros(1, len(distribution.loc)),
+        probs=torch.tensor([1.0])
+    )
+
+    p = AmbiguityBall(distribution, 0.)
+    noise = AmbiguityBall(noise_dist, 0.) # we don't consider the noise in this experiment (Dirac at zero)
+
+
+    results = run_single_step_no_ambiguity(dynamics, p, noise, num_locs)
+
+    pprint.pprint(results)
+
+
+if __name__ == '__main__':
+    torch.manual_seed(10)
+
+    # # Figure 8
+    # dimensional_analysis()
+    
+    # Table III
+    conservativeness_analysis()
+
+   
+    
