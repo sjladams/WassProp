@@ -188,7 +188,6 @@ class GetStochasticDynamics:
         LinearDynamics=additive(LinearDynamics),
         PreBoundedDynamics=additive(PreBoundedDynamics),
         PostBoundedDynamics=additive(PostBoundedDynamics), 
-        IndicatorDynamics=additive(IndicatorDynamics),
     )
 
     def register(self, name: str, factory: Union[StochasticDynamicsFactoryFn, StochasticDynamics]) -> None:
