@@ -11,13 +11,6 @@ from .utils_distributions import AmbiguityBall, discretize, cross_product, sum_d
 TensorLike = Union[float, torch.Tensor]
 
 
-@dataclass
-class SingleStepConfig:
-    q: AmbiguityBall
-    noise: AmbiguityBall
-    num_locs: int
-    use_lagrangian_duality: bool = True
-
 def single_step(
     dynamics: StochasticDynamics,
     q: AmbiguityBall,
@@ -25,75 +18,74 @@ def single_step(
     num_locs: int,
     use_lagrangian_duality: bool = True,
 ) -> AmbiguityBall:
-    cfg = SingleStepConfig(
-        q=q,
-        noise=noise,
-        num_locs=num_locs,
-        use_lagrangian_duality=use_lagrangian_duality
-    )
     if isinstance(dynamics, AdditiveNoiseDynamics):
-        return _single_step_additive_noise(dynamics, cfg)
+        return _single_step_additive_noise(dynamics, q, noise, num_locs, use_lagrangian_duality)
     else:
-        return _single_step_general_noise(dynamics, cfg)
+        return _single_step_general_noise(dynamics, q, noise, num_locs, use_lagrangian_duality)
 
 def _single_step_general_noise(
     dynamics: StochasticDynamics,
-    cfg: SingleStepConfig
+    q: AmbiguityBall,
+    noise: AmbiguityBall,
+    num_locs: int,
+    use_lagrangian_duality: bool = True,
 ) -> AmbiguityBall:
-    disc_q, w2_q__disc_q = discretize(cfg.q, cfg.num_locs)
-    disc_noise_dist, w2_noise_dist__disc_noise_dist = discretize(cfg.noise, cfg.num_locs)
+    disc_q, w2_q__disc_q = discretize(q, num_locs)
+    disc_noise_dist, w2_noise_dist__disc_noise_dist = discretize(noise, num_locs)
 
     q1 = propagate_general_discrete_noise(dynamics, disc_noise_dist, disc_q)
 
-    if cfg.use_lagrangian_duality:
-        w2_p__q = cfg.q.w2 + cfg.noise.w2
+    if use_lagrangian_duality:
+        w2_p__q = q.w2 + noise.w2
         w2_q__disc_q = w2_q__disc_q + w2_noise_dist__disc_noise_dist
 
-        if isinstance(cfg.q.center, dd_dists.MultivariateNormal) and w2_p__q == 0.:
+        if isinstance(q.center, dd_dists.MultivariateNormal) and w2_p__q == 0.:
             w2_p1__q1 = wasserstein.compute_w2_f_q__f_disc_q_lagrangian_duality(
-                q=cfg.q.center,
+                q=q.center,
                 disc_q=disc_q,
-                f=dynamics, 
+                f=dynamics,
             )
         else:
             w2_p1__q1 = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
                 disc_q=disc_q,
-                f=dynamics, 
+                f=dynamics,
                 w2_p__disc_q=w2_p__q + w2_q__disc_q
             )
     else:
-        w2_p1__q1 = dynamics.global_lipschitz * (w2_q__disc_q + cfg.q.w2 + w2_noise_dist__disc_noise_dist + cfg.noise.w2)
+        w2_p1__q1 = dynamics.global_lipschitz * (w2_q__disc_q + q.w2 + w2_noise_dist__disc_noise_dist + noise.w2)
 
     return AmbiguityBall(center=q1, radius=w2_p1__q1)
 
 def _single_step_additive_noise(
     dynamics: AdditiveNoiseDynamics,
-    cfg: SingleStepConfig
+    q: AmbiguityBall,
+    noise: AmbiguityBall,
+    num_locs: int,
+    use_lagrangian_duality: bool = True,
 ) -> AmbiguityBall:
-    disc_q, w2_q__disc_q = discretize(cfg.q, cfg.num_locs)
+    disc_q, w2_q__disc_q = discretize(q, num_locs)
 
-    q1 = propagate_additive_gaussian_noise(dynamics, cfg.noise.center, disc_q)
+    q1 = propagate_additive_gaussian_noise(dynamics, noise.center, disc_q)
 
-    if cfg.use_lagrangian_duality:
-        w2_p__q = cfg.q.w2
-        w2_q__disc_q = w2_q__disc_q
+    if use_lagrangian_duality:
+        w2_p__q = q.w2
 
-        if isinstance(cfg.q.center, dd_dists.MultivariateNormal) and w2_p__q == 0.:
+        if isinstance(q.center, dd_dists.MultivariateNormal) and w2_p__q == 0.:
             w2_p1__q1 = wasserstein.compute_w2_f_q__f_disc_q_lagrangian_duality(
-                q=cfg.q.center,
-                disc_q=disc_q, 
-                f=dynamics.state_dynamics, 
+                q=q.center,
+                disc_q=disc_q,
+                f=dynamics.state_dynamics,
             )
         else:
             w2_p1__q1 = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-                disc_q=disc_q, 
-                f=dynamics.state_dynamics, 
+                disc_q=disc_q,
+                f=dynamics.state_dynamics,
                 w2_p__disc_q=w2_p__q + w2_q__disc_q,
             )
     else:
-        w2_p1__q1 = dynamics.global_lipschitz * (w2_q__disc_q + cfg.q.w2)
+        w2_p1__q1 = dynamics.global_lipschitz * (w2_q__disc_q + q.w2)
 
-    w2_p1__q1 += cfg.noise.w2
+    w2_p1__q1 += noise.w2
 
     return AmbiguityBall(center=q1, radius=w2_p1__q1)
 
