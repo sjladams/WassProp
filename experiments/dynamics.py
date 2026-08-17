@@ -7,7 +7,8 @@ from torch import nn
 import bound_propagation as bp
 
 from wass_prop import GetStochasticDynamics
-from wass_prop.dynamics import Dynamics, Linear, LinearDynamics, PreBoundedDynamics, StochasticDynamics, LinearStochasticDynamics, additive, AdditiveNoiseDynamics
+from wass_prop.dynamics import (Dynamics, Linear, LinearDynamics, PreBoundedDynamics, PostBoundedDynamics, StochasticDynamics, 
+    LinearStochasticDynamics, additive, AdditiveNoiseDynamics)
 import utils
 
 DATA_FOLDER = f"{os.path.dirname(os.path.abspath(__file__))}{os.sep}data{os.sep}"
@@ -34,6 +35,20 @@ class BoundedLinearDynamics(PreBoundedDynamics):
             lower=lower,
             upper=upper
         )
+
+class DiagonalLinearBoundedDynamics(PostBoundedDynamics):
+    def __init__(
+            self,
+            diagonal: Union[torch.Tensor, list],
+            lower: Union[float, torch.Tensor, list],
+            upper: Union[float, torch.Tensor, list],
+            bias: Optional[Union[torch.Tensor, list]] = None
+        ):
+            super().__init__(
+                LinearDynamics(torch.diag(torch.as_tensor(diagonal)), bias),
+                lower=lower,
+                upper=upper
+            )
 
 class LinearSigmoidDynamics(Dynamics):
     def __init__(
@@ -457,6 +472,7 @@ get_stoch_dynamics = GetStochasticDynamics()
 get_stoch_dynamics.register('SigmoidDynamics', additive(SigmoidDynamics))
 get_stoch_dynamics.register('TanhDynamics', additive(TanhDynamics))
 get_stoch_dynamics.register('BoundedLinearDynamics', additive(BoundedLinearDynamics))
+get_stoch_dynamics.register('DiagonalLinearBoundedDynamics', additive(DiagonalLinearBoundedDynamics))
 get_stoch_dynamics.register('LinearSigmoidDynamics', additive(LinearSigmoidDynamics))
 get_stoch_dynamics.register('DiagonalSigmoidDynamics', additive(DiagonalSigmoidDynamics))
 get_stoch_dynamics.register('MountainCarJournalDynamics', additive(MountainCarJournalDynamics))

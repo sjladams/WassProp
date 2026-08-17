@@ -1,6 +1,6 @@
 import os
 import copy
-import pprint
+import json
 
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -196,6 +196,45 @@ def w2_p__q_convergence_analysis():
     plt.show()
 
 
+
+def uniform_vs_optimized():
+    num_locs_experiment = [5, 10, 100, 1000]
+    setting_per_dimension = {1:1, 2:2, 3:3, 4:4}
+
+    results = dict()
+    for num_dims, setting in setting_per_dimension.items():
+        results[num_dims] = dict()
+
+        for num_locs in num_locs_experiment:
+            results[num_dims][num_locs] = dict()
+        
+            args = parse_arguments(
+                dynamics_type="DiagonalLinearBoundedDynamics",
+                dynamics_setting=setting,
+                num_locs=num_locs,
+            )
+
+            dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
+            q = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
+
+            # Optimized
+            scheme_q = dd.generate_scheme(dist=q, scheme_size=num_locs, configuration='grid')
+            unif_scheme_q = dd.generate_scheme(dist=q, scheme_size=num_locs, configuration='uniform_grid')
+
+            for tag, scheme in zip(['optimized', 'uniform'], [scheme_q, unif_scheme_q]):
+                disc_q, _ = dd.discretize(q, scheme)
+
+                w2 = wasserstein.compute_w2_f_q__f_disc_q_lagrangian_duality(
+                    q=q,
+                    disc_q=disc_q, 
+                    f=dynamics.state_dynamics, 
+                )
+
+                results[num_dims][num_locs][tag] = round(w2.item(), 4)
+
+    print(json.dumps(results, indent=1))
+
+
 def mountain_car_mc_plot():
     args = parse_arguments(
         dynamics_type='MountainCarJournalDynamics',
@@ -331,14 +370,14 @@ def conservativeness_analysis():
         results[dynamics_name] = {}
         results[dynamics_name][num_locs] = run_single_step_no_ambiguity(dynamics, q, noise, num_locs)
 
-    pprint.pprint(results)
+    print(json.dumps(results, indent=1))
 
 
 if __name__ == '__main__':
     torch.manual_seed(0)
 
-    # # Figure 3
-    # sigmoid_example()
+    # Figure 3
+    sigmoid_example()
 
     # Figure 5
     num_loc_convergence_analysis(w2_p__q_values=[0, 0.1])
@@ -347,7 +386,16 @@ if __name__ == '__main__':
     w2_p__q_convergence_analysis()
 
     # Figure 7
-    # mountain_car_mc_plot()
+    mountain_car_mc_plot()
+
+    # Figure 8
+    # See dimensional_analysis.py
+
+    # Table I
+    uniform_vs_optimized()
 
     # Table II
+    dynamic_system_analysis()
+
+    # Table III
     conservativeness_analysis()
