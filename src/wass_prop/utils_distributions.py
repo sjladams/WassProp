@@ -40,7 +40,7 @@ def compress_categorical_float(
     else:
         q_pre = copy(q)
         q = dd_dists.compress_categorical_floats(q_pre, n_max=size_after_compr)
-        w2_compr = ot.solve_sample(X_a=q.locs, a=q.probs, X_b=q_pre.locs, b=q_pre.probs).value.sqrt()
+        w2_compr = ot.solve_sample(X_a=q.locs, a=q.probs, X_b=q_pre.locs, b=q_pre.probs, metric="sqeuclidean").value.sqrt()
     return q, w2_compr
 
 class AmbiguityBall:
@@ -60,8 +60,9 @@ class AmbiguityBall:
         if self.radius == 0. or (isinstance(self.radius, torch.Tensor) and self.radius.isnan().any()): # TODO make this explicit
             return self.center.sample(torch.Size((num_samples,)))
         else:  # TODO fix issue num_samples != sqrt(num_samples) ** 2
-            assert isinstance(self.center, (dd_dists.MultivariateNormal, dd_dists.MixtureMultivariateNormal)), (
-                ValueError('Only implemented for (mixtures of) MultivariateNormal distributions'))
+            assert isinstance(self.center, (dd_dists.MultivariateNormal, dd_dists.MixtureMultivariateNormal,
+                                             dd_dists.CategoricalFloat)), (
+                ValueError('Only implemented for (mixtures of) MultivariateNormal and CategoricalFloat distributions'))
 
             # sample sqrt(num_samples) vectors from standard normal distribution
             vec = torch.randn(int(num_samples**0.5), self.center.mean.shape[-1])
@@ -89,8 +90,14 @@ class AmbiguityBall:
                     component_distribution=dd_dists.MultivariateNormal(
                         loc=self.center.component_distribution.mean.unsqueeze(-3) + weighted_vec,
                         covariance_matrix=self.center.component_distribution.covariance_matrix))
+            elif isinstance(self.center, dd_dists.CategoricalFloat):
+                weighted_vec = vec.unsqueeze(-2).expand(-1, self.center.num_components, -1) * self.center.probs.unsqueeze(0).unsqueeze(-1)
+                perturbed_center = dd_dists.CategoricalFloat(
+                    locs=self.center.locs.unsqueeze(-3) + weighted_vec,
+                    probs=self.center.probs.unsqueeze(0).expand(vec.shape[0], -1)
+                )
             else:
-                raise NotImplementedError # TODO generalize to CategoricalFloat
+                raise NotImplementedError
 
             # take sqrt(num_samples) samples from perturbed distributions
             samples = perturbed_center.sample(torch.Size((int(num_samples**0.5),)))
