@@ -1,6 +1,8 @@
 import os
 import copy
 import json
+import time
+from contextlib import contextmanager
 
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -208,6 +210,16 @@ def _w2_series_to_reference(true_samples, get_comparison, ordered_indices):
     return result
 
 
+_TIME_KEY = 0
+
+@contextmanager
+def _timer(store: dict, key: int = 0, num_steps: int = 1):
+    """Times the wrapped block and writes {key: round(elapsed / num_steps, 4)} into `store`."""
+    start = time.perf_counter()
+    yield
+    store[key] = round((time.perf_counter() - start) / num_steps, 4)
+
+
 def _aggregate_repeated_series(series_list: list[dict], std_multiplier: float = 1.0) -> dict:
     """Combine several {time_step: value} series (one per repeat) into
     {time_step: {'mean': ..., 'std': ...}}, where 'std' is std_multiplier * sample std."""
@@ -222,12 +234,38 @@ def _aggregate_repeated_series(series_list: list[dict], std_multiplier: float = 
     return result
 
 
-def results_to_latex_table(results: dict, filepath: str) -> str:
+def _save_json(data: dict, filepath: str) -> None:
+    with open(filepath, 'w') as f:
+        json.dump(data, f, indent=1)
+
+
+def _load_results_json(filepath: str) -> dict:
+    """Load a {dynamics_name: {method: {time_step: value}}} results/timings JSON, converting
+    the (JSON-stringified) time_step keys back to int."""
+    with open(filepath) as f:
+        data = json.load(f)
+    return {
+        name: {method: {int(k): v for k, v in series.items()} for method, series in methods.items()}
+        for name, methods in data.items()
+    }
+
+
+def results_to_latex_table(results: dict, filepath: str, column_order: list | None = None) -> str:
     """Render a {dynamics_name: {method: {time_step: value}}} results dict as a LaTeX
     table with time steps as rows and a multicolumn block per dynamics, subdivided into
-    one column per method."""
+    one column per method.
+
+    column_order: if given, methods are ordered to match it (per dynamics), with any
+        methods not listed appended at the end in their original order. If None, methods
+        keep their dict order."""
     dynamics_names = list(results.keys())
-    methods_per_dynamics = {name: list(methods.keys()) for name, methods in results.items()}
+    if column_order is None:
+        methods_per_dynamics = {name: list(methods.keys()) for name, methods in results.items()}
+    else:
+        methods_per_dynamics = {
+            name: [m for m in column_order if m in methods] + [m for m in methods if m not in column_order]
+            for name, methods in results.items()
+        }
 
     time_steps = sorted({
         k for methods in results.values() for series in methods.values() for k in series.keys()
@@ -262,7 +300,7 @@ def results_to_latex_table(results: dict, filepath: str) -> str:
 
     # data rows
     for k in time_steps:
-        row_cells = [str(k)]
+        row_cells = [str(k + 1)]
         for name in dynamics_names:
             for method in methods_per_dynamics[name]:
                 value = results[name][method].get(k)
@@ -295,17 +333,21 @@ def dynamic_system_analysis(num_repeats: int = 3, std_multiplier: float = 1.0):
     systems = {
         # 'Sigmoid (1D)': ('SigmoidDynamics', 0, 100, 'tab:blue'),
         # 'Bounded Linear (2D)': ('BoundedLinearDynamics', 0, 100, 'tab:green'),
-        # 'Mountain Car (2D)': ('MountainCarJournalDynamics', 0, 100, 'tab:olive'),
+        'NN Layer (3D)': ('DiagonalSigmoidDynamics', 3, 100, 'tab:pink'),
+        'Mountain Car (2D)': ('MountainCarJournalDynamics', 0, 100, 'tab:olive'),
         # 'Mountain Car (2D)': ('MountainCarDynamics', 0, 100, 'tab:olive'),
         # 'Dubins Car (3D)': ('DubinsCarDynamics', 0, 1000, 'tab:cyan'),
         'Quadruple-Tank (4D)': ('LinearDynamics', 1, 100, 'tab:purple'),
         # 'NN Layer (10D)': ('DiagonalSigmoidDynamics', 2, 1000, 'tab:pink'),
     }
 
-    num_time_steps = 2
+    num_time_steps = 50
 
     results = dict()
-    for dynamics_name, (dynamics_type, setting, num_locs, _) in systems.items():
+    timings = dict()
+    num_systems = len(systems)
+    for system_idx, (dynamics_name, (dynamics_type, setting, num_locs, _)) in enumerate(systems.items(), start=1):
+        print(f"\n=== [{system_idx}/{num_systems}] {dynamics_name} ({dynamics_type}) ===")
         args, dynamics, initial_dist, noise_dist = _build_system(
             dynamics_type, setting, num_locs, num_samples=1000
         )
@@ -313,54 +355,84 @@ def dynamic_system_analysis(num_repeats: int = 3, std_multiplier: float = 1.0):
         noise = AmbiguityBall(noise_dist, 0.)
 
         results[dynamics_name] = dict()
+        timings[dynamics_name] = dict()
         for method in ['global_lipschitz', 'lagrangian_duality']:
-            path = multi_step(
-                dynamics=dynamics,
-                q=q,
-                noise=noise,
-                num_time_steps=num_time_steps,
-                use_lagrangian_duality=method == 'lagrangian_duality',
-                num_locs=args.num_locs,
-                use_additive_noise=False,
-            )
+            print(f"  [{dynamics_name}] method={method}: propagating {num_time_steps} steps...")
+            timings[dynamics_name][method] = {}
+            with _timer(timings[dynamics_name][method], num_steps=num_time_steps):
+                path = multi_step(
+                    dynamics=dynamics,
+                    q=q,
+                    noise=noise,
+                    num_time_steps=num_time_steps,
+                    use_lagrangian_duality=method == 'lagrangian_duality',
+                    num_locs=args.num_locs,
+                    use_additive_noise=False,
+                )
             results[dynamics_name][method] = {k: round(float(path.at(k).w2), 4) for k in path.ordered_indices}
+            final_w2 = results[dynamics_name][method][path.ordered_indices[-1]]
+            elapsed = timings[dynamics_name][method][_TIME_KEY]
+            print(f"  [{dynamics_name}] method={method}: done in {elapsed:.2f}s, final w2={final_w2}")
 
-        sigma_path = multi_step_distribution(
-            dynamics=dynamics,
-            q=initial_dist,
-            noise=noise_dist,
-            num_time_steps=num_time_steps,
-            num_locs=100,
-            use_additive_noise=False,
-            configuration='cross',
-        )
+        print(f"  [{dynamics_name}] sigma-point: propagating {num_time_steps} steps...")
+        sigma_path_timing = {}
+        with _timer(sigma_path_timing):
+            sigma_path = multi_step_distribution(
+                dynamics=dynamics,
+                q=initial_dist,
+                noise=noise_dist,
+                num_time_steps=num_time_steps,
+                num_locs=100,
+                use_additive_noise=False,
+                configuration='cross',
+            )
+        sigma_path_time = sigma_path_timing[_TIME_KEY]
+        print(f"  [{dynamics_name}] sigma-point: done in {sigma_path_time:.2f}s")
 
         empirical_series, mc_series, sigma_series = [], [], []
-        for _ in range(num_repeats):
-            true_samples = multi_step_empirical(
-                dynamics=dynamics,
-                p_emp=initial_dist.sample((args.num_samples,)),
-                noise=noise,
-                num_time_steps=num_time_steps,
-            ).detach()
+        empirical_times, mc_times, sigma_times = [], [], []
+        for i in range(num_repeats):
+            print(f"  [{dynamics_name}] repeat {i + 1}/{num_repeats}")
+            print(f"    empirical: sampling {args.num_samples} trajectories over {num_time_steps} steps...")
+            empirical_time = {}
+            with _timer(empirical_time, num_steps=num_time_steps):
+                true_samples = multi_step_empirical(
+                    dynamics=dynamics,
+                    p_emp=initial_dist.sample((args.num_samples,)),
+                    noise=noise,
+                    num_time_steps=num_time_steps,
+                ).detach()
+            empirical_times.append(empirical_time)
+            print(f"    empirical: done in {empirical_time[_TIME_KEY]:.2f}s")
 
             empirical_series.append(_w2_series_to_reference(
                 true_samples, lambda k: path.at(k).center, path.ordered_indices
             ))
 
-            mc_samples = multi_step_empirical(
-                dynamics=dynamics,
-                p_emp=q.sample(args.num_samples),
-                noise=noise,
-                num_time_steps=num_time_steps,
-            ).detach()
+            print(f"    mc: sampling {args.num_samples} trajectories over {num_time_steps} steps...")
+            mc_time = {}
+            with _timer(mc_time, num_steps=num_time_steps):
+                mc_samples = multi_step_empirical(
+                    dynamics=dynamics,
+                    p_emp=q.sample(args.num_samples),
+                    noise=noise,
+                    num_time_steps=num_time_steps,
+                ).detach()
+            mc_times.append(mc_time)
+            print(f"    mc: done in {mc_time[_TIME_KEY]:.2f}s")
             mc_series.append(_w2_series_to_reference(
                 true_samples, mc_samples.at, path.ordered_indices
             ))
 
-            sigma_samples = SampledPath(
-                {k: sigma_path.at(k).sample((args.num_samples,)) for k in path.ordered_indices}
-            ).detach()
+            print(f"    sigma: sampling {args.num_samples} points from precomputed sigma path...")
+            sigma_time = {}
+            with _timer(sigma_time):
+                sigma_samples = SampledPath(
+                    {k: sigma_path.at(k).sample((args.num_samples,)) for k in path.ordered_indices}
+                ).detach()
+            sigma_time[_TIME_KEY] = round((sigma_time[_TIME_KEY] + sigma_path_time) / num_time_steps, 4)
+            sigma_times.append(sigma_time)
+            print(f"    sigma: done in {sigma_time[_TIME_KEY]:.2f}s")
             sigma_series.append(_w2_series_to_reference(
                 true_samples, sigma_samples.at, path.ordered_indices
             ))
@@ -369,13 +441,45 @@ def dynamic_system_analysis(num_repeats: int = 3, std_multiplier: float = 1.0):
             results[dynamics_name]['empirical'] = empirical_series[0]
             results[dynamics_name]['mc'] = mc_series[0]
             results[dynamics_name]['sigma'] = sigma_series[0]
+            timings[dynamics_name]['empirical'] = empirical_times[0]
+            timings[dynamics_name]['mc'] = mc_times[0]
+            timings[dynamics_name]['sigma'] = sigma_times[0]
         else:
             results[dynamics_name]['empirical'] = _aggregate_repeated_series(empirical_series, std_multiplier)
             results[dynamics_name]['mc'] = _aggregate_repeated_series(mc_series, std_multiplier)
             results[dynamics_name]['sigma'] = _aggregate_repeated_series(sigma_series, std_multiplier)
+            timings[dynamics_name]['empirical'] = _aggregate_repeated_series(empirical_times, std_multiplier)
+            timings[dynamics_name]['mc'] = _aggregate_repeated_series(mc_times, std_multiplier)
+            timings[dynamics_name]['sigma'] = _aggregate_repeated_series(sigma_times, std_multiplier)
 
-    print(json.dumps(results, indent=1))
-    results_to_latex_table(results, os.path.join(RESULTS_DIR, 'dynamic_system_analysis_table.tex'))
+    results_path = os.path.join(RESULTS_DIR, 'dynamic_system_analysis.json')
+    timings_path = os.path.join(RESULTS_DIR, 'dynamic_system_analysis_timings.json')
+    _save_json(results, results_path)
+    _save_json(timings, timings_path)
+    print(f"\nSaved results to {results_path}")
+    print(f"Saved timings to {timings_path}")
+
+    render_dynamic_system_analysis_tables()
+
+
+def render_dynamic_system_analysis_tables(column_order: list | None = None):
+    """Render the .tex tables from the JSON files saved by dynamic_system_analysis, without
+    re-running the (expensive) computation. Re-run this on its own after editing the table
+    layout (e.g. column_order)."""
+    if column_order is None:
+        column_order = ['mc', 'sigma', 'empirical', 'global_lipschitz', 'lagrangian_duality']
+
+    results = _load_results_json(os.path.join(RESULTS_DIR, 'dynamic_system_analysis.json'))
+    timings = _load_results_json(os.path.join(RESULTS_DIR, 'dynamic_system_analysis_timings.json'))
+
+    results_to_latex_table(
+        results, os.path.join(RESULTS_DIR, 'dynamic_system_analysis_table.tex'),
+        column_order=column_order,
+    )
+    results_to_latex_table(
+        timings, os.path.join(RESULTS_DIR, 'dynamic_system_analysis_timings_table.tex'),
+        column_order=column_order,
+    )
 
 
 def uniform_vs_optimized():
