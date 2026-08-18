@@ -249,7 +249,7 @@ def mountain_car_mc_plot():
     initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
     noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
 
-    q = AmbiguityBall(initial_dist, 0.1)
+    q = AmbiguityBall(initial_dist, 0.0)
     noise = AmbiguityBall(noise_dist, 0.0)
 
     path = multi_step(
@@ -258,6 +258,7 @@ def mountain_car_mc_plot():
         noise=noise,
         num_time_steps=num_time_steps,
         use_lagrangian_duality=True,
+        use_additive_noise=False,
         num_locs=args.num_locs,
     )
 
@@ -319,7 +320,7 @@ def mountain_car_mc_plot():
 
 def run_single_step_no_ambiguity(dynamics, q, noise, num_locs, num_samples_empirical=50000):
     results = dict()
-    for method in ['global_lipschitz', 'lagrangian_duality']:
+    for method in ['lagrangian_duality']:
         propagated_ball = single_step(
             dynamics=dynamics,
             q=q,
@@ -327,7 +328,7 @@ def run_single_step_no_ambiguity(dynamics, q, noise, num_locs, num_samples_empir
             num_locs=num_locs,
             use_lagrangian_duality=True if method == 'lagrangian_duality' else False,
         )
-        results[method] = float(propagated_ball.w2)
+        results[method] = round(float(propagated_ball.w2), 4)
 
     p_samples = q.sample(num_samples_empirical) # sample from zero radius set is equivalent to sampling from center
     samples_empirical = single_step_empirical(
