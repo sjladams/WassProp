@@ -96,7 +96,7 @@ def _single_step_general_noise(
                     w2_p__disc_q=w2_p__q + w2_q__disc_q,
                 )
 
-            w2_p__q += w2_noise_dist__disc_noise_dist + noise.w2
+            w2_p__q = w2_p__q + w2_noise_dist__disc_noise_dist + noise.w2
         else:
             w2_p1__q1 = dynamics.global_lipschitz * (w2_q__disc_q + q.w2) + w2_noise_dist__disc_noise_dist + noise.w2
 
@@ -149,7 +149,7 @@ def _single_step_additive_noise(
     else:
         w2_p1__q1 = dynamics.global_lipschitz * (w2_q__disc_q + q.w2)
 
-    w2_p1__q1 += noise.w2
+    w2_p1__q1 = w2_p1__q1 + noise.w2
 
     return AmbiguityBall(center=q1, radius=w2_p1__q1)
 
