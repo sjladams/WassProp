@@ -93,15 +93,14 @@ class MountainCarJournalDynamics(Dynamics):
             Linear(
                 torch.tensor([
                     [0.0, 3.0],
-                    [0.0, 0.0]
                 ]),
-                torch.tensor([torch.pi / 2, 0.0])
+                torch.tensor([torch.pi / 2])
                 ),
             bp.Sin(),
             Linear(
                 torch.tensor([
-                    [-0.0025, 0.0],
-                    [0.0, 0.0]
+                    [-0.0025],
+                    [0.0]
                 ]),
             ),
         )
@@ -114,6 +113,9 @@ class MountainCarJournalDynamics(Dynamics):
             ]
         )
 
+    # @property
+    # def global_lipschitz(self):
+    #     return 2.
 
 class MountainCarDynamics(Dynamics):
     def __init__(self, action: float = 2.0):
@@ -126,25 +128,35 @@ class MountainCarDynamics(Dynamics):
         State is [velocity, position]. 
         """
 
-        velocity_part = bp.Add(
-            Linear(
-                torch.tensor([[1.0, 0.0]]),
-                torch.tensor([0.001 * (action - 1.)]),
+        lims_vel = [-0.07, 0.07] # [-0.5, 1.2]
+        lims_pos = [-1.2, 0.6] # [-0.5, 1.2]
+        lims_state = torch.tensor([lims_vel[0], lims_pos[0]]), torch.tensor([lims_vel[1], lims_pos[1]])
+
+        velocity_part = nn.Sequential(
+            bp.Add(
+                Linear(
+                    torch.tensor([[1.0, 0.0]]),
+                    torch.tensor([0.001 * (action - 1.)]),
+                ),
+                nn.Sequential(
+                    Linear(torch.tensor([[0.0, 3.0]])),
+                    bp.Cos(),
+                    Linear(torch.tensor([[-0.0025]])),
+                ),
             ),
-            nn.Sequential(
-                Linear(torch.tensor([[0.0, 3.0]])),
-                bp.Cos(),
-                Linear(torch.tensor([[-0.0025]])),
-            ),
+            bp.Clamp(*lims_vel),
         )
 
-        position_part = Linear(torch.tensor([[1.0, 1.0]]))
+        position_part = nn.Sequential(
+            Linear(torch.tensor([[1.0, 1.0]])),
+            bp.Clamp(*lims_pos),
+        )
 
         super().__init__(
             num_dims=2,
             modules=[
+                bp.Clamp(*lims_state),
                 bp.Parallel(velocity_part, position_part),
-                bp.Clamp(torch.tensor([-0.07, -1.2]), torch.tensor([0.07, 0.6])),
             ]
         )
 
