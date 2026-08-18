@@ -23,7 +23,7 @@ setuptools.setup(
     install_requires=[
         'torch>=2.5.1',
         'discretize_distributions>=2.1.0',
-        'pointwise_lipschitz'
+        'pointwise_lipschitz',
         'bound_propagation>=0.4.6', 
         'POT>=0.9.6',
     ]
