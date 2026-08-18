@@ -322,7 +322,7 @@ def results_to_latex_table(results: dict, filepath: str, column_order: list | No
     return table_str
 
 
-def dynamic_system_analysis(num_repeats: int = 3, std_multiplier: float = 1.0):
+def dynamic_system_analysis(num_repeats: int = 10, std_multiplier: float = 1.0, num_samples: int = 100000):
     """
     num_repeats: number of times to redraw samples for the stochastic methods
         ('empirical', 'mc', 'sigma'); when > 1, their reported value per time step
@@ -349,7 +349,7 @@ def dynamic_system_analysis(num_repeats: int = 3, std_multiplier: float = 1.0):
     for system_idx, (dynamics_name, (dynamics_type, setting, num_locs, _)) in enumerate(systems.items(), start=1):
         print(f"\n=== [{system_idx}/{num_systems}] {dynamics_name} ({dynamics_type}) ===")
         args, dynamics, initial_dist, noise_dist = _build_system(
-            dynamics_type, setting, num_locs, num_samples=1000
+            dynamics_type, setting, num_locs, num_samples=num_samples
         )
         q = AmbiguityBall(initial_dist, 0.)
         noise = AmbiguityBall(noise_dist, 0.)
@@ -655,26 +655,26 @@ def conservativeness_analysis():
 if __name__ == '__main__':
     torch.manual_seed(0)
 
-    # Figure 3
-    sigmoid_example()
+    # # Figure 3
+    # sigmoid_example()
 
-    # Figure 5
-    num_loc_convergence_analysis(w2_p__q_values=[0, 0.1])
+    # # Figure 5
+    # num_loc_convergence_analysis(w2_p__q_values=[0, 0.1])
 
-    # Figure 6
-    w2_p__q_convergence_analysis()
+    # # Figure 6
+    # w2_p__q_convergence_analysis()
 
-    # Figure 7
-    mountain_car_mc_plot()
+    # # Figure 7
+    # mountain_car_mc_plot()
 
-    # Figure 8
-    # See dimensional_analysis.py
+    # # Figure 8
+    # # See dimensional_analysis.py
 
-    # Table I
-    uniform_vs_optimized()
+    # # Table I
+    # uniform_vs_optimized()
 
     # Table II
     dynamic_system_analysis()
 
-    # Table III
-    conservativeness_analysis()
+    # # Table III
+    # conservativeness_analysis()
