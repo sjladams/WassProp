@@ -98,6 +98,17 @@ def sigmoid_example():
         plt.savefig(os.path.join(RESULTS_DIR, 'sigmoid_signature_example.pdf'), bbox_inches='tight')
         plt.show()
 
+def _build_system(dynamics_type, setting, num_locs, num_samples=1000):
+    args = parse_arguments(
+        dynamics_type=dynamics_type,
+        dynamics_setting=setting,
+        num_locs=num_locs,
+        num_samples=num_samples,
+    )
+    dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
+    initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
+    noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
+    return args, dynamics, initial_dist, noise_dist
 
 def convergence_analysis(dynamics_type, setting, num_locs, w2_p__q):
     args, dynamics, initial_dist, noise_dist = _build_system(dynamics_type, setting, num_locs)
@@ -189,19 +200,6 @@ def w2_p__q_convergence_analysis():
     plt.show()
 
 
-def _build_system(dynamics_type, setting, num_locs, num_samples=1000):
-    args = parse_arguments(
-        dynamics_type=dynamics_type,
-        dynamics_setting=setting,
-        num_locs=num_locs,
-        num_samples=num_samples,
-    )
-    dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
-    initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
-    noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
-    return args, dynamics, initial_dist, noise_dist
-
-
 def _w2_series_to_reference(true_samples, get_comparison, ordered_indices):
     result = {-1: 0.}
     for k in set(ordered_indices) - {-1}:
@@ -210,7 +208,90 @@ def _w2_series_to_reference(true_samples, get_comparison, ordered_indices):
     return result
 
 
-def dynamic_system_analysis():
+def _aggregate_repeated_series(series_list: list[dict], std_multiplier: float = 1.0) -> dict:
+    """Combine several {time_step: value} series (one per repeat) into
+    {time_step: {'mean': ..., 'std': ...}}, where 'std' is std_multiplier * sample std."""
+    keys = series_list[0].keys()
+    result = {}
+    for k in keys:
+        values = np.array([series[k] for series in series_list])
+        result[k] = {
+            'mean': round(float(values.mean()), 4),
+            'std': round(float(values.std(ddof=1) * std_multiplier), 4) if len(values) > 1 else 0.,
+        }
+    return result
+
+
+def results_to_latex_table(results: dict, filepath: str) -> str:
+    """Render a {dynamics_name: {method: {time_step: value}}} results dict as a LaTeX
+    table with time steps as rows and a multicolumn block per dynamics, subdivided into
+    one column per method."""
+    dynamics_names = list(results.keys())
+    methods_per_dynamics = {name: list(methods.keys()) for name, methods in results.items()}
+
+    time_steps = sorted({
+        k for methods in results.values() for series in methods.values() for k in series.keys()
+    })
+
+    col_spec = 'c' + ''.join('c' * len(methods_per_dynamics[name]) for name in dynamics_names)
+
+    lines = [
+        r'\begin{tabular}{' + col_spec + '}',
+        r'\toprule',
+    ]
+
+    # header row 1: dynamics name spanning its methods
+    header1_cells = ['']
+    cmidrules = []
+    col_start = 2
+    for name in dynamics_names:
+        n_methods = len(methods_per_dynamics[name])
+        header1_cells.append(rf'\multicolumn{{{n_methods}}}{{c}}{{{name}}}')
+        cmidrules.append(rf'\cmidrule(lr){{{col_start}-{col_start + n_methods - 1}}}')
+        col_start += n_methods
+    lines.append(' & '.join(header1_cells) + r' \\')
+    lines.extend(cmidrules)
+
+    # header row 2: method labels
+    header2_cells = [r'$t$']
+    for name in dynamics_names:
+        for method in methods_per_dynamics[name]:
+            header2_cells.append(method)
+    lines.append(' & '.join(header2_cells) + r' \\')
+    lines.append(r'\midrule')
+
+    # data rows
+    for k in time_steps:
+        row_cells = [str(k)]
+        for name in dynamics_names:
+            for method in methods_per_dynamics[name]:
+                value = results[name][method].get(k)
+                if value is None:
+                    cell = '--'
+                elif isinstance(value, dict):
+                    cell = rf"{value['mean']:.4f} $\pm$ {value['std']:.4f}"
+                else:
+                    cell = f'{value:.4f}'
+                row_cells.append(cell)
+        lines.append(' & '.join(row_cells) + r' \\')
+
+    lines.append(r'\bottomrule')
+    lines.append(r'\end{tabular}')
+
+    table_str = '\n'.join(lines)
+    with open(filepath, 'w') as f:
+        f.write(table_str)
+    return table_str
+
+
+def dynamic_system_analysis(num_repeats: int = 3, std_multiplier: float = 1.0):
+    """
+    num_repeats: number of times to redraw samples for the stochastic methods
+        ('empirical', 'mc', 'sigma'); when > 1, their reported value per time step
+        becomes {'mean': ..., 'std': std_multiplier * sample_std}.
+    std_multiplier: e.g. 3. for a 3-sigma band; standard reporting practice is 1
+        (a single sample std, or std/sqrt(num_repeats) for the standard error of the mean).
+    """
     systems = {
         # 'Sigmoid (1D)': ('SigmoidDynamics', 0, 100, 'tab:blue'),
         # 'Bounded Linear (2D)': ('BoundedLinearDynamics', 0, 100, 'tab:green'),
@@ -244,27 +325,6 @@ def dynamic_system_analysis():
             )
             results[dynamics_name][method] = {k: round(float(path.at(k).w2), 4) for k in path.ordered_indices}
 
-        true_samples = multi_step_empirical(
-            dynamics=dynamics,
-            p_emp=initial_dist.sample((args.num_samples,)),
-            noise=noise,
-            num_time_steps=num_time_steps,
-        ).detach()
-
-        results[dynamics_name]['empirical'] = _w2_series_to_reference(
-            true_samples, lambda k: path.at(k).center, path.ordered_indices
-        )
-
-        mc_samples = multi_step_empirical(
-            dynamics=dynamics,
-            p_emp=q.sample(args.num_samples),
-            noise=noise,
-            num_time_steps=num_time_steps,
-        ).detach()
-        results[dynamics_name]['mc'] = _w2_series_to_reference(
-            true_samples, mc_samples.at, path.ordered_indices
-        )
-
         sigma_path = multi_step_distribution(
             dynamics=dynamics,
             q=initial_dist,
@@ -274,14 +334,48 @@ def dynamic_system_analysis():
             use_additive_noise=False,
             configuration='cross',
         )
-        sigma_samples = SampledPath(
-            {k: sigma_path.at(k).sample((args.num_samples,)) for k in path.ordered_indices}
-        ).detach()
-        results[dynamics_name]['sigma'] = _w2_series_to_reference(
-            true_samples, sigma_samples.at, path.ordered_indices
-        )
+
+        empirical_series, mc_series, sigma_series = [], [], []
+        for _ in range(num_repeats):
+            true_samples = multi_step_empirical(
+                dynamics=dynamics,
+                p_emp=initial_dist.sample((args.num_samples,)),
+                noise=noise,
+                num_time_steps=num_time_steps,
+            ).detach()
+
+            empirical_series.append(_w2_series_to_reference(
+                true_samples, lambda k: path.at(k).center, path.ordered_indices
+            ))
+
+            mc_samples = multi_step_empirical(
+                dynamics=dynamics,
+                p_emp=q.sample(args.num_samples),
+                noise=noise,
+                num_time_steps=num_time_steps,
+            ).detach()
+            mc_series.append(_w2_series_to_reference(
+                true_samples, mc_samples.at, path.ordered_indices
+            ))
+
+            sigma_samples = SampledPath(
+                {k: sigma_path.at(k).sample((args.num_samples,)) for k in path.ordered_indices}
+            ).detach()
+            sigma_series.append(_w2_series_to_reference(
+                true_samples, sigma_samples.at, path.ordered_indices
+            ))
+
+        if num_repeats == 1:
+            results[dynamics_name]['empirical'] = empirical_series[0]
+            results[dynamics_name]['mc'] = mc_series[0]
+            results[dynamics_name]['sigma'] = sigma_series[0]
+        else:
+            results[dynamics_name]['empirical'] = _aggregate_repeated_series(empirical_series, std_multiplier)
+            results[dynamics_name]['mc'] = _aggregate_repeated_series(mc_series, std_multiplier)
+            results[dynamics_name]['sigma'] = _aggregate_repeated_series(sigma_series, std_multiplier)
 
     print(json.dumps(results, indent=1))
+    results_to_latex_table(results, os.path.join(RESULTS_DIR, 'dynamic_system_analysis_table.tex'))
 
 
 def uniform_vs_optimized():
