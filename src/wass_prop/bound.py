@@ -22,13 +22,13 @@ def global_ibp_sq_norm_fx_fc(f: torch.nn.Sequential, locs: torch.Tensor) -> torc
     u = torch.full_like(locs, inf)
 
     # Alternative (cleaner) implementation:
-    try: # TODO temp fix
-        ibp_bounds_f = factory.build(f).ibp(bp.HyperRectangle(l, u))
+    try:
+        ibp_bounds_f = bp_factory.build(f).ibp(bp.HyperRectangle(l, u))
         f_c = f(locs)
         beta = torch.max(
-            torch.linalg.vector_norm(ibp_bounds_f.lower - f_c, dim=-1, ord=2).pow(2),
-            torch.linalg.vector_norm(ibp_bounds_f.upper - f_c, dim=-1, ord=2).pow(2)
-        )
+                (ibp_bounds_f.lower - f_c).abs(),
+                (ibp_bounds_f.upper - f_c).abs()
+            ).pow(2).sum(-1)
     except Exception as e:
         print(f"Warning: could not compute global_ibp_sq_norm_fx_fc due to {e}. Returning Lipschitz bound.")
         beta = torch.full(locs.shape[:-1], torch.inf)
