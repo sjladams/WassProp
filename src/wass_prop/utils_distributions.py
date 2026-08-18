@@ -103,9 +103,14 @@ class AmbiguityBall:
             samples = perturbed_center.sample(torch.Size((int(num_samples**0.5),)))
             return samples.flatten(start_dim=-3, end_dim=-2)
 
-def discretize(q: AmbiguityBall, num_locs:int) -> Tuple[dd_dists.CategoricalFloat, Union[torch.Tensor, float]]:
-    if isinstance(q.center, dd_dists.CategoricalFloat):
-        return compress_categorical_float(q.center, size_after_compr=num_locs)
+def discretize(q: Dist, num_locs: int, configuration: str = 'grid') -> Tuple[dd_dists.CategoricalFloat, Union[torch.Tensor, float]]:
+    if isinstance(q, dd_dists.CategoricalFloat):
+        return compress_categorical_float(q, size_after_compr=num_locs)
     else:
-        scheme_q = dd.generate_scheme(dist=q.center, scheme_size=num_locs)
-        return dd.discretize(q.center, scheme_q)
+        if configuration == 'cross':
+            per_mode = False
+        else:
+            per_mode = True
+
+        scheme_q = dd.generate_scheme(dist=q, scheme_size=num_locs, configuration=configuration, per_mode=per_mode)
+        return dd.discretize(q, scheme_q)

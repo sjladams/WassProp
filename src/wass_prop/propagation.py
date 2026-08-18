@@ -1,6 +1,6 @@
 import torch
 from dataclasses import dataclass, field
-from typing import Union, List, Optional, Tuple, Dict
+from typing import Union, List, Optional, Tuple, Dict, Generic, TypeVar
 
 import discretize_distributions.distributions as dd_dists
 
@@ -9,7 +9,51 @@ from .dynamics import StochasticDynamics, AdditiveNoiseDynamics
 from .utils_distributions import AmbiguityBall, discretize, cross_product, sum_discrete_distributions
 
 TensorLike = Union[float, torch.Tensor]
+Dist = Union[dd_dists.MultivariateNormal, dd_dists.MixtureMultivariateNormal, dd_dists.CategoricalFloat]
 
+T = TypeVar("T")
+
+@dataclass
+class StepPath(Generic[T]):
+    steps: Dict[int, T] = field(default_factory=dict)
+
+    def append(self, k: int, rec: T) -> None:
+        self.steps[k] = rec
+
+    def at(self, k: int) -> T:
+        return self.steps[k]
+
+    @property
+    def ordered_indices(self) -> List[int]:
+        return sorted(self.steps.keys())
+
+def _discretize_and_propagate_general_noise(
+    dynamics: StochasticDynamics,
+    q: Dist,
+    noise: Dist,
+    num_locs: int,
+    configuration: str = 'grid',
+) -> Tuple[Dist, dd_dists.CategoricalFloat, TensorLike, dd_dists.CategoricalFloat, TensorLike]:
+    disc_q, w2_q__disc_q = discretize(q, num_locs, configuration=configuration)
+    disc_noise_dist, w2_noise_dist__disc_noise_dist = discretize(noise, num_locs, configuration=configuration)
+
+    if isinstance(dynamics, AdditiveNoiseDynamics):
+        q1 = propagate_additive_noise(dynamics, disc_noise_dist, disc_q)
+    else:
+        q1 = propagate_general_discrete_noise(dynamics, disc_noise_dist, disc_q)
+
+    return q1, disc_q, w2_q__disc_q, disc_noise_dist, w2_noise_dist__disc_noise_dist
+
+def _discretize_and_propagate_additive_noise(
+    dynamics: AdditiveNoiseDynamics,
+    q: Dist,
+    noise: Dist,
+    num_locs: int,
+    configuration: str = 'grid',
+) -> Tuple[Dist, dd_dists.CategoricalFloat, TensorLike]:
+    disc_q, w2_q__disc_q = discretize(q, num_locs, configuration=configuration)
+    q1 = propagate_additive_noise(dynamics, noise, disc_q)
+    return q1, disc_q, w2_q__disc_q
 
 def single_step(
     dynamics: StochasticDynamics,
@@ -31,13 +75,9 @@ def _single_step_general_noise(
     num_locs: int,
     use_lagrangian_duality: bool = True,
 ) -> AmbiguityBall:
-    disc_q, w2_q__disc_q = discretize(q, num_locs)
-    disc_noise_dist, w2_noise_dist__disc_noise_dist = discretize(noise, num_locs)
-
-    if isinstance(dynamics, AdditiveNoiseDynamics):
-        q1 = propagate_additive_noise(dynamics, disc_noise_dist, disc_q)
-    else:
-        q1 = propagate_general_discrete_noise(dynamics, disc_noise_dist, disc_q)
+    q1, disc_q, w2_q__disc_q, disc_noise_dist, w2_noise_dist__disc_noise_dist = _discretize_and_propagate_general_noise(
+        dynamics, q.center, noise.center, num_locs,
+    )
 
     if isinstance(dynamics, AdditiveNoiseDynamics):
         if use_lagrangian_duality:
@@ -89,9 +129,7 @@ def _single_step_additive_noise(
     num_locs: int,
     use_lagrangian_duality: bool = True,
 ) -> AmbiguityBall:
-    disc_q, w2_q__disc_q = discretize(q, num_locs)
-
-    q1 = propagate_additive_noise(dynamics, noise.center, disc_q)
+    q1, disc_q, w2_q__disc_q = _discretize_and_propagate_additive_noise(dynamics, q.center, noise.center, num_locs)
 
     if use_lagrangian_duality:
         w2_p__q = q.w2
@@ -115,19 +153,8 @@ def _single_step_additive_noise(
 
     return AmbiguityBall(center=q1, radius=w2_p1__q1)
 
-@dataclass
-class Path:
-    steps: Dict[int, AmbiguityBall] = field(default_factory=dict)
-
-    def append(self, k: int, rec: AmbiguityBall) -> None:
-        self.steps[k] = rec
-
-    def at(self, k: int) -> AmbiguityBall:
-        return self.steps[k]
-
-    @property
-    def ordered_indices(self) -> List[int]:
-        return sorted(self.steps.keys())
+class Path(StepPath[AmbiguityBall]):
+    pass
 
 def multi_step(
     dynamics: StochasticDynamics,
@@ -157,6 +184,74 @@ def multi_step(
 
     return path
 
+def single_step_distribution(
+    dynamics: StochasticDynamics,
+    q: Dist,
+    noise: Dist,
+    num_locs: int,
+    use_additive_noise: bool = True,
+    configuration: str = 'grid',
+) -> Dist:
+    if isinstance(dynamics, AdditiveNoiseDynamics) and use_additive_noise:
+        return _single_step_additive_noise_distribution(dynamics, q, noise, num_locs, configuration)
+    else:
+        return _single_step_general_noise_distribution(dynamics, q, noise, num_locs, configuration)
+
+def _single_step_general_noise_distribution(
+    dynamics: StochasticDynamics,
+    q: Dist,
+    noise: Dist,
+    num_locs: int,
+    configuration: str = 'grid',
+) -> Dist:
+    q1, _, _, _, _ = _discretize_and_propagate_general_noise(dynamics, q, noise, num_locs, configuration=configuration)
+    return q1
+
+def _single_step_additive_noise_distribution(
+    dynamics: AdditiveNoiseDynamics,
+    q: Dist,
+    noise: Dist,
+    num_locs: int,
+    configuration: str = 'grid',
+) -> Dist:
+    q1, _, _ = _discretize_and_propagate_additive_noise(dynamics, q, noise, num_locs, configuration=configuration)
+
+    return q1
+
+
+class DistPath(StepPath[Dist]):
+    pass
+
+
+def multi_step_distribution(
+    dynamics: StochasticDynamics,
+    q: Dist,
+    noise: Dist,
+    num_time_steps: int,
+    num_locs: int,
+    use_additive_noise: bool = True,
+    configuration: str = 'grid',
+    print_progress: bool = True,
+) -> DistPath:
+
+    path = DistPath()
+    path.append(-1, q)
+
+    for k in range(num_time_steps):
+        path.append(k, single_step_distribution(
+            dynamics=dynamics,
+            q=path.at(k-1),
+            noise=noise,
+            num_locs=num_locs,
+            use_additive_noise=use_additive_noise,
+            configuration=configuration,
+        ))
+        if print_progress:
+            print(f"W_2(p_{k+1}, q_{k+1})\n")
+
+    return path
+
+
 def single_step_empirical(
     dynamics: StochasticDynamics,
     p_emp: torch.Tensor,
@@ -167,20 +262,7 @@ def single_step_empirical(
     p1_emp = dynamics(torch.cat((p_emp, noise_emp), dim=-1))
     return p1_emp
 
-@dataclass
-class SampledPath:
-    steps: Dict[int, torch.Tensor] = field(default_factory=dict)
-
-    def append(self, k: int, rec: torch.Tensor) -> None:
-        self.steps[k] = rec
-
-    def at(self, k: int) -> torch.Tensor:
-        return self.steps[k]
-
-    @property
-    def ordered_indices(self) -> List[int]:
-        return sorted(self.steps.keys())
-
+class SampledPath(StepPath[torch.Tensor]):
     def detach(self) -> "SampledPath":
         new = SampledPath()
         for k, v in self.steps.items():
