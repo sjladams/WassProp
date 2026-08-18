@@ -6,6 +6,7 @@ import ot
 import discretize_distributions.distributions as dd_dists
 import discretize_distributions as dd
 
+Dist = Union[dd_dists.MultivariateNormal, dd_dists.MixtureMultivariateNormal, dd_dists.CategoricalFloat]
 
 def cross_product(state_signature, noise_signature):
 
@@ -30,23 +31,34 @@ def sum_discrete_distributions(state_signature, noise_signature):
 
     return sum_probs, sum_locs
 
+DiscreteDist = Union[torch.Tensor, dd_dists.CategoricalFloat]
+
+
+def w2_discrete(p: DiscreteDist, q: DiscreteDist) -> torch.Tensor:
+    """2-Wasserstein distance between two discrete distributions, each given either as raw
+    samples (uniform weights assumed) or as a CategoricalFloat (locs + probs)."""
+    p_locs, p_probs = (p.locs, p.probs) if isinstance(p, dd_dists.CategoricalFloat) else (p, None)
+    q_locs, q_probs = (q.locs, q.probs) if isinstance(q, dd_dists.CategoricalFloat) else (q, None)
+    return ot.solve_sample(X_a=p_locs, X_b=q_locs, a=p_probs, b=q_probs, metric="sqeuclidean").value.sqrt()
+
+
 @torch.no_grad()
 def compress_categorical_float(
         q: dd_dists.CategoricalFloat,
         size_after_compr: int
-) -> Tuple[dd_dists.CategoricalFloat, float]:
+) -> Tuple[dd_dists.CategoricalFloat, Union[float, torch.Tensor]]:
     if size_after_compr >= q.num_components:
         w2_compr = 0.
     else:
         q_pre = copy(q)
         q = dd_dists.compress_categorical_floats(q_pre, n_max=size_after_compr)
-        w2_compr = ot.solve_sample(X_a=q.locs, a=q.probs, X_b=q_pre.locs, b=q_pre.probs, metric="sqeuclidean").value.sqrt()
+        w2_compr = w2_discrete(q, q_pre)
     return q, w2_compr
 
 class AmbiguityBall:
     def __init__(
             self, 
-            center: Union[dd_dists.MultivariateNormal, dd_dists.MixtureMultivariateNormal, dd_dists.CategoricalFloat], 
+            center: Dist, 
             radius: Union[float, torch.Tensor]
         ):
         self.center = center
