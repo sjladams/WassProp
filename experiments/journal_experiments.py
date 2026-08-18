@@ -6,13 +6,14 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 import torch
-import ot
 import discretize_distributions as dd
 import numpy as np
 from scipy.stats import norm
 
 from wass_prop import single_step, multi_step, multi_step_empirical, single_step_empirical, SampledPath, AmbiguityBall
 import wass_prop.wasserstein as wasserstein
+from wass_prop.propagation import multi_step_distribution
+from wass_prop.utils_distributions import w2_discrete
 
 from dynamics import get_stoch_dynamics
 from handlers import parse_arguments
@@ -99,15 +100,7 @@ def sigmoid_example():
 
 
 def convergence_analysis(dynamics_type, setting, num_locs, w2_p__q):
-    args = parse_arguments(
-        dynamics_type=dynamics_type,
-        dynamics_setting=setting,
-        num_locs=num_locs,
-    )
-
-    dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
-    initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
-    noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
+    args, dynamics, initial_dist, noise_dist = _build_system(dynamics_type, setting, num_locs)
 
     results = dict()
     for method in ['global_lipschitz', 'lagrangian_duality']:
@@ -196,6 +189,100 @@ def w2_p__q_convergence_analysis():
     plt.show()
 
 
+def _build_system(dynamics_type, setting, num_locs, num_samples=1000):
+    args = parse_arguments(
+        dynamics_type=dynamics_type,
+        dynamics_setting=setting,
+        num_locs=num_locs,
+        num_samples=num_samples,
+    )
+    dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
+    initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
+    noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
+    return args, dynamics, initial_dist, noise_dist
+
+
+def _w2_series_to_reference(true_samples, get_comparison, ordered_indices):
+    result = {-1: 0.}
+    for k in set(ordered_indices) - {-1}:
+        w2 = w2_discrete(true_samples.at(k), get_comparison(k)).item()
+        result[k] = round(float(w2), 4)
+    return result
+
+
+def dynamic_system_analysis():
+    systems = {
+        # 'Sigmoid (1D)': ('SigmoidDynamics', 0, 100, 'tab:blue'),
+        # 'Bounded Linear (2D)': ('BoundedLinearDynamics', 0, 100, 'tab:green'),
+        # 'Mountain Car (2D)': ('MountainCarJournalDynamics', 0, 100, 'tab:olive'),
+        # 'Mountain Car (2D)': ('MountainCarDynamics', 0, 100, 'tab:olive'),
+        # 'Dubins Car (3D)': ('DubinsCarDynamics', 0, 1000, 'tab:cyan'),
+        'Quadruple-Tank (4D)': ('LinearDynamics', 1, 100, 'tab:purple'),
+        # 'NN Layer (10D)': ('DiagonalSigmoidDynamics', 2, 1000, 'tab:pink'),
+    }
+
+    num_time_steps = 2
+
+    results = dict()
+    for dynamics_name, (dynamics_type, setting, num_locs, _) in systems.items():
+        args, dynamics, initial_dist, noise_dist = _build_system(
+            dynamics_type, setting, num_locs, num_samples=1000
+        )
+        q = AmbiguityBall(initial_dist, 0.)
+        noise = AmbiguityBall(noise_dist, 0.)
+
+        results[dynamics_name] = dict()
+        for method in ['global_lipschitz', 'lagrangian_duality']:
+            path = multi_step(
+                dynamics=dynamics,
+                q=q,
+                noise=noise,
+                num_time_steps=num_time_steps,
+                use_lagrangian_duality=method == 'lagrangian_duality',
+                num_locs=args.num_locs,
+                use_additive_noise=False,
+            )
+            results[dynamics_name][method] = {k: round(float(path.at(k).w2), 4) for k in path.ordered_indices}
+
+        true_samples = multi_step_empirical(
+            dynamics=dynamics,
+            p_emp=initial_dist.sample((args.num_samples,)),
+            noise=noise,
+            num_time_steps=num_time_steps,
+        ).detach()
+
+        results[dynamics_name]['empirical'] = _w2_series_to_reference(
+            true_samples, lambda k: path.at(k).center, path.ordered_indices
+        )
+
+        mc_samples = multi_step_empirical(
+            dynamics=dynamics,
+            p_emp=q.sample(args.num_samples),
+            noise=noise,
+            num_time_steps=num_time_steps,
+        ).detach()
+        results[dynamics_name]['mc'] = _w2_series_to_reference(
+            true_samples, mc_samples.at, path.ordered_indices
+        )
+
+        sigma_path = multi_step_distribution(
+            dynamics=dynamics,
+            q=initial_dist,
+            noise=noise_dist,
+            num_time_steps=num_time_steps,
+            num_locs=100,
+            use_additive_noise=False,
+            configuration='cross',
+        )
+        sigma_samples = SampledPath(
+            {k: sigma_path.at(k).sample((args.num_samples,)) for k in path.ordered_indices}
+        ).detach()
+        results[dynamics_name]['sigma'] = _w2_series_to_reference(
+            true_samples, sigma_samples.at, path.ordered_indices
+        )
+
+    print(json.dumps(results, indent=1))
+
 
 def uniform_vs_optimized():
     num_locs_experiment = [5, 10, 100, 1000]
@@ -236,18 +323,11 @@ def uniform_vs_optimized():
 
 
 def mountain_car_mc_plot():
-    args = parse_arguments(
-        dynamics_type='MountainCarJournalDynamics',
-        dynamics_setting=0,
-        num_locs=100,
-        num_samples=10000
+    args, dynamics, initial_dist, noise_dist = _build_system(
+        'MountainCarJournalDynamics', setting=0, num_locs=100, num_samples=10000
     )
 
     num_time_steps = 10
-
-    dynamics = get_stoch_dynamics(name=args.dynamics_type, **vars(args.dynamics))
-    initial_dist = utils.get_initial_dist(loc=args.initial_dist.loc, variance=args.initial_dist.variance)
-    noise_dist = utils.get_noise_dist(loc=args.noise_dist.loc, variance=args.noise_dist.variance)
 
     q = AmbiguityBall(initial_dist, 0.0)
     noise = AmbiguityBall(noise_dist, 0.0)
@@ -338,7 +418,7 @@ def run_single_step_no_ambiguity(dynamics, q, noise, num_locs, num_samples_empir
         num_samples=num_samples_empirical,
     )
 
-    empirical_w2 = ot.solve_sample(X_a=samples_empirical, X_b=propagated_ball.center.locs, b=propagated_ball.center.probs, metric="sqeuclidean").value.pow(1 / 2).item()
+    empirical_w2 = w2_discrete(samples_empirical, propagated_ball.center).item()
     results['empirical'] = empirical_w2
 
     return results
