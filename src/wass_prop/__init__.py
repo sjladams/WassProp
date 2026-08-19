@@ -8,7 +8,7 @@ from . import bound
 from . import dynamics
 
 __all__ = [
-    'SampledPath', 'single_step', 'multi_step', 'multi_step_empirical', 'single_step_empirical', 'Path', 
+    'SampledPath', 'single_step', 'multi_step', 'multi_step_empirical', 'single_step_empirical', 'Path',
     'GetStochasticDynamics',
     'AmbiguityBall',
     'bound',

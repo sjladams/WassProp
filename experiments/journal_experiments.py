@@ -14,8 +14,8 @@ from scipy.stats import norm
 
 from wass_prop import single_step, multi_step, multi_step_empirical, single_step_empirical, SampledPath, AmbiguityBall
 import wass_prop.wasserstein as wasserstein
-from wass_prop.propagation import multi_step_distribution
-from wass_prop.utils_distributions import w2_discrete
+from unscented import multi_step_unscented
+from wass_prop.utils_distributions import w2_discrete, discretize
 
 from dynamics import get_stoch_dynamics
 from handlers import parse_arguments
@@ -311,23 +311,30 @@ def results_to_latex_table(results: dict, filepath: str, column_order: list | No
     return table_str
 
 
-def dynamic_system_analysis(num_repeats: int = 10, std_multiplier: float = 1.0, num_samples: int = 100000):
+def dynamic_system_analysis(
+        num_repeats: int = 10,
+        std_multiplier: float = 1.0,
+        num_samples: int = 10000,
+        ut_kappa: float | None = 0.,
+        ut_num_samples: int | None = None,
+):
     """
     num_repeats: number of times to redraw samples for the stochastic methods
-        ('empirical', 'mc', 'sigma'); when > 1, their reported value per time step
+        ('empirical', 'mc', 'ut'); when > 1, their reported value per time step
         becomes {'mean': ..., 'std': std_multiplier * sample_std}.
     std_multiplier: e.g. 3. for a 3-sigma band; standard reporting practice is 1
         (a single sample std, or std/sqrt(num_repeats) for the standard error of the mean).
+    ut_kappa: secondary scaling of the unscented transform; None selects the original
+        3 - n of Julier & Uhlmann (1997), which gives a negative centre weight for n > 3.
+    ut_num_samples: how the Gaussian returned by the UT is turned into the discrete measure
+        that w2 is computed against. None (default) quantizes it to num_locs points, i.e. the
+        same support size the formal method reports, so the two are compared at equal
+        resolution; an int instead draws that many samples from it.
     """
     systems = {
-        # 'Sigmoid (1D)': ('SigmoidDynamics', 0, 100, 'tab:blue'),
-        # 'Bounded Linear (2D)': ('BoundedLinearDynamics', 0, 100, 'tab:green'),
-        'NN Layer (3D)': ('DiagonalSigmoidDynamics', 3, 100, 'tab:pink'),
+        'NN Layer (3D)': ('LinearSigmoidStochasticDynamics', 0, 100, 'tab:pink'),
         'Mountain Car (2D)': ('MountainCarJournalDynamics', 0, 100, 'tab:olive'),
-        # 'Mountain Car (2D)': ('MountainCarDynamics', 0, 100, 'tab:olive'),
-        # 'Dubins Car (3D)': ('DubinsCarDynamics', 0, 1000, 'tab:cyan'),
         'Quadruple-Tank (4D)': ('LinearDynamics', 1, 100, 'tab:purple'),
-        # 'NN Layer (10D)': ('DiagonalSigmoidDynamics', 2, 1000, 'tab:pink'),
     }
 
     num_time_steps = 50
@@ -345,7 +352,7 @@ def dynamic_system_analysis(num_repeats: int = 10, std_multiplier: float = 1.0, 
 
         results[dynamics_name] = dict()
         timings[dynamics_name] = dict()
-        for method in ['global_lipschitz', 'lagrangian_duality']:
+        for method in ['lagrangian_duality']:
             print(f"  [{dynamics_name}] method={method}: propagating {num_time_steps} steps...")
             timings[dynamics_name][method] = {}
             with _timer(timings[dynamics_name][method], num_steps=num_time_steps):
@@ -363,22 +370,27 @@ def dynamic_system_analysis(num_repeats: int = 10, std_multiplier: float = 1.0, 
             elapsed = timings[dynamics_name][method][_TIME_KEY]
             print(f"  [{dynamics_name}] method={method}: done in {elapsed:.2f}s, final w2={final_w2}")
 
-        print(f"  [{dynamics_name}] sigma-point: propagating {num_time_steps} steps...")
-        timings[dynamics_name]['sigma'] = {}
-        with _timer(timings[dynamics_name]['sigma'], num_steps=num_time_steps):
-            sigma_path = multi_step_distribution(
+        print(f"  [{dynamics_name}] ut: propagating {num_time_steps} steps...")
+        timings[dynamics_name]['ut'] = {}
+        with _timer(timings[dynamics_name]['ut'], num_steps=num_time_steps):
+            ut_path = multi_step_unscented(
                 dynamics=dynamics,
                 q=initial_dist,
                 noise=noise_dist,
                 num_time_steps=num_time_steps,
-                num_locs=args.num_locs,
                 use_additive_noise=False,
-                configuration='cross',
+                kappa=ut_kappa,
+                print_progress=False,
             )
-        sigma_elapsed = timings[dynamics_name]['sigma'][_TIME_KEY]
-        print(f"  [{dynamics_name}] sigma-point: done in {sigma_elapsed:.2f}s")
+        ut_elapsed = timings[dynamics_name]['ut'][_TIME_KEY]
+        print(f"  [{dynamics_name}] ut: done in {ut_elapsed:.2f}s")
 
-        empirical_series, mc_series, sigma_series = [], [], []
+        ut_indices = [k for k in ut_path.ordered_indices if k != -1]
+        if ut_num_samples is None:
+            # deterministic, and at the same support size as the formal method's own output
+            ut_reference = {k: discretize(ut_path.at(k), args.num_locs)[0] for k in ut_indices}
+
+        empirical_series, mc_series, ut_series = [], [], []
         empirical_times, mc_times = [], []
         for i in range(num_repeats):
             print(f"  [{dynamics_name}] repeat {i + 1}/{num_repeats}")
@@ -401,12 +413,14 @@ def dynamic_system_analysis(num_repeats: int = 10, std_multiplier: float = 1.0, 
             ))
             print(f"    empirical: w2 series computed in {time.perf_counter() - t0:.2f}s")
 
-            print(f"    sigma: computing w2 series...")
+            print(f"    ut: computing w2 series...")
             t0 = time.perf_counter()
-            sigma_series.append(_w2_series_to_reference(
-                true_samples, lambda k: sigma_path.at(k), sigma_path.ordered_indices
+            if ut_num_samples is not None:
+                ut_reference = {k: ut_path.at(k).sample((ut_num_samples,)) for k in ut_indices}
+            ut_series.append(_w2_series_to_reference(
+                true_samples, ut_reference.__getitem__, ut_path.ordered_indices
             ))
-            print(f"    sigma: w2 series computed in {time.perf_counter() - t0:.2f}s")
+            print(f"    ut: w2 series computed in {time.perf_counter() - t0:.2f}s")
 
             print(f"    mc: sampling {args.num_locs} trajectories over {num_time_steps} steps...")
             mc_time = {}
@@ -429,13 +443,13 @@ def dynamic_system_analysis(num_repeats: int = 10, std_multiplier: float = 1.0, 
         if num_repeats == 1:
             results[dynamics_name]['empirical'] = empirical_series[0]
             results[dynamics_name]['mc'] = mc_series[0]
-            results[dynamics_name]['sigma'] = sigma_series[0]
+            results[dynamics_name]['ut'] = ut_series[0]
             timings[dynamics_name]['empirical'] = empirical_times[0]
             timings[dynamics_name]['mc'] = mc_times[0]
         else:
             results[dynamics_name]['empirical'] = _aggregate_repeated_series(empirical_series, std_multiplier)
             results[dynamics_name]['mc'] = _aggregate_repeated_series(mc_series, std_multiplier)
-            results[dynamics_name]['sigma'] = _aggregate_repeated_series(sigma_series, std_multiplier)
+            results[dynamics_name]['ut'] = _aggregate_repeated_series(ut_series, std_multiplier)
             timings[dynamics_name]['empirical'] = _aggregate_repeated_series(empirical_times, std_multiplier)
             timings[dynamics_name]['mc'] = _aggregate_repeated_series(mc_times, std_multiplier)
 
@@ -454,7 +468,7 @@ def render_dynamic_system_analysis_tables(column_order: list | None = None):
     re-running the (expensive) computation. Re-run this on its own after editing the table
     layout (e.g. column_order)."""
     if column_order is None:
-        column_order = ['lagrangian_duality', 'empirical', 'mc', 'sigma']
+        column_order = ['lagrangian_duality', 'empirical', 'mc', 'ut']
 
     results = _load_results_json(os.path.join(RESULTS_DIR, 'dynamic_system_analysis.json'))
     timings = _load_results_json(os.path.join(RESULTS_DIR, 'dynamic_system_analysis_timings.json'))

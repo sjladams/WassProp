@@ -76,6 +76,10 @@ class AdditiveNoiseDynamics(StochasticDynamics):
         return self[0].subnetworks[0]
 
     @property
+    def noise_dynamics(self):
+        return self[0].subnetworks[1]
+
+    @property
     def global_lipschitz(self):
         return self.state_dynamics.global_lipschitz
 
