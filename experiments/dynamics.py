@@ -113,10 +113,6 @@ class MountainCarJournalDynamics(Dynamics):
             ]
         )
 
-    # @property
-    # def global_lipschitz(self):
-    #     return 2.
-
 class MountainCarDynamics(Dynamics):
     def __init__(self, action: float = 2.0):
         """
@@ -475,7 +471,7 @@ class LinearSigmoidStochasticDynamics(StochasticDynamics):
             num_noise_dims=linear_dynamics.num_noise_dims,
             modules=[
                 linear_dynamics,
-                SigmoidDynamics(self.num_state_dims)
+                SigmoidDynamics(linear_dynamics.num_state_dims)
             ]
         )
 
