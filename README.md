@@ -4,8 +4,7 @@ WassProp is a PyTorch toolkit for **formal uncertainty propagation** through (st
 
 The algorithmic backbone and theoretical guarantees were first proposed in  [Figueiredo *et al.* (2025)](https://arxiv.org/pdf/2506.08689) and extended to the additive-noise setting in [Adams *et al.* (2025)](https://arxiv.org/pdf/2505.11219). 
 
-The framework builds on the [**discretize_distributions**](https://github.com/sjladams/discretize_distributions) package for quantization (i.e., discretization) of continuous distributions with Wasserstein guarantees, and employs a modified version of [**bound_propagation**](https://github.com/Zinoex/bound_propagation)  
-to compute local Lipschitz constants.
+The framework builds on the [**discretize_distributions**](https://github.com/sjladams/discretize_distributions) package for quantization (i.e., discretization) of continuous distributions with Wasserstein guarantees, and employs [**pointwise_lipschitz**](https://github.com/sjladams/pointwise_lipschitz) and [**bound_propagation**](https://github.com/Zinoex/bound_propagation) to compute the linearization coefficients required for the propagation.
 
 For a hands-on introduction to the theoretical principles, see [`demo_cdc_workshop.ipynb`](experiments/demo_cdc_workshop.ipynb) notebook.
 
@@ -17,7 +16,6 @@ pip install git+https://github.com/sjladams/WassProp
 ```
 *(A PyPI release will follow soon.)*
 
-## Quick start
 ## Quick start
 
 ```python
