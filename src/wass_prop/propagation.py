@@ -98,7 +98,7 @@ def _single_step_general_noise(
     q1, w2_disc, disc_cross = _discretize_and_propagate_general_noise(dynamics, q.center, noise.center, num_locs)
 
     if use_lagrangian_duality:
-        if isinstance(q.center, dd_dists.MultivariateNormal) and q.w2 == 0. and noise.w2 == 0.:
+        if isinstance(q.center, dd_dists.MultivariateNormal) and q.w2 == 0. and noise.w2 == 0. and False:
             w2_p1__q1 = wasserstein.compute_w2_f_q__f_disc_q_lagrangian_duality(
                 q=q.center,
                 disc_q=disc_cross,
