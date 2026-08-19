@@ -252,58 +252,47 @@ def _load_results_json(filepath: str) -> dict:
 
 def results_to_latex_table(results: dict, filepath: str, column_order: list | None = None) -> str:
     """Render a {dynamics_name: {method: {time_step: value}}} results dict as a LaTeX
-    table with time steps as rows and a multicolumn block per dynamics, subdivided into
-    one column per method.
+    table with time steps as rows and one method per column, stacking a separate block
+    per dynamics vertically under a single shared header row.
 
-    column_order: if given, methods are ordered to match it (per dynamics), with any
-        methods not listed appended at the end in their original order. If None, methods
-        keep their dict order."""
+    column_order: if given, only these methods are included, in this order (methods not
+        listed are dropped from the table). If None, all methods are included, in their
+        first-seen dict order. The same method columns are used for every dynamics
+        block; a dynamics missing a method gets '--' in that column."""
     dynamics_names = list(results.keys())
-    if column_order is None:
-        methods_per_dynamics = {name: list(methods.keys()) for name, methods in results.items()}
-    else:
-        methods_per_dynamics = {
-            name: [m for m in column_order if m in methods] + [m for m in methods if m not in column_order]
-            for name, methods in results.items()
-        }
+
+    all_methods = []
+    for methods in results.values():
+        for method in methods:
+            if method not in all_methods:
+                all_methods.append(method)
+    if column_order is not None:
+        all_methods = [m for m in column_order if m in all_methods]
 
     time_steps = sorted({
         k for methods in results.values() for series in methods.values() for k in series.keys()
     })
 
-    col_spec = 'c' + ''.join('c' * len(methods_per_dynamics[name]) for name in dynamics_names)
+    col_spec = 'c' + 'c' * len(all_methods)
 
     lines = [
         r'\begin{tabular}{' + col_spec + '}',
         r'\toprule',
     ]
 
-    # header row 1: dynamics name spanning its methods
-    header1_cells = ['']
-    cmidrules = []
-    col_start = 2
-    for name in dynamics_names:
-        n_methods = len(methods_per_dynamics[name])
-        header1_cells.append(rf'\multicolumn{{{n_methods}}}{{c}}{{{name}}}')
-        cmidrules.append(rf'\cmidrule(lr){{{col_start}-{col_start + n_methods - 1}}}')
-        col_start += n_methods
-    lines.append(' & '.join(header1_cells) + r' \\')
-    lines.extend(cmidrules)
+    # header row: method labels, shared across all dynamics blocks
+    header_cells = [r'$t$'] + all_methods
+    lines.append(' & '.join(header_cells) + r' \\')
 
-    # header row 2: method labels
-    header2_cells = [r'$t$']
+    # data: one block per dynamics
     for name in dynamics_names:
-        for method in methods_per_dynamics[name]:
-            header2_cells.append(method)
-    lines.append(' & '.join(header2_cells) + r' \\')
-    lines.append(r'\midrule')
-
-    # data rows
-    for k in time_steps:
-        row_cells = [str(k + 1)]
-        for name in dynamics_names:
-            for method in methods_per_dynamics[name]:
-                value = results[name][method].get(k)
+        lines.append(r'\midrule')
+        lines.append(rf'\multicolumn{{{len(all_methods) + 1}}}{{c}}{{{name}}} \\')
+        lines.append(r'\midrule')
+        for k in time_steps:
+            row_cells = [str(k + 1)]
+            for method in all_methods:
+                value = results[name].get(method, {}).get(k)
                 if value is None:
                     cell = '--'
                 elif isinstance(value, dict):
@@ -311,7 +300,7 @@ def results_to_latex_table(results: dict, filepath: str, column_order: list | No
                 else:
                     cell = f'{value:.4f}'
                 row_cells.append(cell)
-        lines.append(' & '.join(row_cells) + r' \\')
+            lines.append(' & '.join(row_cells) + r' \\')
 
     lines.append(r'\bottomrule')
     lines.append(r'\end{tabular}')
@@ -465,7 +454,7 @@ def render_dynamic_system_analysis_tables(column_order: list | None = None):
     re-running the (expensive) computation. Re-run this on its own after editing the table
     layout (e.g. column_order)."""
     if column_order is None:
-        column_order = ['mc', 'sigma', 'empirical', 'global_lipschitz', 'lagrangian_duality']
+        column_order = ['lagrangian_duality', 'empirical', 'mc', 'sigma']
 
     results = _load_results_json(os.path.join(RESULTS_DIR, 'dynamic_system_analysis.json'))
     timings = _load_results_json(os.path.join(RESULTS_DIR, 'dynamic_system_analysis_timings.json'))
