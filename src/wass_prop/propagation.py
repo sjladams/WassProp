@@ -33,16 +33,34 @@ def _discretize_and_propagate_general_noise(
     noise: Dist,
     num_locs: int,
     configuration: str = 'grid',
-) -> Tuple[Dist, dd_dists.CategoricalFloat, TensorLike, dd_dists.CategoricalFloat, TensorLike]:
+) -> Tuple[Dist, TensorLike, dd_dists.CategoricalFloat]:
     disc_q, w2_q__disc_q = discretize(q, num_locs, configuration=configuration)
-    disc_noise_dist, w2_noise_dist__disc_noise_dist = discretize(noise, num_locs, configuration=configuration)
+    disc_noise, w2_noise__disc_noise = discretize(noise, num_locs, configuration=configuration)
 
-    if isinstance(dynamics, AdditiveNoiseDynamics):
-        q1 = propagate_additive_noise(dynamics, disc_noise_dist, disc_q)
-    else:
-        q1 = propagate_general_discrete_noise(dynamics, disc_noise_dist, disc_q)
+    cross_probs, cross_locs = cross_product(disc_q, disc_noise)
+    disc_cross = dd_dists.CategoricalFloat(probs=cross_probs, locs=cross_locs)
+    disc_cross, w2_compr = discretize(disc_cross, num_locs=num_locs)
 
-    return q1, disc_q, w2_q__disc_q, disc_noise_dist, w2_noise_dist__disc_noise_dist
+    q1 = dd_dists.CategoricalFloat(probs=disc_cross.probs, locs=dynamics(disc_cross.locs))
+
+    w2_disc = w2_q__disc_q + w2_noise__disc_noise + w2_compr
+
+    return q1, w2_disc, disc_cross
+
+def _discretize_and_propagate_additive_noise_as_general_noise(
+    dynamics: AdditiveNoiseDynamics,
+    q: Dist,
+    noise: Dist,
+    num_locs: int,
+    configuration: str = 'grid',
+) -> Tuple[Dist, dd_dists.CategoricalFloat, TensorLike, TensorLike, TensorLike]:
+    disc_q, w2_q__disc_q = discretize(q, num_locs, configuration=configuration)
+    disc_noise, w2_noise_dist__disc_noise_dist = discretize(noise, num_locs, configuration=configuration)
+
+    q1 = propagate_additive_noise(dynamics, disc_noise, disc_q)
+    q1, w2_compr = discretize(q1, num_locs=num_locs)
+
+    return q1, disc_q, w2_q__disc_q, w2_noise_dist__disc_noise_dist, w2_compr
 
 def _discretize_and_propagate_additive_noise(
     dynamics: AdditiveNoiseDynamics,
@@ -65,6 +83,8 @@ def single_step(
 ) -> AmbiguityBall:
     if isinstance(dynamics, AdditiveNoiseDynamics) and use_additive_noise:
         return _single_step_additive_noise(dynamics, q, noise, num_locs, use_lagrangian_duality)
+    elif isinstance(dynamics, AdditiveNoiseDynamics):
+        return _single_step_additive_noise_as_general_noise(dynamics, q, noise, num_locs, use_lagrangian_duality)
     else:
         return _single_step_general_noise(dynamics, q, noise, num_locs, use_lagrangian_duality)
 
@@ -75,50 +95,56 @@ def _single_step_general_noise(
     num_locs: int,
     use_lagrangian_duality: bool = True,
 ) -> AmbiguityBall:
-    q1, disc_q, w2_q__disc_q, disc_noise_dist, w2_noise_dist__disc_noise_dist = _discretize_and_propagate_general_noise(
+    q1, w2_disc, disc_cross = _discretize_and_propagate_general_noise(dynamics, q.center, noise.center, num_locs)
+
+    if use_lagrangian_duality:
+        if isinstance(q.center, dd_dists.MultivariateNormal) and q.w2 == 0. and noise.w2 == 0.:
+            w2_p1__q1 = wasserstein.compute_w2_f_q__f_disc_q_lagrangian_duality(
+                q=q.center,
+                disc_q=disc_cross,
+                f=dynamics,
+            )
+        else:
+            w2_p1__q1 = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
+                disc_q=disc_cross,
+                f=dynamics,
+                w2_p__disc_q=q.w2 + noise.w2 + w2_disc
+            )
+    else:
+        w2_p1__q1 = dynamics.global_lipschitz * (q.w2 + noise.w2 + w2_disc)
+
+    return AmbiguityBall(center=q1, radius=w2_p1__q1)
+
+def _single_step_additive_noise_as_general_noise(
+    dynamics: AdditiveNoiseDynamics,
+    q: AmbiguityBall,
+    noise: AmbiguityBall,
+    num_locs: int,
+    use_lagrangian_duality: bool = True,
+) -> AmbiguityBall:
+    q1, disc_q, w2_q__disc_q, w2_noise__disc_noise, w2_compr = _discretize_and_propagate_additive_noise_as_general_noise(
         dynamics, q.center, noise.center, num_locs,
     )
 
-    if isinstance(dynamics, AdditiveNoiseDynamics):
-        if use_lagrangian_duality:
-            w2_p__q = q.w2
+    if use_lagrangian_duality:
 
-            if isinstance(q.center, dd_dists.MultivariateNormal) and w2_p__q == 0.:
-                w2_p1__q1 = wasserstein.compute_w2_f_q__f_disc_q_lagrangian_duality(
-                    q=q.center,
-                    disc_q=disc_q,
-                    f=dynamics.state_dynamics,
-                )
-            else:
-                w2_p1__q1 = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-                    disc_q=disc_q,
-                    f=dynamics.state_dynamics,
-                    w2_p__disc_q=w2_p__q + w2_q__disc_q,
-                )
-
-            w2_p__q = w2_p__q + w2_noise_dist__disc_noise_dist + noise.w2
+        if isinstance(q.center, dd_dists.MultivariateNormal) and q.w2 == 0.:
+            w2_p1__q1 = wasserstein.compute_w2_f_q__f_disc_q_lagrangian_duality(
+                q=q.center,
+                disc_q=disc_q,
+                f=dynamics.state_dynamics,
+            )
         else:
-            w2_p1__q1 = dynamics.global_lipschitz * (w2_q__disc_q + q.w2) + w2_noise_dist__disc_noise_dist + noise.w2
+            w2_p1__q1 = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
+                disc_q=disc_q,
+                f=dynamics.state_dynamics,
+                w2_p__disc_q=q.w2 + w2_q__disc_q,
+            )
 
+        w2_p1__q1 = w2_p1__q1 + noise.w2 + w2_noise__disc_noise + w2_compr
     else:
-        if use_lagrangian_duality:
-            w2_p__q = q.w2 + noise.w2
-            w2_q__disc_q = w2_q__disc_q + w2_noise_dist__disc_noise_dist
+        w2_p1__q1 = dynamics.global_lipschitz * (w2_q__disc_q + q.w2) + w2_noise__disc_noise + noise.w2 + w2_compr
 
-            if isinstance(q.center, dd_dists.MultivariateNormal) and w2_p__q == 0.:
-                w2_p1__q1 = wasserstein.compute_w2_f_q__f_disc_q_lagrangian_duality(
-                    q=q.center,
-                    disc_q=disc_q,
-                    f=dynamics,
-                )
-            else:
-                w2_p1__q1 = wasserstein.compute_w2_f_p__f_disc_q_lagrangian_duality(
-                    disc_q=disc_q,
-                    f=dynamics,
-                    w2_p__disc_q=w2_p__q + w2_q__disc_q
-                )
-        else:
-            w2_p1__q1 = dynamics.global_lipschitz * (w2_q__disc_q + q.w2 + w2_noise_dist__disc_noise_dist + noise.w2)
 
     return AmbiguityBall(center=q1, radius=w2_p1__q1)
 
@@ -193,30 +219,14 @@ def single_step_distribution(
     configuration: str = 'grid',
 ) -> Dist:
     if isinstance(dynamics, AdditiveNoiseDynamics) and use_additive_noise:
-        return _single_step_additive_noise_distribution(dynamics, q, noise, num_locs, configuration)
+        q1, _, _ = _discretize_and_propagate_additive_noise(dynamics, q, noise, num_locs, configuration=configuration)
+        return q1
+    elif isinstance(dynamics, AdditiveNoiseDynamics):
+        q1, _, _, _, _ = _discretize_and_propagate_additive_noise_as_general_noise(dynamics, q, noise, num_locs, configuration=configuration)
+        return q1
     else:
-        return _single_step_general_noise_distribution(dynamics, q, noise, num_locs, configuration)
-
-def _single_step_general_noise_distribution(
-    dynamics: StochasticDynamics,
-    q: Dist,
-    noise: Dist,
-    num_locs: int,
-    configuration: str = 'grid',
-) -> Dist:
-    q1, _, _, _, _ = _discretize_and_propagate_general_noise(dynamics, q, noise, num_locs, configuration=configuration)
-    return q1
-
-def _single_step_additive_noise_distribution(
-    dynamics: AdditiveNoiseDynamics,
-    q: Dist,
-    noise: Dist,
-    num_locs: int,
-    configuration: str = 'grid',
-) -> Dist:
-    q1, _, _ = _discretize_and_propagate_additive_noise(dynamics, q, noise, num_locs, configuration=configuration)
-
-    return q1
+        q1, _, _ = _discretize_and_propagate_general_noise(dynamics, q, noise, num_locs, configuration=configuration)
+        return q1
 
 
 class DistPath(StepPath[Dist]):
@@ -329,11 +339,3 @@ def propagate_additive_noise(
     else:
         raise NotImplementedError(f"Noise of type {type(noise_dist)} not supported")
 
-
-def propagate_general_discrete_noise(
-        dynamics: StochasticDynamics,
-        sign_noise_dist: dd_dists.CategoricalFloat,
-        disc_state_dist: dd_dists.CategoricalFloat
-):
-    cross_probs, cross_locs = cross_product(disc_state_dist, sign_noise_dist)
-    return dd_dists.CategoricalFloat(probs=cross_probs, locs=dynamics(cross_locs))
