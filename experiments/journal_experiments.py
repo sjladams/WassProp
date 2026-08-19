@@ -375,22 +375,22 @@ def dynamic_system_analysis(num_repeats: int = 10, std_multiplier: float = 1.0, 
             print(f"  [{dynamics_name}] method={method}: done in {elapsed:.2f}s, final w2={final_w2}")
 
         print(f"  [{dynamics_name}] sigma-point: propagating {num_time_steps} steps...")
-        sigma_path_timing = {}
-        with _timer(sigma_path_timing):
+        timings[dynamics_name]['sigma'] = {}
+        with _timer(timings[dynamics_name]['sigma'], num_steps=num_time_steps):
             sigma_path = multi_step_distribution(
                 dynamics=dynamics,
                 q=initial_dist,
                 noise=noise_dist,
                 num_time_steps=num_time_steps,
-                num_locs=100,
+                num_locs=args.num_locs,
                 use_additive_noise=False,
                 configuration='cross',
             )
-        sigma_path_time = sigma_path_timing[_TIME_KEY]
-        print(f"  [{dynamics_name}] sigma-point: done in {sigma_path_time:.2f}s")
+        sigma_elapsed = timings[dynamics_name]['sigma'][_TIME_KEY]
+        print(f"  [{dynamics_name}] sigma-point: done in {sigma_elapsed:.2f}s")
 
         empirical_series, mc_series, sigma_series = [], [], []
-        empirical_times, mc_times, sigma_times = [], [], []
+        empirical_times, mc_times = [], []
         for i in range(num_repeats):
             print(f"  [{dynamics_name}] repeat {i + 1}/{num_repeats}")
             print(f"    empirical: sampling {args.num_samples} trajectories over {num_time_steps} steps...")
@@ -405,37 +405,37 @@ def dynamic_system_analysis(num_repeats: int = 10, std_multiplier: float = 1.0, 
             empirical_times.append(empirical_time)
             print(f"    empirical: done in {empirical_time[_TIME_KEY]:.2f}s")
 
+            print(f"    empirical: computing w2 series...")
+            t0 = time.perf_counter()
             empirical_series.append(_w2_series_to_reference(
                 true_samples, lambda k: path.at(k).center, path.ordered_indices
             ))
+            print(f"    empirical: w2 series computed in {time.perf_counter() - t0:.2f}s")
 
-            print(f"    mc: sampling {args.num_samples} trajectories over {num_time_steps} steps...")
+            print(f"    sigma: computing w2 series...")
+            t0 = time.perf_counter()
+            sigma_series.append(_w2_series_to_reference(
+                true_samples, lambda k: sigma_path.at(k), sigma_path.ordered_indices
+            ))
+            print(f"    sigma: w2 series computed in {time.perf_counter() - t0:.2f}s")
+
+            print(f"    mc: sampling {args.num_locs} trajectories over {num_time_steps} steps...")
             mc_time = {}
             with _timer(mc_time, num_steps=num_time_steps):
                 mc_samples = multi_step_empirical(
                     dynamics=dynamics,
-                    p_emp=q.sample(args.num_samples),
+                    p_emp=q.sample(args.num_locs),
                     noise=noise,
                     num_time_steps=num_time_steps,
                 ).detach()
             mc_times.append(mc_time)
             print(f"    mc: done in {mc_time[_TIME_KEY]:.2f}s")
+            print(f"    mc: computing w2 series...")
+            t0 = time.perf_counter()
             mc_series.append(_w2_series_to_reference(
                 true_samples, mc_samples.at, path.ordered_indices
             ))
-
-            print(f"    sigma: sampling {args.num_samples} points from precomputed sigma path...")
-            sigma_time = {}
-            with _timer(sigma_time):
-                sigma_samples = SampledPath(
-                    {k: sigma_path.at(k).sample((args.num_samples,)) for k in path.ordered_indices}
-                ).detach()
-            sigma_time[_TIME_KEY] = round((sigma_time[_TIME_KEY] + sigma_path_time) / num_time_steps, 4)
-            sigma_times.append(sigma_time)
-            print(f"    sigma: done in {sigma_time[_TIME_KEY]:.2f}s")
-            sigma_series.append(_w2_series_to_reference(
-                true_samples, sigma_samples.at, path.ordered_indices
-            ))
+            print(f"    mc: w2 series computed in {time.perf_counter() - t0:.2f}s")
 
         if num_repeats == 1:
             results[dynamics_name]['empirical'] = empirical_series[0]
@@ -443,14 +443,12 @@ def dynamic_system_analysis(num_repeats: int = 10, std_multiplier: float = 1.0, 
             results[dynamics_name]['sigma'] = sigma_series[0]
             timings[dynamics_name]['empirical'] = empirical_times[0]
             timings[dynamics_name]['mc'] = mc_times[0]
-            timings[dynamics_name]['sigma'] = sigma_times[0]
         else:
             results[dynamics_name]['empirical'] = _aggregate_repeated_series(empirical_series, std_multiplier)
             results[dynamics_name]['mc'] = _aggregate_repeated_series(mc_series, std_multiplier)
             results[dynamics_name]['sigma'] = _aggregate_repeated_series(sigma_series, std_multiplier)
             timings[dynamics_name]['empirical'] = _aggregate_repeated_series(empirical_times, std_multiplier)
             timings[dynamics_name]['mc'] = _aggregate_repeated_series(mc_times, std_multiplier)
-            timings[dynamics_name]['sigma'] = _aggregate_repeated_series(sigma_times, std_multiplier)
 
     results_path = os.path.join(RESULTS_DIR, 'dynamic_system_analysis.json')
     timings_path = os.path.join(RESULTS_DIR, 'dynamic_system_analysis_timings.json')
