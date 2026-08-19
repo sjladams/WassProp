@@ -656,26 +656,26 @@ def conservativeness_analysis():
 if __name__ == '__main__':
     torch.manual_seed(0)
 
-    # # Figure 3
-    # sigmoid_example()
+    # Figure 3
+    sigmoid_example()
 
-    # # Figure 5
-    # num_loc_convergence_analysis(w2_p__q_values=[0, 0.1])
+    # Figure 5
+    num_loc_convergence_analysis(w2_p__q_values=[0, 0.1])
 
-    # # Figure 6
-    # w2_p__q_convergence_analysis()
+    # Figure 6
+    w2_p__q_convergence_analysis()
 
-    # # Figure 7
-    # mountain_car_mc_plot()
+    # Figure 7
+    mountain_car_mc_plot()
 
-    # # Figure 8
-    # # See dimensional_analysis.py
+    # Figure 8
+    # See dimensional_analysis.py
 
-    # # Table I
-    # uniform_vs_optimized()
+    # Table I
+    uniform_vs_optimized()
 
     # Table II
     dynamic_system_analysis()
 
-    # # Table III
+    # # Table III (depreciated)
     # conservativeness_analysis()
