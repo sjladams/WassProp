@@ -1,0 +1,36 @@
+[project]
+name = "WassProp"
+version = "1.0.0.dev"
+description = "Formal Uncertainty Propagation in Wasserstein Distance"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "Steven Adams", email = "stevenjladams@gmail.com"},
+    {name = "Eduardo Figueiredo"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "torch>=2.5.1",
+    "discretize_distributions @ git+https://github.com/sjladams/discretize_distributions.git",
+    "pointwise_lipschitz @ git+https://github.com/sjladams/pointwise_lipschitz.git",
+    "bound_propagation>=0.4.6",
+    "POT>=0.9.6",
+]
+
+[project.optional-dependencies]
+examples = ["matplotlib"]
+
+[project.urls]
+Homepage = "https://github.com/sjladams/WassProp"
+"Bug Tracker" = "https://github.com/sjladams/WassProp/issues"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

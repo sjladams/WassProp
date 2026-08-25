@@ -32,3 +32,5 @@ sandbox/
 
 ## Results files
 **/results/
+.claude
+CLAUDE.md

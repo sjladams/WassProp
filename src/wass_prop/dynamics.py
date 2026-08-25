@@ -1,37 +1,28 @@
 from typing import Callable, Dict, Protocol, Optional, Union, List
-from abc import abstractmethod, ABC
 
 import torch
 import bound_propagation as bp
+import pointwise_lipschitz as pl
 
-from . import linear_bound_propagation as lbp  # TODO remove this depenency
+pl_factory = pl.BoundModelFactory()
+
 from . import utils
 
-class Dynamics(ABC, torch.nn.Sequential):
-    _separable = False
+class Dynamics(torch.nn.Sequential):
 
     """
     z_{k+1} = dynamics(z_k), with z the state or noise
-
-    If the dynamics is separable, then it can be written as
-
-    z_{k+1} = (dynamics^1(z_k^1), ..., dynamics^n(z_k^n)), with z the state or noise and n=num_dims
 
     """
     def __init__(self, num_dims: int, modules: Union[List[torch.nn.Module], torch.nn.Module]):
         self.num_dims = num_dims
         super().__init__(*(modules if isinstance(modules, list) else [modules]))
-
-    @property
-    def separable(self):
-        return self._separable
     
     @property
-    @abstractmethod
     def global_lipschitz(self) -> Union[float, torch.Tensor]:
-        pass
+        return pl_factory.build(self).lipschitz()
 
-class StochasticDynamics(ABC, torch.nn.Sequential):
+class StochasticDynamics(torch.nn.Sequential):
     """
     x_{k+1} = stochastic_dynamics(x_k, noise_k)
     """
@@ -50,9 +41,8 @@ class StochasticDynamics(ABC, torch.nn.Sequential):
         return super().forward(input)
 
     @property
-    @abstractmethod
     def global_lipschitz(self) -> Union[float, torch.Tensor]:
-        pass
+        return pl_factory.build(self).lipschitz()
 
 class AdditiveNoiseDynamics(StochasticDynamics):
     """
@@ -86,6 +76,10 @@ class AdditiveNoiseDynamics(StochasticDynamics):
         return self[0].subnetworks[0]
 
     @property
+    def noise_dynamics(self):
+        return self[0].subnetworks[1]
+
+    @property
     def global_lipschitz(self):
         return self.state_dynamics.global_lipschitz
 
@@ -109,15 +103,7 @@ class LinearDynamics(Dynamics):
         if isinstance(bias, list):
             bias = torch.as_tensor(bias)
 
-        self._global_lipschitz = torch.linalg.svd(weight).S[0]
-
-        self._separable = utils.is_mat_diag(weight)
-
         super().__init__(num_dims=weight.size(-1), modules=Linear(weight, bias))
-
-    @property
-    def global_lipschitz(self):
-        return self._global_lipschitz
 
 class PreBoundedDynamics(Dynamics):
     def __init__(
@@ -126,16 +112,10 @@ class PreBoundedDynamics(Dynamics):
         lower: Union[float, torch.Tensor, list],
         upper: Union[float, torch.Tensor, list],
     ):
-        self._separable = dynamics.separable
-
         super().__init__(
             num_dims=dynamics.num_dims, 
             modules=[bp.Clamp(torch.as_tensor(lower), torch.as_tensor(upper)), dynamics]
         )
-
-    @property
-    def global_lipschitz(self):
-        return self[1].global_lipschitz
 
 class PostBoundedDynamics(Dynamics):
     def __init__(
@@ -144,34 +124,11 @@ class PostBoundedDynamics(Dynamics):
         lower: Union[float, torch.Tensor, list],
         upper: Union[float, torch.Tensor, list],
     ):
-        self._separable = dynamics.separable
-
         super().__init__(
             num_dims=dynamics.num_dims, 
             modules=[dynamics, bp.Clamp(torch.as_tensor(lower), torch.as_tensor(upper))]
         )
 
-    @property
-    def global_lipschitz(self):
-        return self[0].global_lipschitz
-
-class IndicatorDynamics(Dynamics):
-    def __init__(
-        self, 
-        dynamics,
-        lower: Union[float, torch.Tensor, list], 
-        upper: Union[float, torch.Tensor, list],
-    ):
-        self._separable = dynamics.separable
-
-        super().__init__(
-            num_dims=dynamics.num_dims,
-            modules=[lbp.BoxedIndicator(min=torch.as_tensor(lower), max=torch.as_tensor(upper)), dynamics]
-        )
-
-    @property
-    def global_lipschitz(self):
-        return self[1].global_lipschitz
 
 class NNLayerDynamics(Dynamics):
     def __init__(
@@ -183,18 +140,10 @@ class NNLayerDynamics(Dynamics):
         if isinstance(bias, list):
             bias = torch.as_tensor(bias)
 
-        self._global_lipschitz = 0.25 * torch.linalg.svd(weight).S[0]
-
-        self._separable = utils.is_mat_diag(weight)
-
         super().__init__(
             num_dims=weight.size(-1),
             modules=[Linear(weight, bias), torch.nn.Sigmoid()]
         )
-
-    @property
-    def global_lipschitz(self):
-        return self._global_lipschitz
 
 class LinearStochasticDynamics(StochasticDynamics):
     def __init__(
@@ -218,10 +167,6 @@ class LinearStochasticDynamics(StochasticDynamics):
             num_noise_dims=weight.size(1) - weight.size(0),
             modules=[LinearDynamics(weight=weight, bias=bias)]
         )
-
-    @property
-    def global_lipschitz(self):
-        return self[0].global_lipschitz
 
 
 # --- Helpers -----------------------------------------------------------------
@@ -247,7 +192,6 @@ class GetStochasticDynamics:
         LinearDynamics=additive(LinearDynamics),
         PreBoundedDynamics=additive(PreBoundedDynamics),
         PostBoundedDynamics=additive(PostBoundedDynamics), 
-        IndicatorDynamics=additive(IndicatorDynamics),
     )
 
     def register(self, name: str, factory: Union[StochasticDynamicsFactoryFn, StochasticDynamics]) -> None:

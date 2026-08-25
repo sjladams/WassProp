@@ -160,6 +160,18 @@
             }
         }
     },
+    "MountainCarJournalDynamics": {
+        "0": {
+            "noise_dist": {
+                "loc": [0.0, 0.0],
+                "variance": [0.01, 0.01]
+            },
+            "initial_dist": {
+                "loc": [0.3, 0.2],
+                "variance": [0.1, 0.001]
+            }
+        }
+    },
     "DubinsCarDynamics": {
         "0": {
             "noise_dist": {
@@ -175,15 +187,19 @@
     "LinearSigmoidStochasticDynamics": {
         "0": {
             "dynamics": {
-                "diagonal": [3.0, 1.5, 1.2, 0.5, 1.0, 0.9]
+                "weight": [
+                    [3.0, 0.0, 0.0, 0.5, 0.0, 0.0],
+                    [0.0, 1.5, 0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 1.2, 0.0, 0.0, 0.9]
+                ]
             }, 
             "noise_dist": {
                 "loc": [0.0, 0.0, 0.0],
-                "variance": [0.1, 0.1, 0.01]
+                "variance": [0.01, 0.01, 0.01]
             }, 
             "initial_dist": {
                 "loc": [1.5, -1.2, 2.4],
-                "variance": [0.01, 0.5, 0.2]
+                "variance": [0.01, 0.1, 0.2]
             }
         }
     },
