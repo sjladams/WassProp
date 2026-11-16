@@ -1,6 +1,6 @@
 [project]
 name = "WassProp"
-version = "1.0.0.dev"
+version = "1.0.0"
 description = "Formal Uncertainty Propagation in Wasserstein Distance"
 readme = "README.md"
 requires-python = ">=3.10"
